@@ -1,132 +1,150 @@
-# Welcome to OpenAdapt.AI
+# OpenAdapt.AI
 
-**OpenAdapt.AI** is an open source **Generative Process Automation** platform that transforms desktop automation through machine learning. Record human demonstrations, train vision-language models, and deploy agents that adapt to any software environment.
+**AI-First Process Automation for the Desktop Era**
 
-## What is OpenAdapt.AI?
+OpenAdapt.AI is an open-source Generative Process Automation platform that transforms desktop automation through machine learning. Record human demonstrations, train vision-language models, and deploy agents that adapt to any software environment.
 
-OpenAdapt.AI leverages advanced machine learning models to:
+## 🎯 Core Capabilities
 
-- **Observe and Learn**: Automatically learns from user interactions to generate automation scripts
-- **Automate Intelligently**: Adapts to software changes, varying workflows, and complex environments
-- **Ensure Privacy**: Built-in data protection with support for AWS Rekognition, Microsoft Presidio, and Private-ai.com
+- **Learn by Demonstration**: Automatically learns from user interactions to generate automation scripts
+- **Adaptive Intelligence**: Adapts to software changes and complex environments using multimodal models
+- **Privacy-First**: Built-in data protection with PII/PHI detection and redaction
+- **Cross-Platform**: Works with browsers and desktop applications across macOS and Windows
+- **Multi-Model Support**: Integrates with OpenAI, Anthropic, Google, Ollama, and vLLM
+- **Open Source**: Community-driven development with MIT licensing
 
-## Key Features
+## 🏗️ Ecosystem
 
-- **Generative Process Automation**: Automates tasks using generative AI models that learn from demonstrations
-- **Cross-Platform Compatibility**: Works with browser apps (Chrome) and desktop applications
-- **Audio Narration Transcription**: Converts spoken instructions into automation scripts
-- **Flexible Model Providers**: Supports OpenAI, Anthropic, Google (online) and Ollama, vLLM (offline)
-- **Open Source**: Developed transparently and collaboratively by the community
-- **Privacy by Design**: Robust data handling mechanisms to protect user data
+### Core Platform
 
-## Package Ecosystem
+| Repository | Description | Language |
+|------------|-------------|----------|
+| **[OpenAdapt](https://github.com/OpenAdaptAI/OpenAdapt)** | Main platform orchestrating GUI automation with LMMs. Meta-package integrating all ecosystem components | Python |
+| **[app](https://github.com/OpenAdaptAI/app)** | Desktop application providing user-friendly interface for workflow automation | Cross-platform |
 
-OpenAdapt.AI is built as a **modular ecosystem** of specialized packages:
+### Modular Components
 
-| Package | Description | Status |
-|---------|-------------|--------|
-| [**openadapt**](https://github.com/OpenAdaptAI/openadapt) | Core platform - unified CLI, recording, training, evaluation | Active Development |
-| [**openadapt-ml**](https://github.com/OpenAdaptAI/openadapt-ml) | ML engine for training GUI automation models | Active Development |
-| [**openadapt-capture**](https://github.com/OpenAdaptAI/openadapt-capture) | Cross-platform screen and input event recording | Active Development |
-| [**openadapt-grounding**](https://github.com/OpenAdaptAI/openadapt-grounding) | Visual grounding with OmniParser and UI-TARS | Active Development |
-| [**openadapt-evals**](https://github.com/OpenAdaptAI/openadapt-evals) | Benchmark evaluation (WAA, WebArena) | Active Development |
-| [**openadapt-viewer**](https://github.com/OpenAdaptAI/openadapt-viewer) | Reusable UI components for visualization | Active Development |
-| [**openadapt-retrieval**](https://github.com/OpenAdaptAI/openadapt-retrieval) | Multimodal demo retrieval (Qwen3-VL, CLIP, FAISS) | Active Development |
+**Data Capture & Processing**
+| Repository | Description | Language |
+|------------|-------------|----------|
+| **[openadapt-capture](https://github.com/OpenAdaptAI/openadapt-capture)** | Production-ready event streams with time-aligned media for GUI interaction recording | Python |
+| **[openadapt-viewer](https://github.com/OpenAdaptAI/openadapt-viewer)** | HTML viewer components for visualization dashboards and benchmark results | Python |
+| **[openadapt-web](https://github.com/OpenAdaptAI/openadapt-web)** | Web interface components for browser-based interaction | JavaScript |
 
-### Architecture Overview
+**Machine Learning & Intelligence**
+| Repository | Description | Language |
+|------------|-------------|----------|
+| **[openadapt-ml](https://github.com/OpenAdaptAI/openadapt-ml)** | ML training toolkit for multimodal GUI-action models | Python |
+| **[openadapt-grounding](https://github.com/OpenAdaptAI/openadapt-grounding)** | UI element detection and localization with OmniParser integration | Python |
+| **[openadapt-retrieval](https://github.com/OpenAdaptAI/openadapt-retrieval)** | Multimodal demo retrieval system for similarity search in GUI automation | Python |
 
-```
-                    +-----------------+
-                    |    openadapt    |  <-- Unified CLI and meta-package
-                    +-----------------+
-                             |
-              +--------------+---------------+
-              |              |               |
-              v              v               v
-    +----------------+ +-----------+ +----------------+
-    |openadapt-capture| |openadapt-| |openadapt-evals |
-    |   (recording)   | |    ml    | |  (benchmarks)  |
-    +----------------+ | (training)| +----------------+
-                       +-----------+
-                             |
-              +--------------+---------------+
-              |              |               |
-              v              v               v
-    +----------------+ +----------------+ +----------------+
-    |openadapt-viewer| |openadapt-      | |openadapt-      |
-    |(visualization) | |   grounding    | |   retrieval    |
-    +----------------+ | (perception)   | | (demo search)  |
-                       +----------------+ +----------------+
-```
+**Evaluation & Quality**
+| Repository | Description | Language |
+|------------|-------------|----------|
+| **[openadapt-evals](https://github.com/OpenAdaptAI/openadapt-evals)** | Evaluation infrastructure and benchmarks for GUI agent performance testing | Python |
 
-## Getting Started
+**Privacy & Security**
+| Repository | Description | Language |
+|------------|-------------|----------|
+| **[openadapt-privacy](https://github.com/OpenAdaptAI/openadapt-privacy)** | PII/PHI detection and redaction for GUI automation data with Presidio integration | Python |
 
-### Quick Start
+**Execution & Runtime**
+| Repository | Description | Language |
+|------------|-------------|----------|
+| **[openadapt-agent](https://github.com/OpenAdaptAI/openadapt-agent)** | Production execution engine with safety gates, audit logging, and human-in-the-loop confirmation | Python |
+| **[openadapt-tray](https://github.com/OpenAdaptAI/openadapt-tray)** | System tray application for convenient access to platform features | Python |
+
+**Observability**
+| Repository | Description | Language |
+|------------|-------------|----------|
+| **[openadapt-telemetry](https://github.com/OpenAdaptAI/openadapt-telemetry)** | Error tracking and usage analytics with privacy filtering for platform monitoring | Python |
+
+### Deployment & Integration Tools
+
+| Repository | Description | Language |
+|------------|-------------|----------|
+| **[OpenAdapter](https://github.com/OpenAdaptAI/OpenAdapter)** | Effortless deployment platform for screenshot parsing and action models on AWS EC2 | Python |
+| **[OmniMCP](https://github.com/OpenAdaptAI/OmniMCP)** | Model Context Protocol integration with OmniParser for AI UI interaction | Python |
+| **[OpenCUA](https://github.com/OpenAdaptAI/OpenCUA)** | Open Foundations for Computer-Use Agents - standardized interfaces and protocols | Python |
+
+### Development Tools & Libraries
+
+| Repository | Description | Language |
+|------------|-------------|----------|
+| **[PydanticPrompt](https://github.com/OpenAdaptAI/PydanticPrompt)** | Library for documenting Pydantic models to generate structured LLM outputs | Python |
+
+### Critical Dependencies
+
+| Repository | Description | Language |
+|------------|-------------|----------|
+| **[atomacos](https://github.com/OpenAdaptAI/atomacos)** | macOS automation library (fork) - critical dependency for macOS support | Python |
+| **[pynput](https://github.com/OpenAdaptAI/pynput)** | Input control library (fork) - critical dependency for cross-platform input handling | Python |
+
+### Research & Experimentation
+
+| Repository | Description | Language |
+|------------|-------------|----------|
+| **[OmniParser](https://github.com/OpenAdaptAI/OmniParser)** | Fork of Microsoft's OmniParser for screen parsing with OpenAdapt-specific modifications | Jupyter Notebook |
+| **[SoM](https://github.com/OpenAdaptAI/SoM)** | Set-of-Mark visual prompting technique for precise UI element targeting | Research |
+
+### Configuration & Infrastructure
+
+| Repository | Description | Language |
+|------------|-------------|----------|
+| **[.github](https://github.com/OpenAdaptAI/.github)** | Organization-wide GitHub configuration, templates, and this profile README | - |
+
+## 🚀 Quick Start
 
 ```bash
-# Install with pip
+# Install core platform
 pip install openadapt
 
-# Or use uv (recommended)
-uv tool install openadapt
+# Or use uv for faster installation
+uv pip install openadapt
 
 # Record a demonstration
-openadapt capture start --name my-task
-# ... perform the task ...
-openadapt capture stop
+openadapt record
 
 # Train a model
-openadapt train --capture ./captures/my-task
+openadapt train
 
-# Evaluate on benchmarks
-openadapt eval run --benchmark waa-mock --tasks 20
+# Evaluate performance
+openadapt eval
 ```
 
-### Individual Packages
+## 📚 Documentation
 
-Each package can be installed independently:
+- **Website**: [openadapt.ai](https://openadapt.ai/)
+- **Email**: info@openadapt.ai
+- **Discord**: Join our community (link on website)
+- **X/Twitter**: [@OpenAdaptAI](https://twitter.com/OpenAdaptAI)
 
-```bash
-pip install openadapt           # Core CLI and unified interface
-pip install openadapt-ml        # ML training engine
-pip install openadapt-capture   # Screen recording
-pip install openadapt-grounding # UI element localization
-pip install openadapt-evals     # Benchmark evaluation
-pip install openadapt-retrieval # Demo similarity search
-```
+## 🤝 Contributing
 
-See each package's README for detailed documentation.
+We welcome contributions across all repositories:
 
-## Contributing
+- **Frontend Development**: openadapt-web, openadapt-viewer, app
+- **Machine Learning**: openadapt-ml, openadapt-grounding, openadapt-retrieval
+- **Desktop Integration**: openadapt-tray, openadapt-capture
+- **Privacy & Security**: openadapt-privacy
+- **Agent Runtime**: openadapt-agent
+- **Evaluation**: openadapt-evals
+- **Documentation**: All repositories
 
-We welcome contributions from everyone. Whether you are a developer, data scientist, tester, or just passionate about automation, there is a place for you here.
+See individual repository CONTRIBUTING.md files for specific guidelines.
 
-- **[Contributing Guide](https://github.com/OpenAdaptAI/openadapt/blob/main/CONTRIBUTING.md)**
-- **[Code of Conduct](https://github.com/OpenAdaptAI/openadapt/blob/main/CODE_OF_CONDUCT.md)**
+## 📊 Project Status
 
-Join our [Community](https://github.com/OpenAdaptAI/openadapt/discussions) to discuss new ideas, report bugs, or seek help.
+OpenAdapt.AI is currently in **alpha**. While functional, some features are still under development. We're actively working towards production-ready releases across the ecosystem.
 
-**Areas of interest:**
-- Frontend development (React, visualization)
-- Machine learning (model training, evaluation)
-- Desktop integration (Windows, macOS, Linux)
-- Benchmark development and evaluation
-- Documentation and tutorials
+## 💼 Enterprise & Consulting
 
-## Implementation Consulting
+Professional implementation services and organizational consulting are available. Contact info@openadapt.ai for details.
 
-Looking to implement OpenAdapt.AI in your organization? We offer expert consulting services for deployment, customization, and optimization.
+## 💖 Sponsorship
 
-Contact us at [sales@openadapt.ai](mailto:sales@openadapt.ai).
+Support OpenAdapt.AI development through [GitHub Sponsors](https://github.com/sponsors/OpenAdaptAI). Your contributions help maintain and expand this open-source ecosystem.
 
-## Sponsors and Partners
+## 📄 License
 
-OpenAdapt.AI is made possible by the support of our contributors and partners. If you are interested in sponsoring development, check out our [GitHub Sponsors page](https://github.com/sponsors/OpenAdaptAI).
-
-## Contact
-
-For general questions, feedback, or partnership inquiries: [contact@openadapt.ai](mailto:contact@openadapt.ai)
-
-## Disclaimer
-
-OpenAdapt.AI is currently in alpha. While functional, some features are still under development. Use with caution in production environments.
+All OpenAdapt.AI repositories are licensed under the MIT License unless otherwise specified. See individual repository LICENSE files for details.
