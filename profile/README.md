@@ -25,7 +25,7 @@ OpenAdapt.AI is built as a **modular ecosystem** of specialized packages:
 
 | Package | Description | Status |
 |---------|-------------|--------|
-| [**openadapt**](https://github.com/OpenAdaptAI/openadapt) | Core platform - unified CLI, recording, training, evaluation | Production |
+| [**openadapt**](https://github.com/OpenAdaptAI/openadapt) | Core platform - unified CLI, recording, training, evaluation | Active Development |
 | [**openadapt-ml**](https://github.com/OpenAdaptAI/openadapt-ml) | ML engine for training GUI automation models | Active Development |
 | [**openadapt-capture**](https://github.com/OpenAdaptAI/openadapt-capture) | Cross-platform screen and input event recording | Active Development |
 | [**openadapt-grounding**](https://github.com/OpenAdaptAI/openadapt-grounding) | Visual grounding with OmniParser and UI-TARS | Active Development |
