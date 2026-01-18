@@ -17,81 +17,103 @@ OpenAdapt.AI is an open-source Generative Process Automation platform that trans
 
 ### Core Platform
 
-| Repository | Description | Language |
-|------------|-------------|----------|
-| **[OpenAdapt](https://github.com/OpenAdaptAI/OpenAdapt)** | Main platform orchestrating GUI automation with LMMs. Meta-package integrating all ecosystem components | Python |
-| **[app](https://github.com/OpenAdaptAI/app)** | Desktop application providing user-friendly interface for workflow automation | Cross-platform |
+| Repository | Description | Status |
+|------------|-------------|--------|
+| **[OpenAdapt](https://github.com/OpenAdaptAI/OpenAdapt)** ⭐ | Main platform orchestrating GUI automation with LMMs. Meta-package integrating all ecosystem components | 🟢 Active |
 
 ### Modular Components
 
 **Data Capture & Processing**
-| Repository | Description | Language |
-|------------|-------------|----------|
-| **[openadapt-capture](https://github.com/OpenAdaptAI/openadapt-capture)** | Production-ready event streams with time-aligned media for GUI interaction recording | Python |
-| **[openadapt-viewer](https://github.com/OpenAdaptAI/openadapt-viewer)** | HTML viewer components for visualization dashboards and benchmark results | Python |
-| **[openadapt-web](https://github.com/OpenAdaptAI/openadapt-web)** | Web interface components for browser-based interaction | JavaScript |
+| Repository | Description | Status |
+|------------|-------------|--------|
+| **[openadapt-capture](https://github.com/OpenAdaptAI/openadapt-capture)** | Production-ready event streams with time-aligned media for GUI interaction recording | 🟢 Active |
+| **[openadapt-viewer](https://github.com/OpenAdaptAI/openadapt-viewer)** | HTML viewer components for visualization dashboards and benchmark results | 🟢 Active |
+| **[openadapt-web](https://github.com/OpenAdaptAI/openadapt-web)** | Web interface components for browser-based interaction | 🟢 Active |
 
 **Machine Learning & Intelligence**
-| Repository | Description | Language |
-|------------|-------------|----------|
-| **[openadapt-ml](https://github.com/OpenAdaptAI/openadapt-ml)** | ML training toolkit for multimodal GUI-action models | Python |
-| **[openadapt-grounding](https://github.com/OpenAdaptAI/openadapt-grounding)** | UI element detection and localization with OmniParser integration | Python |
-| **[openadapt-retrieval](https://github.com/OpenAdaptAI/openadapt-retrieval)** | Multimodal demo retrieval system for similarity search in GUI automation | Python |
+| Repository | Description | Status |
+|------------|-------------|--------|
+| **[openadapt-ml](https://github.com/OpenAdaptAI/openadapt-ml)** | ML training toolkit for multimodal GUI-action models | 🟢 Active |
+| **[openadapt-grounding](https://github.com/OpenAdaptAI/openadapt-grounding)** | UI element detection and localization with OmniParser integration | 🟢 Active |
+| **[openadapt-retrieval](https://github.com/OpenAdaptAI/openadapt-retrieval)** | Multimodal demo retrieval system for similarity search in GUI automation | 🟢 Active |
 
 **Evaluation & Quality**
-| Repository | Description | Language |
-|------------|-------------|----------|
-| **[openadapt-evals](https://github.com/OpenAdaptAI/openadapt-evals)** | Evaluation infrastructure and benchmarks for GUI agent performance testing | Python |
+| Repository | Description | Status |
+|------------|-------------|--------|
+| **[openadapt-evals](https://github.com/OpenAdaptAI/openadapt-evals)** | Evaluation infrastructure and benchmarks for GUI agent performance testing | 🟢 Active |
 
 **Privacy & Security**
-| Repository | Description | Language |
-|------------|-------------|----------|
-| **[openadapt-privacy](https://github.com/OpenAdaptAI/openadapt-privacy)** | PII/PHI detection and redaction for GUI automation data with Presidio integration | Python |
+| Repository | Description | Status |
+|------------|-------------|--------|
+| **[openadapt-privacy](https://github.com/OpenAdaptAI/openadapt-privacy)** | PII/PHI detection and redaction for GUI automation data with Presidio integration | 🟢 Active |
 
 **Execution & Runtime**
-| Repository | Description | Language |
-|------------|-------------|----------|
-| **[openadapt-agent](https://github.com/OpenAdaptAI/openadapt-agent)** | Production execution engine with safety gates, audit logging, and human-in-the-loop confirmation | Python |
-| **[openadapt-tray](https://github.com/OpenAdaptAI/openadapt-tray)** | System tray application for convenient access to platform features | Python |
+| Repository | Description | Status |
+|------------|-------------|--------|
+| **[openadapt-agent](https://github.com/OpenAdaptAI/openadapt-agent)** | Production execution engine with safety gates, audit logging, and human-in-the-loop confirmation | 🟢 Active |
 
 **Observability**
-| Repository | Description | Language |
-|------------|-------------|----------|
-| **[openadapt-telemetry](https://github.com/OpenAdaptAI/openadapt-telemetry)** | Error tracking and usage analytics with privacy filtering for platform monitoring | Python |
+| Repository | Description | Status |
+|------------|-------------|--------|
+| **[openadapt-telemetry](https://github.com/OpenAdaptAI/openadapt-telemetry)** | Error tracking and usage analytics with privacy filtering for platform monitoring | 🟢 Active |
 
-### Deployment & Integration Tools
+### Integration & Deployment Tools
 
-| Repository | Description | Language |
-|------------|-------------|----------|
-| **[OpenAdapter](https://github.com/OpenAdaptAI/OpenAdapter)** | Effortless deployment platform for screenshot parsing and action models on AWS EC2 | Python |
-| **[OmniMCP](https://github.com/OpenAdaptAI/OmniMCP)** | Model Context Protocol integration with OmniParser for AI UI interaction | Python |
-| **[OpenCUA](https://github.com/OpenAdaptAI/OpenCUA)** | Open Foundations for Computer-Use Agents - standardized interfaces and protocols | Python |
+| Repository | Description | Status |
+|------------|-------------|--------|
+| **[OpenAdapter](https://github.com/OpenAdaptAI/OpenAdapter)** | Effortless deployment platform for screenshot parsing and action models on AWS EC2 | 🟢 Active |
+| **[OmniMCP](https://github.com/OpenAdaptAI/OmniMCP)** | Model Context Protocol integration with OmniParser for AI UI interaction (68 stars) | 🟢 Active |
+| **[OmniMCP.web](https://github.com/OpenAdaptAI/OmniMCP.web)** | Web interface for OmniMCP server | 🟢 Active |
+
+## 🤝 Community Contributions
+
+OpenAdapt has contributed deployment infrastructure to major open-source projects:
+
+### Microsoft OmniParser
+- **[PR #52](https://github.com/microsoft/OmniParser/pull/52)**: Add Dockerfile and client.py; deploy to EC2 on AWS via Github Actions
+- **Status**: Open (most commented PR in the repository)
+- **Contribution**: Production deployment infrastructure with Docker, client library, and AWS automated deployment
+- **Impact**: Enables production deployment of OmniParser for screen parsing tasks
+
+### Microsoft Set-of-Mark (SoM)
+- **[PR #19](https://github.com/microsoft/SoM/pull/19)**: Add Dockerfile and client.py; deploy to EC2 on AWS via Github Actions
+- **Status**: Merged (first PR to the repository)
+- **Contribution**: `deploy.py`, Gradio interface, client library, and AWS deployment automation
+- **Impact**: Provided the foundation for SoM's production deployment capabilities
+
+### Research Forks & Foundations
+
+| Repository | Description | Status |
+|------------|-------------|--------|
+| **[OpenCUA](https://github.com/OpenAdaptAI/OpenCUA)** | Fork of Computer-Use Agents framework that cites OpenAdapt as foundational | 🟡 Fork |
+| **[OmniParser](https://github.com/OpenAdaptAI/OmniParser)** | Fork of Microsoft's OmniParser with deployment enhancements | 🟡 Fork |
+| **[SoM](https://github.com/OpenAdaptAI/SoM)** | Fork of Set-of-Mark visual prompting with deployment infrastructure | 🟡 Fork |
 
 ### Development Tools & Libraries
 
-| Repository | Description | Language |
-|------------|-------------|----------|
-| **[PydanticPrompt](https://github.com/OpenAdaptAI/PydanticPrompt)** | Library for documenting Pydantic models to generate structured LLM outputs | Python |
+| Repository | Description |
+|------------|-------------|
+| **[PydanticPrompt](https://github.com/OpenAdaptAI/PydanticPrompt)** | Library for documenting Pydantic models to generate structured LLM outputs |
 
 ### Critical Dependencies
 
-| Repository | Description | Language |
-|------------|-------------|----------|
-| **[atomacos](https://github.com/OpenAdaptAI/atomacos)** | macOS automation library (fork) - critical dependency for macOS support | Python |
-| **[pynput](https://github.com/OpenAdaptAI/pynput)** | Input control library (fork) - critical dependency for cross-platform input handling | Python |
+| Repository | Description |
+|------------|-------------|
+| **[atomacos](https://github.com/OpenAdaptAI/atomacos)** | macOS automation library (fork) - critical dependency for macOS support |
+| **[pynput](https://github.com/OpenAdaptAI/pynput)** | Input control library (fork) - critical dependency for cross-platform input handling |
 
 ### Research & Experimentation
 
-| Repository | Description | Language |
-|------------|-------------|----------|
-| **[OmniParser](https://github.com/OpenAdaptAI/OmniParser)** | Fork of Microsoft's OmniParser for screen parsing with OpenAdapt-specific modifications | Jupyter Notebook |
-| **[SoM](https://github.com/OpenAdaptAI/SoM)** | Set-of-Mark visual prompting technique for precise UI element targeting | Research |
+| Repository | Description |
+|------------|-------------|
+| **[OmniParser](https://github.com/OpenAdaptAI/OmniParser)** | Fork of Microsoft's OmniParser for screen parsing with OpenAdapt-specific modifications |
+| **[SoM](https://github.com/OpenAdaptAI/SoM)** | Set-of-Mark visual prompting technique for precise UI element targeting |
 
 ### Configuration & Infrastructure
 
-| Repository | Description | Language |
-|------------|-------------|----------|
-| **[.github](https://github.com/OpenAdaptAI/.github)** | Organization-wide GitHub configuration, templates, and this profile README | - |
+| Repository | Description |
+|------------|-------------|
+| **[.github](https://github.com/OpenAdaptAI/.github)** | Organization-wide GitHub configuration, templates, and this profile README |
 
 ## 🚀 Quick Start
 
@@ -123,9 +145,9 @@ openadapt eval
 
 We welcome contributions across all repositories:
 
-- **Frontend Development**: openadapt-web, openadapt-viewer, app
+- **Frontend Development**: openadapt-web, openadapt-viewer
 - **Machine Learning**: openadapt-ml, openadapt-grounding, openadapt-retrieval
-- **Desktop Integration**: openadapt-tray, openadapt-capture
+- **Data Capture**: openadapt-capture
 - **Privacy & Security**: openadapt-privacy
 - **Agent Runtime**: openadapt-agent
 - **Evaluation**: openadapt-evals
