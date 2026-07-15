@@ -4,15 +4,21 @@ on:
   pull_request:
     paths:
       - ".github/workflows/profile-consistency.yml"
+      - "LAUNCH_PLAN.md"
+      - "REPOSITORY_LIFECYCLE.md"
       - "profile/README.md"
       - "README.md"
+      - "repository-lifecycle.yml"
       - "scripts/check_profile.py"
   push:
     branches: [main]
     paths:
       - ".github/workflows/profile-consistency.yml"
+      - "LAUNCH_PLAN.md"
+      - "REPOSITORY_LIFECYCLE.md"
       - "profile/README.md"
       - "README.md"
+      - "repository-lifecycle.yml"
       - "scripts/check_profile.py"
 
 permissions:

@@ -122,7 +122,7 @@ The engine publishes these gaps rather than hiding them.
 
 See the checked-in
 [repository lifecycle registry](https://github.com/OpenAdaptAI/.github/blob/main/REPOSITORY_LIFECYCLE.md)
-for status definitions, local relocation evidence, and the archive queue.
+for status definitions and the public retirement queue.
 
 ## Contributing and Enterprise Work
 

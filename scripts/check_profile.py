@@ -11,7 +11,9 @@ from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 PROFILE = ROOT / "profile" / "README.md"
-MARKDOWN_FILES = (ROOT / "README.md", PROFILE)
+LIFECYCLE_DOC = ROOT / "REPOSITORY_LIFECYCLE.md"
+LIFECYCLE_DATA = ROOT / "repository-lifecycle.yml"
+MARKDOWN_FILES = (ROOT / "README.md", ROOT / "LAUNCH_PLAN.md", LIFECYCLE_DOC, PROFILE)
 CANONICAL_TRUTH = (
     "OpenAdapt compiles demonstrated GUI workflows into deterministic, locally "
     "executable programs. Healthy runs make no model calls. When interfaces "
@@ -25,6 +27,27 @@ REQUIRED_PROFILE_LINKS = {
     "https://docs.openadapt.ai",
 }
 LINK_RE = re.compile(r"!?\[[^\]]+\]\(([^\s)]+)(?:\s+[^)]*)?\)")
+LIFECYCLE_GROUP_RE = re.compile(r"^  ([a-z_]+):$")
+LIFECYCLE_REPOSITORY_RE = re.compile(r"^    - (\S+)$")
+EXPECTED_LIFECYCLE_GROUPS = {
+    "beta",
+    "experimental",
+    "research",
+    "internal",
+    "labs",
+    "historical",
+    "superseded",
+    "deprecated",
+    "archived",
+}
+FORBIDDEN_PUBLIC_OPERATIONS_MARKERS = (
+    "/Users/",
+    "~/",
+    "dirty_worktree",
+    "possible_credentials",
+    ".pem",
+    "accessKeys",
+)
 
 
 def check_link(source: Path, destination: str) -> str | None:
@@ -67,6 +90,52 @@ def main() -> int:
     missing_links = sorted(REQUIRED_PROFILE_LINKS - profile_links)
     if missing_links:
         errors.append(f"profile/README.md is missing required links: {missing_links}")
+
+    lifecycle_text = LIFECYCLE_DATA.read_text(encoding="utf-8")
+    lifecycle_section = lifecycle_text.split("lifecycle:\n", maxsplit=1)
+    if len(lifecycle_section) != 2:
+        errors.append("repository-lifecycle.yml is missing its lifecycle mapping")
+    else:
+        groups: dict[str, list[str]] = {}
+        active_group: str | None = None
+        for line in lifecycle_section[1].splitlines():
+            if match := LIFECYCLE_GROUP_RE.fullmatch(line):
+                active_group = match.group(1)
+                groups[active_group] = []
+            elif match := LIFECYCLE_REPOSITORY_RE.fullmatch(line):
+                if active_group is None:
+                    errors.append(
+                        "repository-lifecycle.yml has a repository outside a lifecycle group"
+                    )
+                else:
+                    groups[active_group].append(match.group(1))
+            elif line and not line.startswith(" "):
+                break
+
+        if set(groups) != EXPECTED_LIFECYCLE_GROUPS:
+            errors.append(
+                "repository-lifecycle.yml lifecycle groups do not match the public schema"
+            )
+        repositories = [repository for values in groups.values() for repository in values]
+        duplicates = sorted(
+            repository for repository in set(repositories) if repositories.count(repository) > 1
+        )
+        if duplicates:
+            errors.append(
+                f"repository-lifecycle.yml assigns multiple lifecycles: {duplicates}"
+            )
+
+    public_operations_text = lifecycle_text + LIFECYCLE_DOC.read_text(encoding="utf-8")
+    leaked_markers = sorted(
+        marker
+        for marker in FORBIDDEN_PUBLIC_OPERATIONS_MARKERS
+        if marker in public_operations_text
+    )
+    if leaked_markers:
+        errors.append(
+            "public lifecycle registry contains machine-local or credential-response "
+            f"details: {leaked_markers}"
+        )
 
     for source in MARKDOWN_FILES:
         text = source.read_text(encoding="utf-8")
