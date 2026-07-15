@@ -1,129 +1,139 @@
 # OpenAdapt.AI
 
-**Show it once. It runs forever. On your premises.**
+**Compile repeated GUI work into deterministic, governed workflows.**
 
-OpenAdapt is an open-source **demonstration compiler** for desktop and web GUIs.
-Record a workflow once, and OpenAdapt compiles it into a deterministic,
-self-healing automation that replays locally at near-zero cost, verifies its own
-effects, and halts rather than guessing when the screen stops matching. No API
-required, no per-run model calls, and on the default path no data leaves your
-machine.
+OpenAdapt compiles a demonstrated workflow into a locally executable program.
+Healthy runs make no model calls. When an interface drifts, OpenAdapt first
+tries deterministic re-resolution, can optionally propose a reviewable repair,
+and halts when configured identity, postcondition, effect, or certification
+checks fail.
 
-Every automation tool assumes an API. The systems that actually run regulated
-work often don't: legacy EMRs, Citrix desktops, and the internal apps a team
-still drives by hand. OpenAdapt learns them from a single demonstration and runs
-them where your data already lives.
+The launch path is browser automation, available locally or through OpenAdapt
+Cloud. Cloud checkout uses the product and price configured in Stripe rather
+than a duplicated amount in this profile. Native desktop and remote-display
+backends remain experimental and are not included by implication.
 
+- **Install and unified CLI:** [OpenAdapt](https://github.com/OpenAdaptAI/OpenAdapt)
+- **Canonical engine:** [openadapt-flow](https://github.com/OpenAdaptAI/openadapt-flow)
 - **Website:** [openadapt.ai](https://openadapt.ai/)
-- **Docs:** [docs.openadapt.ai](https://docs.openadapt.ai)
-- **Discord:** [join the community](https://discord.gg/yF527cQbDG)
+- **Documentation:** [docs.openadapt.ai](https://docs.openadapt.ai)
+- **Known limits:** [openadapt-flow/LIMITS.md](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/docs/LIMITS.md)
 
-## Why a compiler
-
-For workflows you run over and over, re-reasoning through every step with a
-large model is slow, expensive, and non-deterministic, and a wrong click writes
-to the wrong record. OpenAdapt takes the opposite path:
-
-1. **Record once.** Do the task while OpenAdapt watches your screen and your
-   clicks.
-2. **Compile.** The recording becomes a script you can read, edit, and reuse.
-   Each step carries a template crop, an OCR label, geometry landmarks, and
-   postconditions derived from what the demo changed on screen.
-3. **Replay, deterministic and $0.** A resolution ladder (local match, global
-   match, OCR, landmark geometry, then optionally a grounding model) runs
-   healthy steps in milliseconds with no model calls on the hot path.
-4. **Self-heal.** When the UI drifts, a lower rung re-resolves the target and
-   the fix lands back in the bundle as a reviewable diff.
-5. **Effect-verify and halt on ambiguity.** Every run confirms what it changed
-   and leaves a step-by-step report; when the screen stops matching
-   expectations, it halts instead of guessing, and identity-verified steps
-   refuse to act on a low-confidence match.
-
-## Quick start
+## Try the Proven Path
 
 ```bash
-pip install openadapt                            # CLI + demonstration compiler
+pip install openadapt
 
-openadapt flow record --url <app> --out rec      # record a workflow once
-openadapt flow compile rec --out bundle          # compile it
-openadapt flow replay bundle                     # run it, local, $0
-
-openadapt flow lint bundle                        # report coverage gaps
-openadapt flow certify bundle --policy clinical-write   # enforce a safety policy
+openadapt flow demo-record --out rec
+openadapt flow compile rec --out bundle --name mockmed-triage
+openadapt flow certify bundle --policy permissive
+openadapt flow replay bundle --run-dir run-baseline
+openadapt flow replay bundle --drift theme --run-dir run-drift \
+  --save-healed-to bundle-healed
 ```
 
-`openadapt flow <verb>` is the recommended path; the standalone `openadapt-flow`
-package on PyPI behaves identically. Compiled workflows can also be emitted as
-Agent Skills or MCP servers so other agents can invoke them.
+The bundled MockMed demo is reproducible and writes an illustrated `REPORT.md`
+for each run. The drift run demonstrates bounded deterministic re-resolution;
+it is not a claim that arbitrary UI changes can be repaired.
 
-## Maturity
+Run the deployment gates separately:
 
-We keep this honest.
+```bash
+openadapt flow lint bundle
+openadapt flow certify bundle --policy clinical-write
+```
 
-- **Web (headless browser) path: usable today.** It runs entirely in CI with no
-  OS permissions, and it is the reference backend for the compiler.
-- **Desktop, Citrix, and RDP backends: validating with design partners.** These
-  adapters are in progress, not yet production paths.
-- **ML and training: research.** The demonstration-conditioned model work is a
-  research line, not part of the shipping compiler.
+Both currently exit nonzero by design. The demo is runnable under the
+permissive policy, but the strict clinical-write policy refuses it because its
+identity, postcondition, and system-of-record effect coverage is incomplete.
+A policy pass means only that the bundle satisfies that named policy.
 
-## The product
+For the hosted path, create a sanitized derivative locally, review it, approve
+its exact archive hash, and upload only those frozen bytes:
 
-The supported product is the compiler and the governed runtime around it:
+```bash
+openadapt flow sanitize rec --kind recording --out rec-sanitized
+openadapt flow review-sanitized rec-sanitized --original rec
+openadapt flow approve-sanitized rec-sanitized --original rec --reviewer "$USER"
+openadapt flow login --token oai_ingest_...
+openadapt flow push rec-sanitized --kind recording
+```
 
-| Repository | Role |
-|------------|------|
-| **[openadapt](https://github.com/OpenAdaptAI/OpenAdapt)** ⭐ | Install + unified CLI (`openadapt flow …`) |
-| **[openadapt-flow](https://github.com/OpenAdaptAI/openadapt-flow)** | Demonstration compiler + governed runtime (replay, self-heal, effect-verify, halt-on-ambiguity, policies) |
-| **[openadapt-capture](https://github.com/OpenAdaptAI/openadapt-capture)** | Optional native recorder for desktop GUI events |
-| **[openadapt-privacy](https://github.com/OpenAdaptAI/openadapt-privacy)** | Optional PII/PHI scrubbing (Presidio-backed) |
+That recording push registers the approved source provenance; it is not yet a
+runnable hosted workflow. Continue with local compile, strict lint,
+certification, successful replay, bundle sanitation/approval,
+`validate-hosted`, and the attested bundle push in the
+[hosted browser guide](https://docs.openadapt.ai/guides/hosted/).
 
-## Research (not the product)
+Sanitizing a design-time artifact does not sanitize live execution. Runtime
+screens and observations can contain PHI again and must stay inside the declared
+managed, customer-controlled, or on-prem execution boundary.
 
-These repositories explore whether human demonstrations can improve the accuracy
-of general computer-use models. They are **research**, not required to record,
-compile, or replay a workflow:
+## Product Maturity
 
-| Repository | Focus |
-|------------|-------|
-| **[openadapt-ml](https://github.com/OpenAdaptAI/openadapt-ml)** | Training and inference for multimodal GUI-action models |
-| **[openadapt-evals](https://github.com/OpenAdaptAI/openadapt-evals)** | Benchmark evaluation for GUI agents |
-| **[openadapt-retrieval](https://github.com/OpenAdaptAI/openadapt-retrieval)** | Multimodal demonstration retrieval |
-| **[openadapt-grounding](https://github.com/OpenAdaptAI/openadapt-grounding)** | UI element localization / grounding models |
+| Capability | Lifecycle | What that means today |
+|------------|-----------|-----------------------|
+| Browser record, compile, lint, certify, replay | **Beta** | Canonical end-to-end path; exercised in CI and against a bounded third-party workflow |
+| `OpenAdapt` installer and unified CLI | **Beta** | Launcher/meta-package for `openadapt-flow`, not a separate engine |
+| Native capture and privacy packages | **Experimental** | Optional components; install only when needed |
+| Desktop authoring UI and native backends | **Experimental** | Active integration work, not a production path |
+| RDP and Citrix-style pixel backends | **Research spike** | Mocked/offline evidence only; no validated Citrix integration |
+| Hosted browser control plane and execution | **Beta** | Account, configured Stripe checkout, sanitized ingest, real runner dispatch, authenticated callbacks, structural reports, validated replacement activation, and usage; authoring and repair remain local, with no implied SLA or regulated certification |
+| ML training, retrieval, grounding, and agent evals | **Research** | Separate research line; not required to compile or replay workflows |
 
-> **[openadapt-agent](https://github.com/OpenAdaptAI/openadapt-agent)** is
-> **deprecated** and folding into `openadapt-flow`; its runtime, safety gates,
-> and sessions duplicate the governed runtime that now lives in the compiler.
->
-> Internal tooling (dev automation, social posts, approval bot, multi-model
-> consensus, telemetry, viewer, desktop/tray shells) lives in other
-> `openadapt-*` repositories. It supports development and operations and is not
-> part of the compiler product.
+Runnable is not the same as certified safe. Identity checks cover only armed
+steps, screen postconditions do not prove a consequential write committed, and
+effect verification requires an application-specific system-of-record verifier.
+The engine publishes these gaps rather than hiding them.
 
-## Contributing
+## Repository Map
 
-We welcome contributions. Most product work happens in
-[openadapt-flow](https://github.com/OpenAdaptAI/openadapt-flow) and
-[openadapt](https://github.com/OpenAdaptAI/OpenAdapt).
+### Active Product
 
-1. [Join Discord](https://discord.gg/yF527cQbDG)
-2. Pick an issue from the relevant repository
-3. Submit a PR (see each repository's CONTRIBUTING.md)
+| Repository | Lifecycle | Role |
+|------------|-----------|------|
+| **[OpenAdapt](https://github.com/OpenAdaptAI/OpenAdapt)** | **Beta** | High-visibility install, unified CLI, compatibility meta-package |
+| **[openadapt-flow](https://github.com/OpenAdaptAI/openadapt-flow)** | **Beta** | Canonical compiler and governed runtime |
+| **[openadapt-cloud](https://github.com/OpenAdaptAI/openadapt-cloud)** | **Beta** | Hosted browser-workflow control plane, execution, billing, structural reports, and validated replacement activation |
+| **[openadapt-desktop](https://github.com/OpenAdaptAI/openadapt-desktop)** | **Experimental** | Desktop authoring and teaching surface under active integration |
 
-## Project status
+### Optional Supporting Components
 
-OpenAdapt is in **active development**. The web compiler path is usable today;
-desktop/Citrix/RDP backends are validating with design partners; the ML line is
-research. See the [website](https://openadapt.ai/) for current benchmarks and
-limits.
+| Repository | Lifecycle | Role |
+|------------|-----------|------|
+| [openadapt-capture](https://github.com/OpenAdaptAI/openadapt-capture) | **Experimental** | Native event and media capture |
+| [openadapt-privacy](https://github.com/OpenAdaptAI/openadapt-privacy) | **Experimental** | PII/PHI scrubbing |
+| [openadapt-types](https://github.com/OpenAdaptAI/openadapt-types) | **Experimental** | Shared interoperability schemas |
 
-## Enterprise and support
+### Research, History, and Internal Tools
 
-Professional implementation and design-partner engagements are available.
-Contact info@openadapt.ai, or support development via
-[GitHub Sponsors](https://github.com/sponsors/OpenAdaptAI).
+- **Research:** `openadapt-ml`, `openadapt-evals`, `openadapt-retrieval`, and
+  `openadapt-grounding` study general computer-use agents and supporting models.
+- **Deprecated:** `openadapt-agent` has been superseded by the governed runtime
+  in `openadapt-flow`; new integrations should not target it.
+- **Historical:** the pre-1.0 monolith is frozen under `OpenAdapt/legacy`.
+- **Internal tooling:** Wright, Herald, Crier, Consilium, Presenter, telemetry,
+  viewer, and repository-operations projects support the team; they are not
+  product dependencies.
+- **Labs/forks:** OmniMCP, SoM, and PydanticPrompt are adjacent experiments;
+  Labs does not mean deprecated.
+- **Historical/superseded:** OpenAdapter and OpenReflector represent earlier
+  product directions; OpenSanitizer was superseded by `openadapt-privacy`.
+  None is a supported product surface today.
 
-## License
+See the checked-in
+[repository lifecycle registry](https://github.com/OpenAdaptAI/.github/blob/main/REPOSITORY_LIFECYCLE.md)
+for status definitions, local relocation evidence, and the archive queue.
 
-All OpenAdapt.AI repositories are licensed under the MIT License unless otherwise
-specified. See individual repository LICENSE files for details.
+## Contributing and Enterprise Work
+
+Product-engine contributions belong in
+[openadapt-flow](https://github.com/OpenAdaptAI/openadapt-flow); launcher and
+packaging changes belong in [OpenAdapt](https://github.com/OpenAdaptAI/OpenAdapt).
+Research repositories maintain their own scopes.
+
+Hosted browser subscriptions and scoped enterprise deployments are available at
+[openadapt.ai](https://openadapt.ai/). Checkout does not itself promise a
+service level, regulated certification, or support for experimental backends.
+
+Unless a repository says otherwise, OpenAdapt.AI code is MIT licensed.
