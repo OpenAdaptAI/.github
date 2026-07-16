@@ -1,0 +1,50 @@
+schema_version: 1
+reviewed_on: 2026-07-15
+canonical_product:
+  launcher: OpenAdapt
+  engine: openadapt-flow
+lifecycle:
+  beta:
+    - OpenAdapt
+    - openadapt-flow
+    - openadapt-cloud
+  experimental:
+    - openadapt-desktop
+    - openadapt-capture
+    - openadapt-privacy
+    - openadapt-types
+    - openadapt-console
+    - openadapt-tray
+  research:
+    - openadapt-ml
+    - openadapt-evals
+    - openadapt-retrieval
+    - openadapt-grounding
+    - openadapt-verifier
+  internal:
+    - openadapt-web
+    - openadapt-ops
+    - openadapt-wright
+    - openadapt-herald
+    - openadapt-crier
+    - openadapt-consilium
+    - openadapt-presenter
+    - openadapt-telemetry
+    - openadapt-viewer
+    - openadapt-blog
+    - openadapt-internal
+    - openadapt-yc
+  labs:
+    - OmniMCP
+    - SoM
+    - PydanticPrompt
+  historical:
+    - OpenReflector
+    - OpenAdapter
+  superseded:
+    - OpenSanitizer
+  deprecated:
+    - openadapt-agent
+  archived:
+    - openadapt-new
+    - openadapt-gitbook

@@ -1,0 +1,34 @@
+name: Profile consistency
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/profile-consistency.yml"
+      - "LAUNCH_PLAN.md"
+      - "REPOSITORY_LIFECYCLE.md"
+      - "profile/README.md"
+      - "README.md"
+      - "repository-lifecycle.yml"
+      - "scripts/check_profile.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/profile-consistency.yml"
+      - "LAUNCH_PLAN.md"
+      - "REPOSITORY_LIFECYCLE.md"
+      - "profile/README.md"
+      - "README.md"
+      - "repository-lifecycle.yml"
+      - "scripts/check_profile.py"
+
+permissions:
+  contents: read
+
+jobs:
+  validate-profile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Validate product truth and links
+        run: python3 scripts/check_profile.py
