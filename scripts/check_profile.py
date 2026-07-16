@@ -23,8 +23,18 @@ CANONICAL_TRUTH = (
 REQUIRED_PROFILE_LINKS = {
     "https://github.com/OpenAdaptAI/OpenAdapt",
     "https://github.com/OpenAdaptAI/openadapt-flow",
+    "https://github.com/OpenAdaptAI/openadapt-desktop",
+    "https://github.com/OpenAdaptAI/openadapt-ops",
+    "https://github.com/OpenAdaptAI/openadapt-evals",
+    "https://github.com/OpenAdaptAI/openadapt-flow/tree/main/docs/showcase",
     "https://openadapt.ai/",
+    "https://app.openadapt.ai/",
     "https://docs.openadapt.ai",
+}
+REQUIRED_PROFILE_MARKERS = {
+    "## Six Public Surfaces",
+    "## Research and Labs",
+    "There is no standalone `openadapt-examples` repository today.",
 }
 LINK_RE = re.compile(r"!?\[[^\]]+\]\(([^\s)]+)(?:\s+[^)]*)?\)")
 LIFECYCLE_GROUP_RE = re.compile(r"^  ([a-z_]+):$")
@@ -85,6 +95,10 @@ def main() -> int:
 
     if CANONICAL_TRUTH not in normalized_profile:
         errors.append("profile/README.md is missing the canonical product truth")
+
+    for marker in REQUIRED_PROFILE_MARKERS:
+        if marker not in profile_text:
+            errors.append(f"profile/README.md is missing required marker: {marker}")
 
     profile_links = set(LINK_RE.findall(profile_text))
     missing_links = sorted(REQUIRED_PROFILE_LINKS - profile_links)

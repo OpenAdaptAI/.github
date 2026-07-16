@@ -15,9 +15,17 @@ Organization owners should apply these settings after this branch is merged:
 3. Change the `openadapt-flow` description to: `Canonical OpenAdapt engine: compile demonstrated GUI workflows, replay locally without model calls on healthy runs, and govern repair and refusal.`
 4. Change the `openadapt-desktop` description to: `Experimental desktop authoring and teaching surface for OpenAdapt workflows.`
 5. Change the `openadapt-cloud` description to: `OpenAdapt Cloud: managed execution of locally authored, attested browser workflows, with billing and structural reports.`
-6. Unpin `openadapt-retrieval` and `openadapt-grounding`; pin `openadapt-flow`, `openadapt-cloud`, and `openadapt-desktop` instead.
-7. Use this interim six-repository pin set: `OpenAdapt`, `openadapt-flow`, `openadapt-cloud`, `openadapt-desktop`, `openadapt-evals`, `openadapt-privacy`.
-8. When public `openadapt-docs` and `openadapt-examples` repositories exist, replace `openadapt-evals` and `openadapt-privacy` in the pin set.
+6. The currently observed pins are `OpenAdapt`, `openadapt-retrieval`,
+   `openadapt-evals`, `openadapt-grounding`, `openadapt-capture`, and
+   `openadapt-privacy`.
+7. Pin these five public repositories: `OpenAdapt`, `openadapt-flow`,
+   `openadapt-desktop`, `openadapt-ops`, and `openadapt-evals`. Leave the sixth
+   slot empty rather than substituting an unrelated component. The cloud source
+   repository is private and cannot be a public organization pin.
+8. The examples surface currently lives under `openadapt-flow/docs/showcase`;
+   do not link or pin a nonexistent `openadapt-examples` repository. Revisit the
+   empty slot only after a standalone examples repository actually exists and
+   carries an evidence-backed lifecycle label.
 9. Apply the archive queue in [REPOSITORY_LIFECYCLE.md](REPOSITORY_LIFECYCLE.md) only after each repository has an archive notice and any dirty local work is preserved.
 
 The current public organization tagline, `AI for Desktops.`, and several
