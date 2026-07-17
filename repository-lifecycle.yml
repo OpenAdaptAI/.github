@@ -29,6 +29,7 @@ lifecycle:
     - openadapt-crier
     - openadapt-consilium
     - openadapt-presenter
+    - openadapt-bootstrap
     - openadapt-telemetry
     - openadapt-viewer
     - openadapt-blog
