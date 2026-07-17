@@ -30,6 +30,28 @@ This runs the bundled MockMed example and writes a human-readable `REPORT.md`.
 Use the [five-minute guide](https://docs.openadapt.ai/get-started/) to add lint,
 policy certification, drift, repair, and deployment.
 
+## Evidence
+
+Published comparisons of compiled replay against a computer-use agent, with the
+same external success check on both arms:
+
+- **Live third-party EMR** (OpenEMR public demo, fake patients, 18-step
+  add-patient-note workflow): compiled replay went **20/20 at 39.2s p50 with
+  zero model calls**; the agent went 10/10 at 70.4s p50 at about $0.55 of model
+  charge per run. Small sample on a shared, daily-resetting demo — not
+  CI-reproducible.
+  [Methodology and caveats](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/benchmark/openemr/BENCHMARK.md).
+- **CI-reproducible control** (bundled MockMed task): both arms passed every
+  run (100/100 compiled, 20/20 agent), so the result is cost and latency, not
+  success rate — 4.9s p50 with zero model calls versus 37.5s p50 for the agent.
+  [Methodology and caveats](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/benchmark/BENCHMARK.md).
+
+Zero model calls on a healthy run means no model-API charge on that run; it
+excludes authoring, review, maintenance, and infrastructure, and it is not a
+production-reliability or clinical-safety claim. Read the
+[limits](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/docs/LIMITS.md)
+before extrapolating either result.
+
 ## Six Public Surfaces
 
 | Surface | Lifecycle | Start here |
