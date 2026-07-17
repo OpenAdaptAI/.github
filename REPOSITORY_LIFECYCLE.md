@@ -43,7 +43,7 @@ The machine-readable source is [`repository-lifecycle.yml`](repository-lifecycle
 |-------|--------------|
 | **Research** | `openadapt-ml`, `openadapt-evals`, `openadapt-retrieval`, `openadapt-grounding`, `openadapt-verifier` |
 | **Internal** | `openadapt-ops`, `openadapt-wright`, `openadapt-herald`, `openadapt-crier`, `openadapt-consilium`, `openadapt-presenter`, `openadapt-bootstrap`, `openadapt-telemetry`, `openadapt-viewer`, `openadapt-blog`, `openadapt-internal`, `openadapt-yc` |
-| **Experimental UI/support** | `openadapt-console`, `openadapt-tray` |
+| **Experimental UI/support** | `openadapt-console`, `openadapt-tray`, `openadapt-agent` |
 | **Labs/forks** | `OmniMCP` (`omnimcp` locally), `SoM`, `PydanticPrompt` |
 | **Historical directions** | `OpenAdapter`, `OpenReflector` |
 | **Superseded** | `OpenSanitizer` (successor: `openadapt-privacy`) |
@@ -54,7 +54,7 @@ The machine-readable source is [`repository-lifecycle.yml`](repository-lifecycle
 |------------|-----------|---------------|
 | `openadapt-gitbook` | **Archived** | Keep an archive notice and route documentation traffic to `docs.openadapt.ai`. |
 | `openadapt-new` | **Archived** | Keep read-only historical context and route product traffic to `OpenAdapt` and `openadapt-flow`. |
-| `openadapt-agent` | **Deprecated** | Add a successor notice for `openadapt-flow`; accept migration fixes only. |
+| `openadapt-agent` | **Experimental (repurposed v2)** | Agent-facing bridge: compiled `openadapt-flow` workflows exposed as MCP tools and Agent Skills; governed runs only. Legacy v1 at tag `v0.1.0`. |
 | `OpenSanitizer` | **Superseded** | Add a successor notice for `openadapt-privacy`, then decide whether to archive. |
 | `OpenReflector` | **Historical** | Decide Archive versus Labs before changing organization state. |
 | `OpenAdapter` | **Historical** | Decide Archive versus Labs before changing organization state. |
