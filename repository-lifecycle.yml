@@ -9,6 +9,7 @@ lifecycle:
     - openadapt-flow
     - openadapt-cloud
   experimental:
+    - openadapt-agent
     - openadapt-desktop
     - openadapt-capture
     - openadapt-privacy
@@ -45,7 +46,6 @@ lifecycle:
   superseded:
     - OpenSanitizer
   deprecated:
-    - openadapt-agent
   archived:
     - openadapt-new
     - openadapt-gitbook
