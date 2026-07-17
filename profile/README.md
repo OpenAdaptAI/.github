@@ -1,15 +1,19 @@
 # OpenAdapt.AI
 
-**Compile repeated GUI work into deterministic, governed workflows.**
+**Show it any repeated GUI task, once. It compiles into a governed,
+deterministic workflow.**
 
-OpenAdapt compiles demonstrated GUI workflows into deterministic, locally
-executable programs. Healthy runs make no model calls. When interfaces drift,
-OpenAdapt re-resolves from retained evidence or proposes a governed repair and
-halts when verification fails.
+OpenAdapt is a demonstration compiler for repeated GUI work wherever it lives
+— in the browser, in native desktop apps, or inside Citrix and other virtual
+desktops. Demonstrate a task once and OpenAdapt compiles it into a governed,
+deterministic, locally executable program that replays exactly, with zero
+model calls on a healthy run. When interfaces drift, OpenAdapt re-resolves
+from retained evidence or proposes a governed repair — and halts instead of
+guessing when verification fails.
 
-OpenAdapt is for repeated work trapped behind browser and desktop interfaces:
-too visual or variable for brittle selectors, but too consequential to hand to
-a free-form computer-use agent on every run.
+OpenAdapt is for repeated work trapped behind browser, desktop, and
+virtual-desktop interfaces: too visual or variable for brittle selectors, but
+too consequential to hand to a free-form computer-use agent on every run.
 
 [Install OpenAdapt](https://github.com/OpenAdaptAI/OpenAdapt) ·
 [Read the docs](https://docs.openadapt.ai) ·
