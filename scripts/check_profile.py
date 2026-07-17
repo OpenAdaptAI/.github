@@ -15,10 +15,13 @@ LIFECYCLE_DOC = ROOT / "REPOSITORY_LIFECYCLE.md"
 LIFECYCLE_DATA = ROOT / "repository-lifecycle.yml"
 MARKDOWN_FILES = (ROOT / "README.md", ROOT / "LAUNCH_PLAN.md", LIFECYCLE_DOC, PROFILE)
 CANONICAL_TRUTH = (
-    "OpenAdapt compiles demonstrated GUI workflows into deterministic, locally "
-    "executable programs. Healthy runs make no model calls. When interfaces "
-    "drift, OpenAdapt re-resolves from retained evidence or proposes a governed "
-    "repair and halts when verification fails."
+    "OpenAdapt is a demonstration compiler for repeated GUI work wherever it "
+    "lives \u2014 in the browser, in native desktop apps, or inside Citrix and "
+    "other virtual desktops. Demonstrate a task once and OpenAdapt compiles it "
+    "into a governed, deterministic, locally executable program that replays "
+    "exactly, with zero model calls on a healthy run. When interfaces drift, "
+    "OpenAdapt re-resolves from retained evidence or proposes a governed "
+    "repair \u2014 and halts instead of guessing when verification fails."
 )
 REQUIRED_PROFILE_LINKS = {
     "https://github.com/OpenAdaptAI/OpenAdapt",
