@@ -1,7 +1,8 @@
 # OpenAdapt.AI
 
-**Show it any repeated GUI task, once. It compiles into a governed,
-deterministic workflow.**
+**Automate the UI-only work your APIs can't reach. Show OpenAdapt a repeated
+GUI task once and it compiles into a governed, deterministic workflow with
+verified results.**
 
 OpenAdapt is a demonstration compiler for repeated GUI work wherever it lives
 — in the browser, in native desktop apps, or inside Citrix and other virtual
@@ -16,6 +17,7 @@ virtual-desktop interfaces: too visual or variable for brittle selectors, but
 too consequential to hand to a free-form computer-use agent on every run.
 
 [Install OpenAdapt](https://github.com/OpenAdaptAI/OpenAdapt) ·
+[Watch the live demo](https://app.openadapt.ai/demo) ·
 [Read the docs](https://docs.openadapt.ai) ·
 [See current limits](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/docs/LIMITS.md) ·
 [Visit openadapt.ai](https://openadapt.ai/)
@@ -36,8 +38,8 @@ policy certification, drift, repair, and deployment.
 
 ## Evidence
 
-Published comparisons of compiled replay against a computer-use agent, with the
-same external success check on both arms:
+Published head-to-head comparisons, each graded by an external success check
+that is independent of every arm:
 
 - **Live third-party EMR** (OpenEMR public demo, fake patients, 18-step
   add-patient-note workflow): compiled replay went **20/20 at 39.2s p50 with
@@ -49,6 +51,14 @@ same external success check on both arms:
   run (100/100 compiled, 20/20 agent), so the result is cost and latency, not
   success rate — 4.9s p50 with zero model calls versus 37.5s p50 for the agent.
   [Methodology and caveats](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/benchmark/BENCHMARK.md).
+- **Independent effect verification** (fault-injection study): a screen-only
+  "success banner" oracle silently passed 55.6% (50/90) of injected wrong
+  backend writes; an out-of-band verifier reading the system of record drove
+  that to 0% (0/90). Every run terminates in an explicit transaction outcome
+  (VERIFIED, HALTED_BEFORE_EFFECT, RECONCILIATION_REQUIRED, and others), so
+  uncertain delivery is surfaced for reconciliation, never reported as
+  success.
+  [Methodology and caveats](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/benchmark/silent_wrong_action/SILENT_WRONG_ACTION.md).
 
 Zero model calls on a healthy run means no model-API charge on that run; it
 excludes authoring, review, maintenance, and infrastructure, and it is not a
@@ -61,7 +71,7 @@ before extrapolating either result.
 | Surface | Lifecycle | Start here |
 |---|---|---|
 | **Engine** | **Beta** | [`openadapt-flow`](https://github.com/OpenAdaptAI/openadapt-flow) is the canonical demonstration compiler and governed runtime. |
-| **Desktop authoring** | **Experimental** | [`openadapt-desktop`](https://github.com/OpenAdaptAI/openadapt-desktop) is the local recording and teaching interface. Native release artifacts are not yet publicly available. |
+| **Desktop authoring** | **Experimental** | [`openadapt-desktop`](https://github.com/OpenAdaptAI/openadapt-desktop) is the local recording and teaching interface. Release artifacts are published as pre-releases on the repository's releases page. |
 | **Hosted browser workflows** | **Beta** | [`app.openadapt.ai`](https://app.openadapt.ai/) provides managed browser recording, execution, billing, usage, and structural reports; its implementation repository is private. |
 | **Documentation** | **Beta** | [`docs.openadapt.ai`](https://docs.openadapt.ai) is the canonical journey-led site; [`openadapt-ops`](https://github.com/OpenAdaptAI/openadapt-ops) is its **Internal** publishing source. |
 | **Evaluation** | **Research** | [`openadapt-evals`](https://github.com/OpenAdaptAI/openadapt-evals) contains evaluation infrastructure. Research results do not expand product maturity by implication. |
