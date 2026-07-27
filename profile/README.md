@@ -1,16 +1,12 @@
 # OpenAdapt.AI
 
-**Automate the UI-only work your APIs can't reach. Show OpenAdapt a repeated
-GUI task once and it compiles into a governed, deterministic workflow with
-verified results.**
+**Automate the UI-only work your APIs can't reach.**
 
-OpenAdapt is a demonstration compiler for repeated GUI work wherever it lives
-— in the browser, in native desktop apps, or inside Citrix and other virtual
-desktops. Demonstrate a task once and OpenAdapt compiles it into a governed,
-deterministic, locally executable program that replays exactly, with zero
-model calls on a healthy run. When interfaces drift, OpenAdapt re-resolves
-from retained evidence or proposes a governed repair — and halts instead of
-guessing when verification fails.
+OpenAdapt compiles demonstrations into governed workflows across browser,
+native desktop, RDP, and Citrix. Healthy runs execute deterministically and
+make no model calls. Consequential actions are identity-gated, results are
+checked against the workflow's evidence contract, and uncertainty halts for
+review instead of being reported as success.
 
 OpenAdapt is for repeated work trapped behind browser, desktop, and
 virtual-desktop interfaces: too visual or variable for brittle selectors, but
@@ -19,8 +15,12 @@ too consequential to hand to a free-form computer-use agent on every run.
 [Install OpenAdapt](https://github.com/OpenAdaptAI/OpenAdapt) ·
 [Watch the live demo](https://app.openadapt.ai/demo) ·
 [Read the docs](https://docs.openadapt.ai) ·
-[See current limits](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/docs/LIMITS.md) ·
 [Visit openadapt.ai](https://openadapt.ai/)
+
+The flagship [`OpenAdapt`](https://github.com/OpenAdaptAI/OpenAdapt) repository
+has more than 1.6k stars, reflecting interest in the overall OpenAdapt project;
+the canonical current engine is
+[`openadapt-flow`](https://github.com/OpenAdaptAI/openadapt-flow).
 
 ## Start Locally
 
@@ -72,21 +72,23 @@ production-reliability or clinical-safety claim. Read the
 [limits](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/docs/LIMITS.md)
 before extrapolating either result.
 
-## Six Public Surfaces
+## Product Surfaces
 
 | Surface | Lifecycle | Start here |
 |---|---|---|
-| **Engine** | **Beta** | [`openadapt-flow`](https://github.com/OpenAdaptAI/openadapt-flow) is the canonical demonstration compiler and governed runtime. |
-| **Desktop authoring** | **Experimental** | [`openadapt-desktop`](https://github.com/OpenAdaptAI/openadapt-desktop) is the local recording and teaching interface. Release artifacts are published as pre-releases on the repository's releases page. |
-| **Hosted browser workflows** | **Beta** | [`app.openadapt.ai`](https://app.openadapt.ai/) provides managed browser recording, execution, billing, usage, and structural reports; its implementation repository is private. |
+| **Open-source product** | **Beta** | [`OpenAdapt`](https://github.com/OpenAdaptAI/OpenAdapt) installs the unified CLI; [`openadapt-flow`](https://github.com/OpenAdaptAI/openadapt-flow) is the canonical compiler and governed runtime. |
+| **Desktop cockpit** | **Beta** | [`openadapt-desktop`](https://github.com/OpenAdaptAI/openadapt-desktop) provides local recording, qualification, execution, evidence review, and governed repair. Native installers are published from its releases page. |
+| **Cloud control plane** | **Beta** | [`app.openadapt.ai`](https://app.openadapt.ai/) provides managed browser execution plus workflow, evidence, attended-operation, usage, and billing surfaces for customer-controlled execution. Its implementation repository is private. |
+| **Native capture** | **Experimental** | [`openadapt-capture`](https://github.com/OpenAdaptAI/openadapt-capture) is the canonical native screen, input, timing, and window-scoped recording component used by Desktop and Flow. |
+| **Agent bridge** | **Experimental** | [`openadapt-agent`](https://github.com/OpenAdaptAI/openadapt-agent) exposes compiled Flow workflows as local MCP tools and Agent Skills without becoming a second runtime. |
 | **Documentation** | **Beta** | [`docs.openadapt.ai`](https://docs.openadapt.ai) is the canonical journey-led site; [`openadapt-ops`](https://github.com/OpenAdaptAI/openadapt-ops) is its **Internal** publishing source. |
-| **Evaluation** | **Research** | [`openadapt-evals`](https://github.com/OpenAdaptAI/openadapt-evals) contains evaluation infrastructure. Research results do not expand product maturity by implication. |
-| **Examples** | **Beta** | Runnable examples currently live in [`openadapt-flow/docs/showcase`](https://github.com/OpenAdaptAI/openadapt-flow/tree/main/docs/showcase), with methods and evidence under [`benchmark`](https://github.com/OpenAdaptAI/openadapt-flow/tree/main/benchmark). There is no standalone `openadapt-examples` repository today. |
+| **Evidence and evaluation** | **Research** | [`openadapt-evals`](https://github.com/OpenAdaptAI/openadapt-evals) contains evaluation infrastructure. Runnable references live in [`openadapt-flow/docs/showcase`](https://github.com/OpenAdaptAI/openadapt-flow/tree/main/docs/showcase), with methods and evidence under [`benchmark`](https://github.com/OpenAdaptAI/openadapt-flow/tree/main/benchmark). |
 
-`OpenAdapt` is the Beta launcher and unified CLI; `openadapt-flow` remains the
-engine. Browser record, compile, replay, reporting, and bounded deterministic
-repair are the reference path. Desktop and remote-display backends retain their
-separate Experimental or Research labels.
+OpenAdapt is one Beta product across browser, Windows, macOS, Linux, RDP, and
+Citrix/VDI. Those execution surfaces share one qualification contract while
+retaining environment-specific bindings and evidence. Qualification remains
+specific to the workflow, application, environment, identity contract, and
+effect verifier rather than being inferred from a platform checkmark.
 
 Runnable is not the same as certified safe. Review identity coverage,
 postconditions, system-of-record effects, policy, and the published

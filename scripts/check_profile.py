@@ -15,18 +15,18 @@ LIFECYCLE_DOC = ROOT / "REPOSITORY_LIFECYCLE.md"
 LIFECYCLE_DATA = ROOT / "repository-lifecycle.yml"
 MARKDOWN_FILES = (ROOT / "README.md", ROOT / "LAUNCH_PLAN.md", LIFECYCLE_DOC, PROFILE)
 CANONICAL_TRUTH = (
-    "OpenAdapt is a demonstration compiler for repeated GUI work wherever it "
-    "lives \u2014 in the browser, in native desktop apps, or inside Citrix and "
-    "other virtual desktops. Demonstrate a task once and OpenAdapt compiles it "
-    "into a governed, deterministic, locally executable program that replays "
-    "exactly, with zero model calls on a healthy run. When interfaces drift, "
-    "OpenAdapt re-resolves from retained evidence or proposes a governed "
-    "repair \u2014 and halts instead of guessing when verification fails."
+    "OpenAdapt compiles demonstrations into governed workflows across browser, "
+    "native desktop, RDP, and Citrix. Healthy runs execute deterministically "
+    "and make no model calls. Consequential actions are identity-gated, results "
+    "are checked against the workflow's evidence contract, and uncertainty "
+    "halts for review instead of being reported as success."
 )
 REQUIRED_PROFILE_LINKS = {
     "https://github.com/OpenAdaptAI/OpenAdapt",
     "https://github.com/OpenAdaptAI/openadapt-flow",
     "https://github.com/OpenAdaptAI/openadapt-desktop",
+    "https://github.com/OpenAdaptAI/openadapt-capture",
+    "https://github.com/OpenAdaptAI/openadapt-agent",
     "https://github.com/OpenAdaptAI/openadapt-ops",
     "https://github.com/OpenAdaptAI/openadapt-evals",
     "https://github.com/OpenAdaptAI/openadapt-flow/tree/main/docs/showcase",
@@ -35,10 +35,19 @@ REQUIRED_PROFILE_LINKS = {
     "https://docs.openadapt.ai",
 }
 REQUIRED_PROFILE_MARKERS = {
-    "## Six Public Surfaces",
+    "## Product Surfaces",
     "## Research and Labs",
-    "There is no standalone `openadapt-examples` repository today.",
+    "more than 1.6k stars",
 }
+
+EXPECTED_PINNED_REPOSITORIES = (
+    "OpenAdapt",
+    "openadapt-flow",
+    "openadapt-desktop",
+    "openadapt-capture",
+    "openadapt-agent",
+    "openadapt-evals",
+)
 LINK_RE = re.compile(r"!?\[[^\]]+\]\(([^\s)]+)(?:\s+[^)]*)?\)")
 LIFECYCLE_GROUP_RE = re.compile(r"^  ([a-z_]+):$")
 LIFECYCLE_REPOSITORY_RE = re.compile(r"^    - (\S+)$")
@@ -109,6 +118,19 @@ def main() -> int:
         errors.append(f"profile/README.md is missing required links: {missing_links}")
 
     lifecycle_text = LIFECYCLE_DATA.read_text(encoding="utf-8")
+    pinned_section = lifecycle_text.split("  pinned_repositories:\n", maxsplit=1)
+    if len(pinned_section) != 2:
+        errors.append("repository-lifecycle.yml is missing pinned_repositories")
+    else:
+        pinned: list[str] = []
+        for line in pinned_section[1].splitlines():
+            if match := LIFECYCLE_REPOSITORY_RE.fullmatch(line):
+                pinned.append(match.group(1))
+            elif line and not line.startswith("    "):
+                break
+        if tuple(pinned) != EXPECTED_PINNED_REPOSITORIES:
+            errors.append("repository-lifecycle.yml product pins do not match the public contract")
+
     lifecycle_section = lifecycle_text.split("lifecycle:\n", maxsplit=1)
     if len(lifecycle_section) != 2:
         errors.append("repository-lifecycle.yml is missing its lifecycle mapping")
