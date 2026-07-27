@@ -51,14 +51,20 @@ that is independent of every arm:
   run (100/100 compiled, 20/20 agent), so the result is cost and latency, not
   success rate — 4.9s p50 with zero model calls versus 37.5s p50 for the agent.
   [Methodology and caveats](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/benchmark/BENCHMARK.md).
-- **Independent effect verification** (fault-injection study): a screen-only
-  "success banner" oracle silently passed 55.6% (50/90) of injected wrong
-  backend writes; an out-of-band verifier reading the system of record drove
-  that to 0% (0/90). Every run terminates in an explicit transaction outcome
-  (VERIFIED, HALTED_BEFORE_EFFECT, RECONCILIATION_REQUIRED, and others), so
-  uncertain delivery is surfaced for reconciliation, never reported as
-  success.
-  [Methodology and caveats](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/benchmark/silent_wrong_action/SILENT_WRONG_ACTION.md).
+- **Independent effect verification** (fault-injection study, 90 runs per arm,
+  end to end through the real replayer into an on-disk SQLite system of record,
+  graded by a direct read-only database connection that bypasses the service):
+  a screen-only "success banner" oracle silently accepted **75.0%** of the wrong
+  effects that actually occurred (54 of 90 runs). Adding **one** out-of-band
+  verifier that reads the system of record cut that to **12.5%** (9 of 90). A
+  complete read path over every mutable surface reaches 0 of 90, but the
+  realistic deployment number is the middle rung — one out-of-band oracle — not
+  the 0%. All nine residual misses are a single named class: a collateral write
+  to a surface the oracle does not read. Every run terminates in an explicit
+  transaction outcome (VERIFIED, HALTED_BEFORE_EFFECT,
+  RECONCILIATION_REQUIRED, and others), so uncertain delivery is surfaced for
+  reconciliation, never reported as success.
+  [Methodology and caveats](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/benchmark/effect_e2e/EFFECT_E2E.md).
 
 Zero model calls on a healthy run means no model-API charge on that run; it
 excludes authoring, review, maintenance, and infrastructure, and it is not a
