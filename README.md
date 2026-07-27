@@ -14,15 +14,12 @@ Organization owners should apply these settings after this branch is merged:
 
 1. Set the organization description to the `organization_description` value in
    [`repository-lifecycle.yml`](repository-lifecycle.yml).
-2. Apply the `repository_descriptions` values from that file. In particular,
-   the live `openadapt-desktop` description still advertises the superseded
-   screen-recording/training-data direction. The live `openadapt-agent`
-   description was already aligned when this file was reviewed.
-3. Replace the currently observed pins (`OpenAdapt`, `openadapt-retrieval`,
-   `openadapt-evals`, `openadapt-grounding`, `openadapt-capture`, and
-   `openadapt-privacy`) with the exact `pinned_repositories` list. It keeps the
-   1.6k+ stars correctly attached to the overall `OpenAdapt` project while
-   putting the canonical engine and Desktop cockpit beside it.
+2. Apply the exact `repository_descriptions` values from that file. They keep
+   the Desktop, native Capture, and agent-bridge descriptions aligned with the
+   lifecycle registry.
+3. Pin the exact `pinned_repositories` list. It keeps the 1.6k+ stars correctly
+   attached to the overall `OpenAdapt` project while putting the canonical
+   engine and Desktop cockpit beside it.
 4. The Cloud implementation repository is private and cannot be a public
    organization pin. The documentation implementation is Internal and remains
    reachable through the public docs link instead of occupying a product pin.

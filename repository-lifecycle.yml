@@ -18,17 +18,20 @@ public_metadata:
     openadapt-desktop: >-
       Beta Desktop cockpit for recording, qualification, local execution,
       evidence, and governed repair across OpenAdapt workflows.
+    openadapt-capture: >-
+      Native screen, input, timing, and window-scoped recording for OpenAdapt
+      Desktop and Flow. Experimental component.
     openadapt-agent: >-
-      Experimental local bridge exposing governed OpenAdapt workflows as MCP
-      tools and Agent Skills; halts remain halts.
+      Beta local bridge exposing governed OpenAdapt workflows as MCP tools and
+      Agent Skills; halts remain halts.
 lifecycle:
   beta:
     - OpenAdapt
     - openadapt-flow
     - openadapt-cloud
     - openadapt-desktop
-  experimental:
     - openadapt-agent
+  experimental:
     - openadapt-capture
     - openadapt-privacy
     - openadapt-types
@@ -58,12 +61,12 @@ lifecycle:
     - OmniMCP
     - SoM
     - PydanticPrompt
-  historical:
-    - OpenReflector
-    - OpenAdapter
+  historical: []
   superseded:
     - OpenSanitizer
-  deprecated:
+  deprecated: []
   archived:
     - openadapt-new
     - openadapt-gitbook
+    - OpenReflector
+    - OpenAdapter
