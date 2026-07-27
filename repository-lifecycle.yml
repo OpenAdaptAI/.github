@@ -1,16 +1,34 @@
 schema_version: 1
-reviewed_on: 2026-07-15
+reviewed_on: 2026-07-27
 canonical_product:
   launcher: OpenAdapt
   engine: openadapt-flow
+public_metadata:
+  organization_description: >-
+    Governed automation across browser, desktop, RDP, and Citrix: compile a
+    demonstration, verify the result, and halt on uncertainty.
+  pinned_repositories:
+    - OpenAdapt
+    - openadapt-flow
+    - openadapt-desktop
+    - openadapt-capture
+    - openadapt-agent
+    - openadapt-evals
+  repository_descriptions:
+    openadapt-desktop: >-
+      Beta Desktop cockpit for recording, qualification, local execution,
+      evidence, and governed repair across OpenAdapt workflows.
+    openadapt-agent: >-
+      Experimental local bridge exposing governed OpenAdapt workflows as MCP
+      tools and Agent Skills; halts remain halts.
 lifecycle:
   beta:
     - OpenAdapt
     - openadapt-flow
     - openadapt-cloud
+    - openadapt-desktop
   experimental:
     - openadapt-agent
-    - openadapt-desktop
     - openadapt-capture
     - openadapt-privacy
     - openadapt-types
