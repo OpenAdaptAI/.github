@@ -33,7 +33,7 @@ The machine-readable source is [`repository-lifecycle.yml`](repository-lifecycle
 | `openadapt-desktop` | **Beta** | Desktop cockpit for local recording, qualification, execution, evidence review, and governed repair |
 | `openadapt-cloud` | **Beta** | Proprietary control plane for managed browser and customer-controlled execution, attended operations, evidence, usage, and billing |
 | `openadapt-capture` | **Experimental** | Optional native recorder |
-| `openadapt-agent` | **Experimental** | Local MCP and Agent Skills bridge for compiled, governed Flow workflows |
+| `openadapt-agent` | **Beta** | Local MCP and Agent Skills bridge for compiled, governed Flow workflows |
 | `openadapt-privacy` | **Experimental** | Optional scrubbing component |
 | `openadapt-types` | **Experimental** | Interoperability schemas |
 | `openadapt-web` | **Internal** | Marketing website implementation |
@@ -46,7 +46,7 @@ The machine-readable source is [`repository-lifecycle.yml`](repository-lifecycle
 | **Internal** | `openadapt-ops`, `openadapt-wright`, `openadapt-herald`, `openadapt-crier`, `openadapt-consilium`, `openadapt-presenter`, `openadapt-bootstrap`, `openadapt-telemetry`, `openadapt-viewer`, `openadapt-blog`, `openadapt-internal`, `openadapt-yc` |
 | **Experimental UI/support** | `openadapt-console`, `openadapt-tray` |
 | **Labs/forks** | `OmniMCP` (`omnimcp` locally), `SoM`, `PydanticPrompt` |
-| **Historical directions** | `OpenAdapter`, `OpenReflector` |
+| **Archived historical directions** | `OpenAdapter`, `OpenReflector` |
 | **Superseded** | `OpenSanitizer` (successor: `openadapt-privacy`) |
 
 ## Retirement Queue
@@ -56,8 +56,8 @@ The machine-readable source is [`repository-lifecycle.yml`](repository-lifecycle
 | `openadapt-gitbook` | **Archived** | Keep an archive notice and route documentation traffic to `docs.openadapt.ai`. |
 | `openadapt-new` | **Archived** | Keep read-only historical context and route product traffic to `OpenAdapt` and `openadapt-flow`. |
 | `OpenSanitizer` | **Superseded** | Add a successor notice for `openadapt-privacy`, then decide whether to archive. |
-| `OpenReflector` | **Historical** | Decide Archive versus Labs before changing organization state. |
-| `OpenAdapter` | **Historical** | Decide Archive versus Labs before changing organization state. |
+| `OpenReflector` | **Archived** | Retain its read-only history and route product traffic to `OpenAdapt` and `openadapt-flow`. |
+| `OpenAdapter` | **Archived** | Retain its read-only history and route product traffic to `OpenAdapt` and `openadapt-flow`. |
 
 Experimental, Research, Labs, and Internal repositories are not deprecated by
 default. Moving local checkouts is a separate operational decision that must

@@ -49,7 +49,7 @@ EXPECTED_PINNED_REPOSITORIES = (
     "openadapt-evals",
 )
 LINK_RE = re.compile(r"!?\[[^\]]+\]\(([^\s)]+)(?:\s+[^)]*)?\)")
-LIFECYCLE_GROUP_RE = re.compile(r"^  ([a-z_]+):$")
+LIFECYCLE_GROUP_RE = re.compile(r"^  ([a-z_]+):(?: \[\])?$")
 LIFECYCLE_REPOSITORY_RE = re.compile(r"^    - (\S+)$")
 EXPECTED_LIFECYCLE_GROUPS = {
     "beta",
@@ -61,6 +61,15 @@ EXPECTED_LIFECYCLE_GROUPS = {
     "superseded",
     "deprecated",
     "archived",
+}
+EXPECTED_CRITICAL_LIFECYCLES = {
+    "OpenAdapt": "beta",
+    "openadapt-flow": "beta",
+    "openadapt-desktop": "beta",
+    "openadapt-agent": "beta",
+    "openadapt-capture": "experimental",
+    "OpenAdapter": "archived",
+    "OpenReflector": "archived",
 }
 FORBIDDEN_PUBLIC_OPERATIONS_MARKERS = (
     "/Users/",
@@ -163,6 +172,18 @@ def main() -> int:
             errors.append(
                 f"repository-lifecycle.yml assigns multiple lifecycles: {duplicates}"
             )
+        actual_lifecycles = {
+            repository: group
+            for group, group_repositories in groups.items()
+            for repository in group_repositories
+        }
+        for repository, expected_group in EXPECTED_CRITICAL_LIFECYCLES.items():
+            if actual_lifecycles.get(repository) != expected_group:
+                errors.append(
+                    "repository-lifecycle.yml assigns "
+                    f"{repository} to {actual_lifecycles.get(repository)!r}; "
+                    f"expected {expected_group!r}"
+                )
 
     public_operations_text = lifecycle_text + LIFECYCLE_DOC.read_text(encoding="utf-8")
     leaked_markers = sorted(
