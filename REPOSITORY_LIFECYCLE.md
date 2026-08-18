@@ -14,7 +14,7 @@ The machine-readable source is [`repository-lifecycle.yml`](repository-lifecycle
 
 | Status | Meaning |
 |--------|---------|
-| **Production** | Exact current release or deployment with an active, unexpired, non-revoked, independently attested acceptance admission |
+| **Production** | Exact latest release in the signed Production channel with an active, unexpired, non-revoked, independently attested acceptance admission |
 | **Beta** | Active product surface with compatibility intent, but not a blanket production-readiness claim |
 | **Experimental** | Active prototype or optional component with no production support promise |
 | **Research** | Evidence-generating work, not required by the product runtime |
@@ -27,8 +27,8 @@ The machine-readable source is [`repository-lifecycle.yml`](repository-lifecycle
 
 ## Production Admission
 
-Production is a derived state. A person cannot create it by changing a table or
-repository description. The canonical
+Production is a derived per-release state. It is not a static repository label.
+A person cannot create it by changing a table or repository description. The canonical
 [`production-lifecycle-policy.json`](production-lifecycle-policy.json) names
 the seven eligible targets and their required release artifacts. The
 [`production-lifecycle-admissions.json`](production-lifecycle-admissions.json)
@@ -40,15 +40,41 @@ attested remote-safe evidence summary. The summary binds the private Cloud
 acceptance certificate by schema, digest, and signer-provenance digest. It does
 not publish the private certificate or its location. The summary also binds an
 immutable public evidence-manifest URL and digest. A private Cloud deployment
-uses an opaque release identity and digest; it does not require a public source
-or artifact URL.
+uses an opaque release identity and digest. It does not require a public source
+or artifact URL. Public artifacts use a pinned authority. The validator checks
+current PyPI metadata, immutable GitHub release metadata, or content-addressed
+managed evidence before it derives Production.
 
-An admission expires within 30 days. A missing, expired, revoked, unreadable,
-unverifiable, or digest-mismatched admission fails closed. Repository and
-public-surface Production memberships must equal the active admission set.
-There are no Production memberships or admissions at this revision.
+The signer-provenance digest uses the domain `OpenAdapt production certificate
+signer provenance v1\0`. Its canonical input is the normalized, verified Cloud
+GitHub provenance plus the qualification admission signer-registry digest and
+revision. The private v2 evidence identity must bind the exact target release
+or deployment and its complete artifact inventory. Each target has a distinct
+claim scope. Evidence for one target cannot admit a different target. The
+public evidence manifest must bind the same target, scope, policy, release,
+artifact inventory, evidence identity, qualification, failure taxonomy,
+reliability counts, oracle, trial inventory, and immutable retention record.
 
-## Current Product Boundary
+A qualified workflow is one exact compiled workflow version that passed its
+declared qualification contract on its bound execution environment. The signed
+qualification identity binds the workflow bundle, runtime release, dependency
+set, environment, input schema, policy, required identity checks, required
+effect checks, and verification rules. A run gate must reject an absent,
+expired, revoked, or mismatched qualification. A new workflow version or a
+change to a bound input requires a new qualification. A Production runtime must
+accept only these exact qualified workflow identities.
+
+Each target has an append-only hash chain of signed Production release
+identities. The highest sequence is current. A new release cannot reuse an old
+release identity. If the latest admission expires or is revoked, Production is
+empty for that target. The validator does not fall back to an older release.
+Static Production membership is forbidden. Consumers derive current Production
+at read time from the signed admission, its expiry, and its revocation state.
+
+## Baseline Lifecycle
+
+The baseline applies when a target does not have a current Production
+admission. The admission overlay does not rewrite repository history.
 
 | Repository | Lifecycle | Role |
 |------------|-----------|------|
@@ -56,7 +82,7 @@ There are no Production memberships or admissions at this revision.
 | `openadapt-flow` | **Beta** | Canonical compiler and governed runtime |
 | `openadapt-desktop` | **Beta** | Desktop cockpit for local recording, qualification, execution, evidence review, and governed repair |
 | `openadapt-cloud` | **Beta** | Proprietary control plane for managed browser and customer-controlled execution, attended operations, evidence, usage, and billing |
-| `openadapt-capture` | **Experimental** | Optional native recorder |
+| `openadapt-capture` | **Beta** | Canonical native screen, input, timing, and window-scoped recorder |
 | `openadapt-agent` | **Beta** | Local MCP and Agent Skills bridge for compiled, governed Flow workflows |
 | `openadapt-privacy` | **Experimental** | Optional scrubbing component |
 | `openadapt-types` | **Experimental** | Interoperability schemas |

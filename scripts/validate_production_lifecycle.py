@@ -27,7 +27,7 @@ from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 POLICY_PATH = ROOT / "production-lifecycle-policy.json"
@@ -37,6 +37,7 @@ LIFECYCLE_PATH = ROOT / "repository-lifecycle.yml"
 POLICY_SCHEMA = "openadapt.production-lifecycle-policy/v1"
 ADMISSIONS_SCHEMA = "openadapt.production-lifecycle-admissions/v1"
 SUMMARY_SCHEMA = "openadapt.production-lifecycle-evidence-summary/v1"
+RELEASE_IDENTITY_SCHEMA = "openadapt.monotonic-production-release/v1"
 SHA256 = re.compile(r"^sha256:[0-9a-f]{64}$")
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 SEMVER = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$")
@@ -45,6 +46,152 @@ ARTIFACT_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$")
 GROUP_RE = re.compile(r"^  ([a-z_]+):(?: \[\])?$")
 REPOSITORY_RE = re.compile(r"^    - (\S+)$")
 MAX_REMOTE_BYTES = 2 * 1024 * 1024
+FAILURE_TAXONOMY_KEYS = {
+    "collateral_effect",
+    "duplicate_effect",
+    "healthy_path_model_call",
+    "operator_intervention",
+    "over_halt",
+    "platform_failure",
+    "safe_halt",
+    "silent_incorrect_success",
+    "uncertain_delivery",
+    "verified",
+    "wrong_record",
+}
+RELIABILITY_TO_TAXONOMY = {
+    "silent_incorrect_success_count": "silent_incorrect_success",
+    "over_halt_count": "over_halt",
+    "wrong_record_count": "wrong_record",
+    "duplicate_effect_count": "duplicate_effect",
+    "collateral_effect_count": "collateral_effect",
+    "operator_intervention_count": "operator_intervention",
+    "uncertain_delivery_count": "uncertain_delivery",
+    "model_call_count": "healthy_path_model_call",
+}
+RETENTION_DIGEST_KEYS = {
+    "ciphertext_sha256",
+    "candidate_sha256",
+    "private_envelope_sha256",
+    "store_attestation_sha256",
+    "storage_identity_sha256",
+    "object_version_sha256",
+    "private_locator_version_sha256",
+    "kms_key_identity_sha256",
+    "uploader_identity_sha256",
+}
+EXPECTED_AUTHORITY = {
+    "repository": "OpenAdaptAI/openadapt-evals",
+    "workflow": ".github/workflows/production-lifecycle-evidence.yml",
+    "source_ref": "refs/heads/main",
+    "oidc_issuer": "https://token.actions.githubusercontent.com",
+    "certificate_identity": (
+        "https://github.com/OpenAdaptAI/openadapt-evals/.github/workflows/"
+        "production-lifecycle-evidence.yml@refs/heads/main"
+    ),
+    "summary_schema_version": SUMMARY_SCHEMA,
+    "private_certificate_schema_version": "openadapt.execute-live-acceptance-record/v2",
+    "evidence_manifest_schema_version": ("openadapt.production-acceptance/v1"),
+    "release_identity_schema_version": RELEASE_IDENTITY_SCHEMA,
+    "production_channel": "production",
+    "signer_provenance_digest_domain": (
+        "OpenAdapt production certificate signer provenance v1\0"
+    ),
+}
+EXPECTED_TARGETS = {
+    "agent": {
+        "display_name": "OpenAdapt Agent",
+        "lifecycle_scope": "repository",
+        "lifecycle_subject": "openadapt-agent",
+        "source_repository": "OpenAdaptAI/openadapt-agent",
+        "release_kind": "public_package",
+        "required_claim_scope": "qualified_agent_bridge_release",
+        "required_artifact_kinds": ["sdist", "wheel"],
+        "package_index_project": "openadapt-agent",
+        "artifact_authority_by_kind": {"sdist": "pypi", "wheel": "pypi"},
+    },
+    "capture": {
+        "display_name": "OpenAdapt Capture",
+        "lifecycle_scope": "repository",
+        "lifecycle_subject": "openadapt-capture",
+        "source_repository": "OpenAdaptAI/openadapt-capture",
+        "release_kind": "public_package",
+        "required_claim_scope": "qualified_native_recorder_release",
+        "required_artifact_kinds": ["sdist", "wheel"],
+        "package_index_project": "openadapt-capture",
+        "artifact_authority_by_kind": {"sdist": "pypi", "wheel": "pypi"},
+    },
+    "cloud": {
+        "display_name": "OpenAdapt Cloud",
+        "lifecycle_scope": "repository",
+        "lifecycle_subject": "openadapt-cloud",
+        "source_repository": "OpenAdaptAI/openadapt-cloud",
+        "release_kind": "private_deployment",
+        "required_claim_scope": "qualified_workflow_control_plane_deployment",
+        "required_artifact_kinds": [],
+        "package_index_project": None,
+        "artifact_authority_by_kind": {},
+    },
+    "desktop": {
+        "display_name": "OpenAdapt Desktop",
+        "lifecycle_scope": "repository",
+        "lifecycle_subject": "openadapt-desktop",
+        "source_repository": "OpenAdaptAI/openadapt-desktop",
+        "release_kind": "public_package",
+        "required_claim_scope": "qualified_native_workflow_desktop_release",
+        "required_artifact_kinds": [
+            "linux-installer",
+            "macos-installer",
+            "sdist",
+            "wheel",
+            "windows-installer",
+        ],
+        "package_index_project": "openadapt-desktop",
+        "artifact_authority_by_kind": {
+            "linux-installer": "github_release",
+            "macos-installer": "github_release",
+            "sdist": "pypi",
+            "wheel": "pypi",
+            "windows-installer": "github_release",
+        },
+    },
+    "docs": {
+        "display_name": "OpenAdapt Documentation",
+        "lifecycle_scope": "public_surface",
+        "lifecycle_subject": "docs.openadapt.ai",
+        "source_repository": "OpenAdaptAI/openadapt-ops",
+        "release_kind": "public_deployment",
+        "required_claim_scope": "production_documentation_deployment",
+        "required_artifact_kinds": ["deployment-manifest", "site-archive"],
+        "package_index_project": None,
+        "artifact_authority_by_kind": {
+            "deployment-manifest": "managed_evidence",
+            "site-archive": "managed_evidence",
+        },
+    },
+    "flow": {
+        "display_name": "OpenAdapt Flow",
+        "lifecycle_scope": "repository",
+        "lifecycle_subject": "openadapt-flow",
+        "source_repository": "OpenAdaptAI/openadapt-flow",
+        "release_kind": "public_package",
+        "required_claim_scope": "qualified_workflow_runtime_release",
+        "required_artifact_kinds": ["sdist", "wheel"],
+        "package_index_project": "openadapt-flow",
+        "artifact_authority_by_kind": {"sdist": "pypi", "wheel": "pypi"},
+    },
+    "openadapt": {
+        "display_name": "OpenAdapt",
+        "lifecycle_scope": "repository",
+        "lifecycle_subject": "OpenAdapt",
+        "source_repository": "OpenAdaptAI/OpenAdapt",
+        "release_kind": "public_package",
+        "required_claim_scope": "qualified_workflow_launcher_release",
+        "required_artifact_kinds": ["sdist", "wheel"],
+        "package_index_project": "openadapt",
+        "artifact_authority_by_kind": {"sdist": "pypi", "wheel": "pypi"},
+    },
+}
 
 
 class LifecycleError(ValueError):
@@ -174,6 +321,10 @@ def _validate_policy(value: object) -> tuple[dict[str, Any], dict[str, dict[str,
             "certificate_identity",
             "summary_schema_version",
             "private_certificate_schema_version",
+            "evidence_manifest_schema_version",
+            "release_identity_schema_version",
+            "production_channel",
+            "signer_provenance_digest_domain",
         },
         "summary authority",
     )
@@ -192,6 +343,16 @@ def _validate_policy(value: object) -> tuple[dict[str, Any], dict[str, dict[str,
         authority["private_certificate_schema_version"],
         "private certificate schema version",
     )
+    if authority["evidence_manifest_schema_version"] != (
+        "openadapt.production-acceptance/v1"
+    ):
+        raise LifecycleError("evidence manifest schema is not supported")
+    if authority["signer_provenance_digest_domain"] != (
+        "OpenAdapt production certificate signer provenance v1\0"
+    ):
+        raise LifecycleError("signer provenance digest domain is not supported")
+    if authority != EXPECTED_AUTHORITY:
+        raise LifecycleError("summary authority differs from the pinned trust root")
 
     targets_value = policy["targets"]
     if not isinstance(targets_value, list) or not targets_value:
@@ -208,7 +369,10 @@ def _validate_policy(value: object) -> tuple[dict[str, Any], dict[str, dict[str,
                 "lifecycle_subject",
                 "source_repository",
                 "release_kind",
+                "required_claim_scope",
                 "required_artifact_kinds",
+                "package_index_project",
+                "artifact_authority_by_kind",
             },
             f"target {index}",
         )
@@ -238,6 +402,12 @@ def _validate_policy(value: object) -> tuple[dict[str, Any], dict[str, dict[str,
             "public_deployment",
         }:
             raise LifecycleError(f"target {target_id} release kind is invalid")
+        claim_scope = _nonempty(
+            target["required_claim_scope"],
+            f"target {target_id} required claim scope",
+        )
+        if re.fullmatch(r"^[a-z][a-z0-9_]{2,127}$", claim_scope) is None:
+            raise LifecycleError(f"target {target_id} required claim scope is invalid")
         kinds = target["required_artifact_kinds"]
         if not isinstance(kinds, list) or not all(
             isinstance(kind, str) and kind for kind in kinds
@@ -255,18 +425,37 @@ def _validate_policy(value: object) -> tuple[dict[str, Any], dict[str, dict[str,
             )
         if release_kind != "private_deployment" and not kinds:
             raise LifecycleError(f"public target {target_id} must require artifacts")
+        package_project = target["package_index_project"]
+        if package_project is not None and (
+            not isinstance(package_project, str)
+            or re.fullmatch(r"^[a-z0-9][a-z0-9._-]+$", package_project) is None
+        ):
+            raise LifecycleError(f"target {target_id} package project is invalid")
+        authorities = target["artifact_authority_by_kind"]
+        if not isinstance(authorities, dict) or set(authorities) != set(kinds):
+            raise LifecycleError(
+                f"target {target_id} artifact authority map differs from artifact kinds"
+            )
+        if not all(
+            value in {"pypi", "github_release", "managed_evidence"}
+            for value in authorities.values()
+        ):
+            raise LifecycleError(f"target {target_id} artifact authority is invalid")
+        if ("pypi" in authorities.values()) != (package_project is not None):
+            raise LifecycleError(
+                f"target {target_id} package project does not match PyPI authority"
+            )
         targets[target_id] = target
-    expected_ids = {"openadapt", "flow", "desktop", "cloud", "capture", "agent", "docs"}
-    if set(targets) != expected_ids:
-        raise LifecycleError(
-            f"production target inventory must be exact: {sorted(expected_ids)}"
-        )
+    actual_targets = {
+        target_id: {key: value for key, value in target.items() if key != "id"}
+        for target_id, target in targets.items()
+    }
+    if actual_targets != EXPECTED_TARGETS:
+        raise LifecycleError("production target map differs from the pinned target map")
     return policy, targets
 
 
-def _validate_url(
-    value: object, digest: str, label: str, source_commit: str | None = None
-) -> str:
+def _clean_https_url(value: object, label: str) -> str:
     url = _nonempty(value, label)
     parsed = urlsplit(url)
     if (
@@ -278,6 +467,14 @@ def _validate_url(
         or parsed.fragment
     ):
         raise LifecycleError(f"{label} must be a clean HTTPS URL")
+    return url
+
+
+def _validate_url(
+    value: object, digest: str, label: str, source_commit: str | None = None
+) -> str:
+    url = _clean_https_url(value, label)
+    parsed = urlsplit(url)
     path_parts = [part for part in parsed.path.split("/") if part]
     digest_hex = digest.removeprefix("sha256:")
     digest_bound = any(digest_hex == part or digest_hex in part for part in path_parts)
@@ -291,7 +488,8 @@ def _validate_artifacts(
     value: object,
     *,
     required_kinds: Sequence[str],
-    source_commit: str,
+    authority_by_kind: Mapping[str, str],
+    source_repository: str,
     label: str,
 ) -> list[dict[str, Any]]:
     if not isinstance(value, list):
@@ -301,17 +499,42 @@ def _validate_artifacts(
     for index, item in enumerate(value):
         artifact = _closed(
             item,
-            {"name", "kind", "url", "sha256", "size_bytes"},
+            {"name", "kind", "authority", "url", "sha256", "size_bytes"},
             f"{label} item {index}",
         )
         name = _nonempty(artifact["name"], f"{label} item {index} name")
         if ARTIFACT_NAME.fullmatch(name) is None:
             raise LifecycleError(f"{label} item {index} name is invalid")
         kind = _nonempty(artifact["kind"], f"{label} item {index} kind")
+        artifact_authority = artifact["authority"]
+        if artifact_authority != authority_by_kind.get(kind):
+            raise LifecycleError(f"{label} item {index} authority differs from policy")
         digest = _digest(artifact["sha256"], f"{label} item {index} digest")
-        _validate_url(
-            artifact["url"], digest, f"{label} item {index} URL", source_commit
-        )
+        artifact_url = _clean_https_url(artifact["url"], f"{label} item {index} URL")
+        parsed_artifact_url = urlsplit(artifact_url)
+        if artifact_authority == "pypi" and (
+            parsed_artifact_url.netloc != "files.pythonhosted.org"
+        ):
+            raise LifecycleError(f"{label} item {index} is not a PyPI artifact")
+        if artifact_authority == "github_release":
+            expected_prefix = f"/repos/{source_repository}/releases/assets/"
+            asset_id = parsed_artifact_url.path.removeprefix(expected_prefix)
+            if (
+                parsed_artifact_url.netloc != "api.github.com"
+                or not parsed_artifact_url.path.startswith(expected_prefix)
+                or not asset_id.isdigit()
+            ):
+                raise LifecycleError(
+                    f"{label} item {index} is not an exact GitHub release asset"
+                )
+        if artifact_authority == "managed_evidence" and (
+            parsed_artifact_url.netloc != "evidence.openadapt.ai"
+            or digest.removeprefix("sha256:")
+            not in [part for part in parsed_artifact_url.path.split("/") if part]
+        ):
+            raise LifecycleError(
+                f"{label} item {index} is not content-addressed managed evidence"
+            )
         size = artifact["size_bytes"]
         if not isinstance(size, int) or isinstance(size, bool) or size < 1:
             raise LifecycleError(f"{label} item {index} size must be positive")
@@ -324,6 +547,27 @@ def _validate_artifacts(
     if missing:
         raise LifecycleError(f"{label} is missing required artifact kinds: {missing}")
     return artifacts
+
+
+def _validate_release_identity(
+    value: object, authority: Mapping[str, Any], label: str
+) -> dict[str, Any]:
+    identity = _closed(
+        value,
+        {"schema_version", "channel", "sequence", "previous_admission_sha256"},
+        label,
+    )
+    if identity["schema_version"] != authority["release_identity_schema_version"]:
+        raise LifecycleError(f"{label} schema is not supported")
+    if identity["channel"] != authority["production_channel"]:
+        raise LifecycleError(f"{label} channel is not Production")
+    sequence = identity["sequence"]
+    if not isinstance(sequence, int) or isinstance(sequence, bool) or sequence < 1:
+        raise LifecycleError(f"{label} sequence must be a positive integer")
+    previous = identity["previous_admission_sha256"]
+    if previous is not None:
+        _digest(previous, f"{label} predecessor")
+    return identity
 
 
 def _validate_release(value: object, target: Mapping[str, Any]) -> dict[str, Any]:
@@ -378,7 +622,8 @@ def _validate_release(value: object, target: Mapping[str, Any]) -> dict[str, Any
         _validate_artifacts(
             release["artifacts"],
             required_kinds=target["required_artifact_kinds"],
-            source_commit=source_commit,
+            authority_by_kind=target["artifact_authority_by_kind"],
+            source_repository=target["source_repository"],
             label=f"admission {target_id} artifacts",
         )
         return release
@@ -424,7 +669,8 @@ def _validate_release(value: object, target: Mapping[str, Any]) -> dict[str, Any
         _validate_artifacts(
             release["artifacts"],
             required_kinds=target["required_artifact_kinds"],
-            source_commit=source_commit,
+            authority_by_kind=target["artifact_authority_by_kind"],
+            source_repository=target["source_repository"],
             label=f"admission {target_id} artifacts",
         )
         return release
@@ -451,6 +697,138 @@ def _validate_release(value: object, target: Mapping[str, Any]) -> dict[str, Any
         release["manifest_sha256"], f"admission {target_id} deployment manifest digest"
     )
     return release
+
+
+def _fetch_json_object(
+    url: str, label: str, fetch: Callable[[str], bytes]
+) -> dict[str, Any]:
+    try:
+        payload = fetch(url)
+    except (OSError, urllib.error.URLError, TimeoutError, ValueError) as exc:
+        raise LifecycleError(f"{label} could not be fetched: {exc}") from exc
+    try:
+        value = json.loads(payload)
+    except json.JSONDecodeError as exc:
+        raise LifecycleError(f"{label} is not JSON") from exc
+    if not isinstance(value, dict):
+        raise LifecycleError(f"{label} must be a JSON object")
+    return value
+
+
+def _verify_artifact_authorities(
+    release: Mapping[str, Any],
+    target: Mapping[str, Any],
+    fetch: Callable[[str], bytes],
+) -> None:
+    artifacts = release.get("artifacts", [])
+    pypi_artifacts = [item for item in artifacts if item["authority"] == "pypi"]
+    if pypi_artifacts:
+        project = target["package_index_project"]
+        version = release["version"]
+        metadata_url = (
+            f"https://pypi.org/pypi/{quote(project, safe='')}/"
+            f"{quote(version, safe='')}/json"
+        )
+        metadata = _fetch_json_object(metadata_url, "PyPI release metadata", fetch)
+        if metadata.get("info", {}).get("version") != version:
+            raise LifecycleError("PyPI release metadata version differs")
+        files = metadata.get("urls")
+        if not isinstance(files, list):
+            raise LifecycleError("PyPI release metadata files are invalid")
+        for artifact in pypi_artifacts:
+            matches = [
+                item
+                for item in files
+                if isinstance(item, dict)
+                and item.get("filename") == artifact["name"]
+                and item.get("url") == artifact["url"]
+                and item.get("size") == artifact["size_bytes"]
+                and item.get("digests", {}).get("sha256")
+                == artifact["sha256"].removeprefix("sha256:")
+                and item.get("yanked") is False
+            ]
+            if len(matches) != 1:
+                raise LifecycleError(
+                    f"PyPI does not verify exact artifact {artifact['name']}"
+                )
+
+    github_artifacts = [
+        item for item in artifacts if item["authority"] == "github_release"
+    ]
+    if github_artifacts:
+        repository = target["source_repository"]
+        tag = release["tag"]
+        metadata_url = (
+            f"https://api.github.com/repos/{repository}/releases/tags/"
+            f"{quote(tag, safe='')}"
+        )
+        metadata = _fetch_json_object(metadata_url, "GitHub release metadata", fetch)
+        if (
+            metadata.get("tag_name") != tag
+            or metadata.get("draft") is not False
+            or metadata.get("prerelease") is not False
+            or metadata.get("immutable") is not True
+        ):
+            raise LifecycleError("GitHub release is not an exact immutable release")
+        assets = metadata.get("assets")
+        if not isinstance(assets, list):
+            raise LifecycleError("GitHub release assets are invalid")
+        for artifact in github_artifacts:
+            matches = [
+                item
+                for item in assets
+                if isinstance(item, dict)
+                and item.get("name") == artifact["name"]
+                and item.get("url") == artifact["url"]
+                and item.get("size") == artifact["size_bytes"]
+                and item.get("digest") == artifact["sha256"]
+                and item.get("state") == "uploaded"
+            ]
+            if len(matches) != 1:
+                raise LifecycleError(
+                    f"GitHub does not verify exact artifact {artifact['name']}"
+                )
+
+    managed_artifacts = [
+        item for item in artifacts if item["authority"] == "managed_evidence"
+    ]
+    for artifact in managed_artifacts:
+        digest_hex = artifact["sha256"].removeprefix("sha256:")
+        metadata_url = (
+            "https://evidence.openadapt.ai/api/v1/objects/sha256/" + digest_hex
+        )
+        metadata = _fetch_json_object(
+            metadata_url, "managed evidence object metadata", fetch
+        )
+        metadata = _closed(
+            metadata,
+            {
+                "schema_version",
+                "exists",
+                "artifact_url",
+                "sha256",
+                "size_bytes",
+                "object_version_sha256",
+                "head_verified",
+            },
+            "managed evidence object metadata",
+        )
+        expected = {
+            "schema_version": "openadapt.managed-artifact-head/v1",
+            "exists": True,
+            "artifact_url": artifact["url"],
+            "sha256": artifact["sha256"],
+            "size_bytes": artifact["size_bytes"],
+            "head_verified": True,
+        }
+        if any(metadata.get(key) != value for key, value in expected.items()):
+            raise LifecycleError(
+                f"managed evidence does not verify exact artifact {artifact['name']}"
+            )
+        _digest(
+            metadata.get("object_version_sha256"),
+            f"managed evidence artifact {artifact['name']} object version",
+        )
 
 
 def _fetch_url(url: str) -> bytes:
@@ -547,10 +925,271 @@ def _verify_attestation(
             raise LifecycleError("summary attestation source dependency differs")
 
 
+def _count(value: object, label: str, minimum: int = 0) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < minimum:
+        raise LifecycleError(f"{label} must be an integer of at least {minimum}")
+    return value
+
+
+def _validate_manifest(
+    value: object,
+    *,
+    admission: Mapping[str, Any],
+    summary: Mapping[str, Any],
+    authority: Mapping[str, Any],
+    authority_commit: str,
+    now: datetime,
+) -> None:
+    target_id = admission["target"]
+    manifest = _closed(
+        value,
+        {
+            "schema_version",
+            "target",
+            "claim_scope",
+            "verdict",
+            "policy_sha256",
+            "target_release_sha256",
+            "target_artifact_inventory_sha256",
+            "evidence_identity_sha256",
+            "source_evidence",
+            "qualification",
+            "failure_taxonomy_counts",
+            "reliability",
+            "retention",
+        },
+        f"admission {target_id} evidence manifest",
+    )
+    expected_bindings = {
+        "schema_version": authority["evidence_manifest_schema_version"],
+        "target": target_id,
+        "claim_scope": admission["claim_scope"],
+        "verdict": "accepted",
+        "policy_sha256": summary["policy_sha256"],
+        "target_release_sha256": summary["release_sha256"],
+        "target_artifact_inventory_sha256": summary["artifact_inventory_sha256"],
+        "evidence_identity_sha256": summary["evidence_identity_sha256"],
+    }
+    for key, expected in expected_bindings.items():
+        if manifest[key] != expected:
+            raise LifecycleError(
+                f"admission {target_id} evidence manifest {key} differs"
+            )
+
+    source = _closed(
+        manifest["source_evidence"],
+        {
+            "private_certificate_schema_version",
+            "private_certificate_sha256",
+            "signer_provenance_sha256",
+            "qualification_admission_sha256",
+            "campaign_sha256",
+            "verified_authority_source_commit",
+        },
+        f"admission {target_id} source evidence",
+    )
+    certificate = summary["private_certificate_binding"]
+    if (
+        source["private_certificate_schema_version"] != certificate["schema_version"]
+        or source["private_certificate_sha256"] != certificate["sha256"]
+        or source["signer_provenance_sha256"] != certificate["signer_provenance_sha256"]
+        or source["verified_authority_source_commit"] != authority_commit
+    ):
+        raise LifecycleError(f"admission {target_id} source evidence differs")
+    _digest(
+        source["qualification_admission_sha256"],
+        f"admission {target_id} qualification admission digest",
+    )
+    _digest(source["campaign_sha256"], f"admission {target_id} campaign digest")
+
+    qualification = _closed(
+        manifest["qualification"],
+        {
+            "oracle_contract_sha256",
+            "task_count",
+            "condition_count",
+            "required_trial_count",
+            "observed_trial_count",
+            "minimum_trials_per_condition",
+            "conditions",
+        },
+        f"admission {target_id} qualification",
+    )
+    _digest(
+        qualification["oracle_contract_sha256"],
+        f"admission {target_id} oracle contract digest",
+    )
+    _count(qualification["task_count"], f"admission {target_id} task count", 1)
+    condition_count = _count(
+        qualification["condition_count"],
+        f"admission {target_id} condition count",
+        1,
+    )
+    required_trials = _count(
+        qualification["required_trial_count"],
+        f"admission {target_id} required trial count",
+        3,
+    )
+    observed_trials = _count(
+        qualification["observed_trial_count"],
+        f"admission {target_id} observed trial count",
+        required_trials,
+    )
+    minimum_trials = _count(
+        qualification["minimum_trials_per_condition"],
+        f"admission {target_id} minimum trials per condition",
+        3,
+    )
+    conditions_value = qualification["conditions"]
+    if (
+        not isinstance(conditions_value, list)
+        or len(conditions_value) != condition_count
+    ):
+        raise LifecycleError(f"admission {target_id} condition inventory differs")
+    condition_identities: list[str] = []
+    condition_required = 0
+    condition_observed = 0
+    for index, item in enumerate(conditions_value):
+        condition = _closed(
+            item,
+            {
+                "task_condition_identity_sha256",
+                "required_trial_count",
+                "observed_trial_count",
+            },
+            f"admission {target_id} condition {index}",
+        )
+        identity = _digest(
+            condition["task_condition_identity_sha256"],
+            f"admission {target_id} condition {index} identity",
+        )
+        required = _count(
+            condition["required_trial_count"],
+            f"admission {target_id} condition {index} required trials",
+            minimum_trials,
+        )
+        observed = _count(
+            condition["observed_trial_count"],
+            f"admission {target_id} condition {index} observed trials",
+            required,
+        )
+        condition_identities.append(identity)
+        condition_required += required
+        condition_observed += observed
+    if condition_identities != sorted(set(condition_identities)):
+        raise LifecycleError(
+            f"admission {target_id} conditions are not unique and sorted"
+        )
+    if condition_required != required_trials or condition_observed != observed_trials:
+        raise LifecycleError(f"admission {target_id} trial inventory totals differ")
+
+    taxonomy = _closed(
+        manifest["failure_taxonomy_counts"],
+        FAILURE_TAXONOMY_KEYS,
+        f"admission {target_id} failure taxonomy",
+    )
+    for key, value_count in taxonomy.items():
+        _count(value_count, f"admission {target_id} failure taxonomy {key}")
+    if sum(taxonomy.values()) != observed_trials:
+        raise LifecycleError(
+            f"admission {target_id} failure taxonomy does not account for every trial"
+        )
+    reliability = _closed(
+        manifest["reliability"],
+        set(RELIABILITY_TO_TAXONOMY),
+        f"admission {target_id} reliability",
+    )
+    for reliability_key, taxonomy_key in RELIABILITY_TO_TAXONOMY.items():
+        count = _count(
+            reliability[reliability_key],
+            f"admission {target_id} reliability {reliability_key}",
+        )
+        if count != taxonomy[taxonomy_key]:
+            raise LifecycleError(
+                f"admission {target_id} reliability and taxonomy differ"
+            )
+    for key in (
+        "silent_incorrect_success_count",
+        "wrong_record_count",
+        "duplicate_effect_count",
+        "collateral_effect_count",
+        "uncertain_delivery_count",
+        "model_call_count",
+    ):
+        if reliability[key] != 0:
+            raise LifecycleError(
+                f"admission {target_id} unsafe reliability count {key} is nonzero"
+            )
+
+    retention = _closed(
+        manifest["retention"],
+        {
+            "receipt_id",
+            *RETENTION_DIGEST_KEYS,
+            "retention_mode",
+            "retention_until",
+            "retained_at",
+            "upload_verified",
+            "head_verified",
+            "object_lock_verified",
+            "private_locator_recorded",
+            "acceptance_verified_at",
+            "provenance_attestation",
+        },
+        f"admission {target_id} retention",
+    )
+    receipt = retention["receipt_id"]
+    if (
+        not isinstance(receipt, str)
+        or re.fullmatch(r"retention:[0-9a-f]{32}", receipt) is None
+    ):
+        raise LifecycleError(f"admission {target_id} retention receipt is invalid")
+    for key in RETENTION_DIGEST_KEYS:
+        _digest(retention[key], f"admission {target_id} retention {key}")
+    if retention["retention_mode"] != "COMPLIANCE":
+        raise LifecycleError(f"admission {target_id} retention mode is invalid")
+    for key in (
+        "upload_verified",
+        "head_verified",
+        "object_lock_verified",
+        "private_locator_recorded",
+    ):
+        if retention[key] is not True:
+            raise LifecycleError(f"admission {target_id} retention {key} is not true")
+    if retention["provenance_attestation"] != "github-artifact-attestation-v4":
+        raise LifecycleError(f"admission {target_id} retention provenance is invalid")
+    accepted_at = _timestamp(
+        retention["acceptance_verified_at"],
+        f"admission {target_id} acceptance verification time",
+    )
+    retained_at = _timestamp(
+        retention["retained_at"], f"admission {target_id} retained time"
+    )
+    retention_until = _timestamp(
+        retention["retention_until"], f"admission {target_id} retention end"
+    )
+    if not accepted_at <= retained_at < retention_until:
+        raise LifecycleError(f"admission {target_id} retention chronology is invalid")
+    admission_issued_at = _timestamp(
+        admission["issued_at"], f"admission {target_id} issued_at"
+    )
+    if retained_at > admission_issued_at or retained_at > now:
+        raise LifecycleError(
+            f"admission {target_id} retention verification is in the future"
+        )
+    duration = retention_until - retained_at
+    if not timedelta(days=365) <= duration <= timedelta(days=3650):
+        raise LifecycleError(f"admission {target_id} retention duration is invalid")
+    if retention_until <= now:
+        raise LifecycleError(f"admission {target_id} retained evidence is expired")
+
+
 def _validate_remote_summary(
     admission: Mapping[str, Any],
     release: Mapping[str, Any],
     authority: Mapping[str, Any],
+    policy_sha256: str,
+    now: datetime,
     *,
     fetch: Callable[[str], bytes],
     verify_attestation: Callable[[bytes, bytes, Mapping[str, Any], str], None],
@@ -616,8 +1255,12 @@ def _validate_remote_summary(
             "schema_version",
             "target",
             "verdict",
+            "claim_scope",
+            "policy_sha256",
+            "release_identity",
             "release_sha256",
             "artifact_inventory_sha256",
+            "evidence_identity_sha256",
             "private_certificate_binding",
             "evidence_manifest",
             "issued_at",
@@ -632,6 +1275,17 @@ def _validate_remote_summary(
         raise LifecycleError(
             f"admission {target_id} summary did not accept the exact target"
         )
+    if summary["claim_scope"] != admission["claim_scope"]:
+        raise LifecycleError(f"admission {target_id} signed claim scope differs")
+    if summary["policy_sha256"] != policy_sha256:
+        raise LifecycleError(f"admission {target_id} signed policy digest differs")
+    summary_identity = _validate_release_identity(
+        summary["release_identity"],
+        authority,
+        f"admission {target_id} signed release identity",
+    )
+    if summary_identity != admission["release_identity"]:
+        raise LifecycleError(f"admission {target_id} signed release identity differs")
     if summary["release_sha256"] != _canonical_digest(release):
         raise LifecycleError(f"admission {target_id} summary release digest differs")
     artifacts = release.get("artifacts", [])
@@ -639,9 +1293,21 @@ def _validate_remote_summary(
         raise LifecycleError(
             f"admission {target_id} summary artifact inventory differs"
         )
+    _digest(
+        summary["evidence_identity_sha256"],
+        f"admission {target_id} evidence identity",
+    )
     certificate = _closed(
         summary["private_certificate_binding"],
-        {"schema_version", "sha256", "signer_provenance_sha256"},
+        {
+            "schema_version",
+            "sha256",
+            "signer_provenance_sha256",
+            "evidence_identity_sha256",
+            "target",
+            "target_release_sha256",
+            "target_artifact_inventory_sha256",
+        },
         f"admission {target_id} private certificate binding",
     )
     if certificate["schema_version"] != authority["private_certificate_schema_version"]:
@@ -653,14 +1319,31 @@ def _validate_remote_summary(
         certificate["signer_provenance_sha256"],
         f"admission {target_id} private certificate signer provenance",
     )
+    _digest(
+        certificate["evidence_identity_sha256"],
+        f"admission {target_id} private evidence identity",
+    )
+    if certificate["evidence_identity_sha256"] != summary["evidence_identity_sha256"]:
+        raise LifecycleError(f"admission {target_id} evidence identity differs")
+    if certificate["target"] != target_id:
+        raise LifecycleError(f"admission {target_id} private evidence target differs")
+    if certificate["target_release_sha256"] != summary["release_sha256"]:
+        raise LifecycleError(f"admission {target_id} private release binding differs")
+    if (
+        certificate["target_artifact_inventory_sha256"]
+        != summary["artifact_inventory_sha256"]
+    ):
+        raise LifecycleError(f"admission {target_id} private artifact binding differs")
     manifest = _closed(
         summary["evidence_manifest"],
         {"schema_version", "url", "sha256"},
         f"admission {target_id} evidence manifest",
     )
-    manifest_schema = _nonempty(
-        manifest["schema_version"], f"admission {target_id} evidence manifest schema"
-    )
+    manifest_schema = manifest["schema_version"]
+    if manifest_schema != authority["evidence_manifest_schema_version"]:
+        raise LifecycleError(
+            f"admission {target_id} evidence manifest schema is not supported"
+        )
     manifest_digest = _digest(
         manifest["sha256"], f"admission {target_id} evidence manifest digest"
     )
@@ -681,11 +1364,14 @@ def _validate_remote_summary(
         raise LifecycleError(
             f"admission {target_id} evidence manifest is not JSON"
         ) from exc
-    if (
-        not isinstance(manifest_value, dict)
-        or manifest_value.get("schema_version") != manifest_schema
-    ):
-        raise LifecycleError(f"admission {target_id} evidence manifest schema differs")
+    _validate_manifest(
+        manifest_value,
+        admission=admission,
+        summary=summary,
+        authority=authority,
+        authority_commit=authority_commit,
+        now=now,
+    )
     for key in ("issued_at", "expires_at", "revoked_at"):
         if summary[key] != admission[key]:
             raise LifecycleError(
@@ -724,12 +1410,20 @@ def validate(
         raise LifecycleError("production lifecycle admissions must be a list")
     active: dict[str, str] = {}
     admission_ids: set[str] = set()
+    records_by_target: dict[
+        str,
+        list[
+            tuple[dict[str, Any], dict[str, Any], datetime, datetime, datetime | None]
+        ],
+    ] = {}
     for index, item in enumerate(admissions_value_list):
         admission = _closed(
             item,
             {
                 "admission_id",
                 "target",
+                "claim_scope",
+                "release_identity",
                 "policy_revision",
                 "release",
                 "acceptance_evidence",
@@ -750,12 +1444,17 @@ def validate(
             raise LifecycleError(
                 f"production admission target is not eligible: {target_id!r}"
             )
-        if target_id in active:
-            raise LifecycleError(
-                f"production target has multiple active records: {target_id!r}"
-            )
         if admission["policy_revision"] != policy["revision"]:
             raise LifecycleError(f"admission {target_id} policy revision differs")
+        if admission["claim_scope"] != targets[target_id]["required_claim_scope"]:
+            raise LifecycleError(
+                f"admission {target_id} claim scope differs from policy"
+            )
+        _validate_release_identity(
+            admission["release_identity"],
+            policy["summary_authority"],
+            f"admission {target_id} release identity",
+        )
         issued_at = _timestamp(
             admission["issued_at"], f"admission {target_id} issued_at"
         )
@@ -770,47 +1469,71 @@ def validate(
             raise LifecycleError(
                 f"admission {target_id} validity window is outside policy"
             )
-        if expires_at <= now:
-            raise LifecycleError(f"admission {target_id} is expired")
         revoked_at = admission["revoked_at"]
+        revoked: datetime | None = None
         if revoked_at is not None:
             revoked = _timestamp(revoked_at, f"admission {target_id} revoked_at")
             if revoked < issued_at or revoked > now:
                 raise LifecycleError(
                     f"admission {target_id} revocation timestamp is invalid"
                 )
-            raise LifecycleError(f"admission {target_id} is revoked")
         release = _validate_release(admission["release"], targets[target_id])
+        records_by_target.setdefault(target_id, []).append(
+            (admission, release, issued_at, expires_at, revoked)
+        )
+
+    for target_id, records in records_by_target.items():
+        records.sort(key=lambda item: item[0]["release_identity"]["sequence"])
+        previous_digest: str | None = None
+        previous_issued_at: datetime | None = None
+        release_digests: set[str] = set()
+        for expected_sequence, (admission, release, issued_at, *_times) in enumerate(
+            records, start=1
+        ):
+            identity = admission["release_identity"]
+            if identity["sequence"] != expected_sequence:
+                raise LifecycleError(
+                    f"admission {target_id} release sequence is not continuous"
+                )
+            if identity["previous_admission_sha256"] != previous_digest:
+                raise LifecycleError(f"admission {target_id} predecessor hash differs")
+            if previous_issued_at is not None and issued_at <= previous_issued_at:
+                raise LifecycleError(
+                    f"admission {target_id} release time is not monotonic"
+                )
+            release_digest = _canonical_digest(release)
+            if release_digest in release_digests:
+                raise LifecycleError(
+                    f"admission {target_id} repeats an earlier release"
+                )
+            release_digests.add(release_digest)
+            previous_digest = _canonical_digest(admission)
+            previous_issued_at = issued_at
+
+        latest, latest_release, _issued_at, expires_at, revoked = records[-1]
+        if revoked is not None or expires_at <= now:
+            continue
+        _verify_artifact_authorities(latest_release, targets[target_id], fetch)
         _validate_remote_summary(
-            admission,
-            release,
+            latest,
+            latest_release,
             policy["summary_authority"],
+            policy_sha256,
+            now,
             fetch=fetch,
             verify_attestation=verify_attestation,
         )
-        active[target_id] = admission_id
+        active[target_id] = latest["admission_id"]
 
-    expected_repositories = sorted(
-        target["lifecycle_subject"]
-        for target_id, target in targets.items()
-        if target_id in active and target["lifecycle_scope"] == "repository"
-    )
-    expected_surfaces = sorted(
-        target["lifecycle_subject"]
-        for target_id, target in targets.items()
-        if target_id in active and target["lifecycle_scope"] == "public_surface"
-    )
-    actual_repositories = sorted(repository_lifecycle.get("production", []))
-    actual_surfaces = sorted(surface_lifecycle.get("production", []))
-    if actual_repositories != expected_repositories:
+    if repository_lifecycle.get("production", []):
         raise LifecycleError(
-            "Production repository memberships differ from active admissions: "
-            f"expected {expected_repositories}, got {actual_repositories}"
+            "static Production repository membership is not permitted; "
+            "derive it from active admissions"
         )
-    if actual_surfaces != expected_surfaces:
+    if surface_lifecycle.get("production", []):
         raise LifecycleError(
-            "Production public-surface memberships differ from active admissions: "
-            f"expected {expected_surfaces}, got {actual_surfaces}"
+            "static Production public-surface membership is not permitted; "
+            "derive it from active admissions"
         )
     for target_id, target in targets.items():
         lifecycle = (
@@ -821,16 +1544,12 @@ def validate(
         memberships = [
             group
             for group, subjects in lifecycle.items()
-            if target["lifecycle_subject"] in subjects
+            if group != "production" and target["lifecycle_subject"] in subjects
         ]
-        expected_group = "production" if target_id in active else None
         if len(memberships) != 1:
             raise LifecycleError(
-                f"target {target_id} must have exactly one lifecycle membership; got {memberships}"
-            )
-        if expected_group is not None and memberships != [expected_group]:
-            raise LifecycleError(
-                f"target {target_id} active admission requires Production membership"
+                f"target {target_id} must have exactly one baseline lifecycle "
+                f"membership; got {memberships}"
             )
     return active
 
@@ -851,12 +1570,62 @@ def validate_files(root: Path = ROOT, *, now: datetime | None = None) -> dict[st
     )
 
 
+def validate_append_only_history(previous_value: object, current_value: object) -> None:
+    """Reject release-ledger rollback while allowing one-way current revocation."""
+
+    if not isinstance(previous_value, dict) or not isinstance(current_value, dict):
+        raise LifecycleError("Production admission history must be JSON objects")
+    previous = previous_value.get("admissions")
+    current = current_value.get("admissions")
+    if not isinstance(previous, list) or not isinstance(current, list):
+        raise LifecycleError(
+            "Production admission history must contain admission lists"
+        )
+    if len(current) < len(previous):
+        raise LifecycleError("Production admission history cannot remove records")
+    latest_previous_index_by_target: dict[str, int] = {}
+    for index, record in enumerate(previous):
+        if isinstance(record, dict) and isinstance(record.get("target"), str):
+            latest_previous_index_by_target[record["target"]] = index
+    for index, old_record in enumerate(previous):
+        new_record = current[index]
+        if new_record == old_record:
+            continue
+        if not isinstance(old_record, dict) or not isinstance(new_record, dict):
+            raise LifecycleError("Production admission history changed a record")
+        old_without_revocation = dict(old_record)
+        new_without_revocation = dict(new_record)
+        old_revocation = old_without_revocation.pop("revoked_at", None)
+        new_revocation = new_without_revocation.pop("revoked_at", None)
+        one_way_current_revocation = (
+            index == latest_previous_index_by_target.get(old_record.get("target"))
+            and old_without_revocation == new_without_revocation
+            and old_revocation is None
+            and isinstance(new_revocation, str)
+        )
+        if not one_way_current_revocation:
+            raise LifecycleError(
+                "Production admission history can only append records or revoke "
+                "the current record once"
+            )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
+    parser.add_argument("--previous-admissions", type=Path)
     args = parser.parse_args()
     try:
         active = validate_files(args.root)
+        if args.previous_admissions is not None:
+            previous = _load_json(
+                args.previous_admissions, "previous Production lifecycle admissions"
+            )
+            current = _load_json(
+                args.root / ADMISSIONS_PATH.name,
+                "current Production lifecycle admissions",
+            )
+            validate_append_only_history(previous, current)
     except LifecycleError as exc:
         print(f"REFUSED: {exc}")
         return 1

@@ -17,6 +17,7 @@ on:
       - "scripts/check_profile.py"
       - "scripts/validate_production_lifecycle.py"
       - "schemas/production-lifecycle-admissions.schema.json"
+      - "schemas/production-lifecycle-evidence-manifest.schema.json"
       - "schemas/production-lifecycle-evidence-summary.schema.json"
       - "schemas/production-lifecycle-policy.schema.json"
       - "tests/test_production_lifecycle.py"
@@ -34,6 +35,7 @@ on:
       - "scripts/check_profile.py"
       - "scripts/validate_production_lifecycle.py"
       - "schemas/production-lifecycle-admissions.schema.json"
+      - "schemas/production-lifecycle-evidence-manifest.schema.json"
       - "schemas/production-lifecycle-evidence-summary.schema.json"
       - "schemas/production-lifecycle-policy.schema.json"
       - "tests/test_production_lifecycle.py"
@@ -47,8 +49,24 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
       - name: Test Production lifecycle admission failures
         run: python3 -m unittest discover -s tests -p 'test_*.py'
+      - name: Refuse Production release-ledger rollback
+        if: github.event_name == 'pull_request' || github.event_name == 'push'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if git cat-file -e "$BASE_SHA:production-lifecycle-admissions.json"; then
+            git show "$BASE_SHA:production-lifecycle-admissions.json" > "$RUNNER_TEMP/previous-production-lifecycle-admissions.json"
+          elif git cat-file -e "$BASE_SHA:production-lifecycle-policy.json"; then
+            echo "REFUSED: the trusted base has policy but no admission ledger" >&2
+            exit 1
+          else
+            printf '{"admissions":[]}\n' > "$RUNNER_TEMP/previous-production-lifecycle-admissions.json"
+          fi
+          python3 scripts/validate_production_lifecycle.py --previous-admissions "$RUNNER_TEMP/previous-production-lifecycle-admissions.json"
       - name: Validate product truth and links
         run: python3 scripts/check_profile.py
 
@@ -68,7 +86,7 @@ jobs:
           TITLE="Production lifecycle admission needs attention"
           BODY="The scheduled evidence-gated lifecycle check failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-          A Production admission is missing, expired, revoked, unreadable, unverifiable, or digest-mismatched. The public Production state must not remain active without current evidence."
+          An admission record or its current evidence is invalid. Consumers derive Production from the latest exact signed release and must fail closed."
           EXISTING=$(gh issue list --repo "${{ github.repository }}" --state open \
             --search "in:title \"$TITLE\"" --json number --jq '.[0].number // empty')
           if [ -n "$EXISTING" ]; then

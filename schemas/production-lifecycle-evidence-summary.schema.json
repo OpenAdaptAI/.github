@@ -9,8 +9,12 @@
     "schema_version",
     "target",
     "verdict",
+    "claim_scope",
+    "policy_sha256",
+    "release_identity",
     "release_sha256",
     "artifact_inventory_sha256",
+    "evidence_identity_sha256",
     "private_certificate_binding",
     "evidence_manifest",
     "issued_at",
@@ -21,16 +25,47 @@
     "schema_version": {"const": "openadapt.production-lifecycle-evidence-summary/v1"},
     "target": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$"},
     "verdict": {"const": "accepted"},
+    "claim_scope": {"type": "string", "pattern": "^[a-z][a-z0-9_]{2,127}$"},
+    "policy_sha256": {"$ref": "#/$defs/digest"},
+    "release_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "channel", "sequence", "previous_admission_sha256"],
+      "properties": {
+        "schema_version": {"const": "openadapt.monotonic-production-release/v1"},
+        "channel": {"const": "production"},
+        "sequence": {"type": "integer", "minimum": 1},
+        "previous_admission_sha256": {
+          "oneOf": [{"$ref": "#/$defs/digest"}, {"type": "null"}]
+        }
+      }
+    },
     "release_sha256": {"$ref": "#/$defs/digest"},
     "artifact_inventory_sha256": {"$ref": "#/$defs/digest"},
+    "evidence_identity_sha256": {"$ref": "#/$defs/digest"},
     "private_certificate_binding": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["schema_version", "sha256", "signer_provenance_sha256"],
+      "required": [
+        "schema_version",
+        "sha256",
+        "signer_provenance_sha256",
+        "evidence_identity_sha256",
+        "target",
+        "target_release_sha256",
+        "target_artifact_inventory_sha256"
+      ],
       "properties": {
         "schema_version": {"const": "openadapt.execute-live-acceptance-record/v2"},
         "sha256": {"$ref": "#/$defs/digest"},
-        "signer_provenance_sha256": {"$ref": "#/$defs/digest"}
+        "signer_provenance_sha256": {
+          "description": "SHA-256 over the domain-separated canonical normalized verified Cloud provenance plus the admission signer-registry digest and revision.",
+          "$ref": "#/$defs/digest"
+        },
+        "evidence_identity_sha256": {"$ref": "#/$defs/digest"},
+        "target": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$"},
+        "target_release_sha256": {"$ref": "#/$defs/digest"},
+        "target_artifact_inventory_sha256": {"$ref": "#/$defs/digest"}
       }
     },
     "evidence_manifest": {
@@ -38,7 +73,7 @@
       "additionalProperties": false,
       "required": ["schema_version", "url", "sha256"],
       "properties": {
-        "schema_version": {"type": "string", "minLength": 1},
+        "schema_version": {"const": "openadapt.production-acceptance/v1"},
         "url": {"type": "string", "format": "uri", "pattern": "^https://"},
         "sha256": {"$ref": "#/$defs/digest"}
       }

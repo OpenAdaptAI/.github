@@ -27,7 +27,11 @@
         "oidc_issuer",
         "certificate_identity",
         "summary_schema_version",
-        "private_certificate_schema_version"
+        "private_certificate_schema_version",
+        "evidence_manifest_schema_version",
+        "release_identity_schema_version",
+        "production_channel",
+        "signer_provenance_digest_domain"
       ],
       "properties": {
         "repository": {"type": "string", "pattern": "^OpenAdaptAI/[A-Za-z0-9._-]+$"},
@@ -36,7 +40,11 @@
         "oidc_issuer": {"const": "https://token.actions.githubusercontent.com"},
         "certificate_identity": {"type": "string", "format": "uri"},
         "summary_schema_version": {"const": "openadapt.production-lifecycle-evidence-summary/v1"},
-        "private_certificate_schema_version": {"const": "openadapt.execute-live-acceptance-record/v2"}
+        "private_certificate_schema_version": {"const": "openadapt.execute-live-acceptance-record/v2"},
+        "evidence_manifest_schema_version": {"const": "openadapt.production-acceptance/v1"},
+        "release_identity_schema_version": {"const": "openadapt.monotonic-production-release/v1"},
+        "production_channel": {"const": "production"},
+        "signer_provenance_digest_domain": {"const": "OpenAdapt production certificate signer provenance v1\u0000"}
       }
     },
     "targets": {
@@ -53,7 +61,10 @@
           "lifecycle_subject",
           "source_repository",
           "release_kind",
-          "required_artifact_kinds"
+          "required_claim_scope",
+          "required_artifact_kinds",
+          "package_index_project",
+          "artifact_authority_by_kind"
         ],
         "properties": {
           "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$"},
@@ -62,6 +73,17 @@
           "lifecycle_subject": {"type": "string", "minLength": 1},
           "source_repository": {"type": "string", "pattern": "^OpenAdaptAI/[A-Za-z0-9._-]+$"},
           "release_kind": {"enum": ["public_package", "private_deployment", "public_deployment"]},
+          "required_claim_scope": {"type": "string", "pattern": "^[a-z][a-z0-9_]{2,127}$"},
+          "package_index_project": {
+            "oneOf": [
+              {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]+$"},
+              {"type": "null"}
+            ]
+          },
+          "artifact_authority_by_kind": {
+            "type": "object",
+            "additionalProperties": {"enum": ["pypi", "github_release", "managed_evidence"]}
+          },
           "required_artifact_kinds": {
             "type": "array",
             "uniqueItems": true,

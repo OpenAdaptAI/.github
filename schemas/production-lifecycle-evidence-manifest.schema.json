@@ -1,0 +1,195 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/OpenAdaptAI/.github/blob/main/schemas/production-lifecycle-evidence-manifest.schema.json",
+  "title": "OpenAdapt Production acceptance evidence manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "target",
+    "claim_scope",
+    "verdict",
+    "policy_sha256",
+    "target_release_sha256",
+    "target_artifact_inventory_sha256",
+    "evidence_identity_sha256",
+    "source_evidence",
+    "qualification",
+    "failure_taxonomy_counts",
+    "reliability",
+    "retention"
+  ],
+  "properties": {
+    "schema_version": {"const": "openadapt.production-acceptance/v1"},
+    "target": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$"},
+    "claim_scope": {"type": "string", "pattern": "^[a-z][a-z0-9_]{2,127}$"},
+    "verdict": {"const": "accepted"},
+    "policy_sha256": {"$ref": "#/$defs/digest"},
+    "target_release_sha256": {"$ref": "#/$defs/digest"},
+    "target_artifact_inventory_sha256": {"$ref": "#/$defs/digest"},
+    "evidence_identity_sha256": {"$ref": "#/$defs/digest"},
+    "source_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "private_certificate_schema_version",
+        "private_certificate_sha256",
+        "signer_provenance_sha256",
+        "qualification_admission_sha256",
+        "campaign_sha256",
+        "verified_authority_source_commit"
+      ],
+      "properties": {
+        "private_certificate_schema_version": {"const": "openadapt.execute-live-acceptance-record/v2"},
+        "private_certificate_sha256": {"$ref": "#/$defs/digest"},
+        "signer_provenance_sha256": {"$ref": "#/$defs/digest"},
+        "qualification_admission_sha256": {"$ref": "#/$defs/digest"},
+        "campaign_sha256": {"$ref": "#/$defs/digest"},
+        "verified_authority_source_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+      }
+    },
+    "qualification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "oracle_contract_sha256",
+        "task_count",
+        "condition_count",
+        "required_trial_count",
+        "observed_trial_count",
+        "minimum_trials_per_condition",
+        "conditions"
+      ],
+      "properties": {
+        "oracle_contract_sha256": {"$ref": "#/$defs/digest"},
+        "task_count": {"type": "integer", "minimum": 1},
+        "condition_count": {"type": "integer", "minimum": 1},
+        "required_trial_count": {"type": "integer", "minimum": 3},
+        "observed_trial_count": {"type": "integer", "minimum": 3},
+        "minimum_trials_per_condition": {"type": "integer", "minimum": 3},
+        "conditions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["task_condition_identity_sha256", "required_trial_count", "observed_trial_count"],
+            "properties": {
+              "task_condition_identity_sha256": {"$ref": "#/$defs/digest"},
+              "required_trial_count": {"type": "integer", "minimum": 3},
+              "observed_trial_count": {"type": "integer", "minimum": 3}
+            }
+          }
+        }
+      }
+    },
+    "failure_taxonomy_counts": {"$ref": "#/$defs/failureTaxonomy"},
+    "reliability": {"$ref": "#/$defs/reliability"},
+    "retention": {"$ref": "#/$defs/retention"}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "timestamp": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"},
+    "count": {"type": "integer", "minimum": 0},
+    "failureTaxonomy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "collateral_effect",
+        "duplicate_effect",
+        "healthy_path_model_call",
+        "operator_intervention",
+        "over_halt",
+        "platform_failure",
+        "safe_halt",
+        "silent_incorrect_success",
+        "uncertain_delivery",
+        "verified",
+        "wrong_record"
+      ],
+      "properties": {
+        "collateral_effect": {"$ref": "#/$defs/count"},
+        "duplicate_effect": {"$ref": "#/$defs/count"},
+        "healthy_path_model_call": {"$ref": "#/$defs/count"},
+        "operator_intervention": {"$ref": "#/$defs/count"},
+        "over_halt": {"$ref": "#/$defs/count"},
+        "platform_failure": {"$ref": "#/$defs/count"},
+        "safe_halt": {"$ref": "#/$defs/count"},
+        "silent_incorrect_success": {"$ref": "#/$defs/count"},
+        "uncertain_delivery": {"$ref": "#/$defs/count"},
+        "verified": {"$ref": "#/$defs/count"},
+        "wrong_record": {"$ref": "#/$defs/count"}
+      }
+    },
+    "reliability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "silent_incorrect_success_count",
+        "over_halt_count",
+        "wrong_record_count",
+        "duplicate_effect_count",
+        "collateral_effect_count",
+        "operator_intervention_count",
+        "uncertain_delivery_count",
+        "model_call_count"
+      ],
+      "properties": {
+        "silent_incorrect_success_count": {"$ref": "#/$defs/count"},
+        "over_halt_count": {"$ref": "#/$defs/count"},
+        "wrong_record_count": {"$ref": "#/$defs/count"},
+        "duplicate_effect_count": {"$ref": "#/$defs/count"},
+        "collateral_effect_count": {"$ref": "#/$defs/count"},
+        "operator_intervention_count": {"$ref": "#/$defs/count"},
+        "uncertain_delivery_count": {"$ref": "#/$defs/count"},
+        "model_call_count": {"$ref": "#/$defs/count"}
+      }
+    },
+    "retention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "receipt_id",
+        "ciphertext_sha256",
+        "candidate_sha256",
+        "private_envelope_sha256",
+        "store_attestation_sha256",
+        "storage_identity_sha256",
+        "object_version_sha256",
+        "private_locator_version_sha256",
+        "kms_key_identity_sha256",
+        "uploader_identity_sha256",
+        "retention_mode",
+        "retention_until",
+        "retained_at",
+        "upload_verified",
+        "head_verified",
+        "object_lock_verified",
+        "private_locator_recorded",
+        "acceptance_verified_at",
+        "provenance_attestation"
+      ],
+      "properties": {
+        "receipt_id": {"type": "string", "pattern": "^retention:[0-9a-f]{32}$"},
+        "ciphertext_sha256": {"$ref": "#/$defs/digest"},
+        "candidate_sha256": {"$ref": "#/$defs/digest"},
+        "private_envelope_sha256": {"$ref": "#/$defs/digest"},
+        "store_attestation_sha256": {"$ref": "#/$defs/digest"},
+        "storage_identity_sha256": {"$ref": "#/$defs/digest"},
+        "object_version_sha256": {"$ref": "#/$defs/digest"},
+        "private_locator_version_sha256": {"$ref": "#/$defs/digest"},
+        "kms_key_identity_sha256": {"$ref": "#/$defs/digest"},
+        "uploader_identity_sha256": {"$ref": "#/$defs/digest"},
+        "retention_mode": {"const": "COMPLIANCE"},
+        "retention_until": {"$ref": "#/$defs/timestamp"},
+        "retained_at": {"$ref": "#/$defs/timestamp"},
+        "upload_verified": {"const": true},
+        "head_verified": {"const": true},
+        "object_lock_verified": {"const": true},
+        "private_locator_recorded": {"const": true},
+        "acceptance_verified_at": {"$ref": "#/$defs/timestamp"},
+        "provenance_attestation": {"const": "github-artifact-attestation-v4"}
+      }
+    }
+  }
+}

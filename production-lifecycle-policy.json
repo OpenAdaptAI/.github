@@ -10,7 +10,11 @@
     "oidc_issuer": "https://token.actions.githubusercontent.com",
     "certificate_identity": "https://github.com/OpenAdaptAI/openadapt-evals/.github/workflows/production-lifecycle-evidence.yml@refs/heads/main",
     "summary_schema_version": "openadapt.production-lifecycle-evidence-summary/v1",
-    "private_certificate_schema_version": "openadapt.execute-live-acceptance-record/v2"
+    "private_certificate_schema_version": "openadapt.execute-live-acceptance-record/v2",
+    "evidence_manifest_schema_version": "openadapt.production-acceptance/v1",
+    "release_identity_schema_version": "openadapt.monotonic-production-release/v1",
+    "production_channel": "production",
+    "signer_provenance_digest_domain": "OpenAdapt production certificate signer provenance v1\u0000"
   },
   "targets": [
     {
@@ -20,7 +24,10 @@
       "lifecycle_subject": "openadapt-agent",
       "source_repository": "OpenAdaptAI/openadapt-agent",
       "release_kind": "public_package",
-      "required_artifact_kinds": ["sdist", "wheel"]
+      "required_claim_scope": "qualified_agent_bridge_release",
+      "required_artifact_kinds": ["sdist", "wheel"],
+      "package_index_project": "openadapt-agent",
+      "artifact_authority_by_kind": {"sdist": "pypi", "wheel": "pypi"}
     },
     {
       "id": "capture",
@@ -29,7 +36,10 @@
       "lifecycle_subject": "openadapt-capture",
       "source_repository": "OpenAdaptAI/openadapt-capture",
       "release_kind": "public_package",
-      "required_artifact_kinds": ["sdist", "wheel"]
+      "required_claim_scope": "qualified_native_recorder_release",
+      "required_artifact_kinds": ["sdist", "wheel"],
+      "package_index_project": "openadapt-capture",
+      "artifact_authority_by_kind": {"sdist": "pypi", "wheel": "pypi"}
     },
     {
       "id": "cloud",
@@ -38,7 +48,10 @@
       "lifecycle_subject": "openadapt-cloud",
       "source_repository": "OpenAdaptAI/openadapt-cloud",
       "release_kind": "private_deployment",
-      "required_artifact_kinds": []
+      "required_claim_scope": "qualified_workflow_control_plane_deployment",
+      "required_artifact_kinds": [],
+      "package_index_project": null,
+      "artifact_authority_by_kind": {}
     },
     {
       "id": "desktop",
@@ -47,13 +60,22 @@
       "lifecycle_subject": "openadapt-desktop",
       "source_repository": "OpenAdaptAI/openadapt-desktop",
       "release_kind": "public_package",
+      "required_claim_scope": "qualified_native_workflow_desktop_release",
       "required_artifact_kinds": [
         "linux-installer",
         "macos-installer",
         "sdist",
         "wheel",
         "windows-installer"
-      ]
+      ],
+      "package_index_project": "openadapt-desktop",
+      "artifact_authority_by_kind": {
+        "linux-installer": "github_release",
+        "macos-installer": "github_release",
+        "sdist": "pypi",
+        "wheel": "pypi",
+        "windows-installer": "github_release"
+      }
     },
     {
       "id": "docs",
@@ -62,7 +84,13 @@
       "lifecycle_subject": "docs.openadapt.ai",
       "source_repository": "OpenAdaptAI/openadapt-ops",
       "release_kind": "public_deployment",
-      "required_artifact_kinds": ["deployment-manifest", "site-archive"]
+      "required_claim_scope": "production_documentation_deployment",
+      "required_artifact_kinds": ["deployment-manifest", "site-archive"],
+      "package_index_project": null,
+      "artifact_authority_by_kind": {
+        "deployment-manifest": "managed_evidence",
+        "site-archive": "managed_evidence"
+      }
     },
     {
       "id": "flow",
@@ -71,7 +99,10 @@
       "lifecycle_subject": "openadapt-flow",
       "source_repository": "OpenAdaptAI/openadapt-flow",
       "release_kind": "public_package",
-      "required_artifact_kinds": ["sdist", "wheel"]
+      "required_claim_scope": "qualified_workflow_runtime_release",
+      "required_artifact_kinds": ["sdist", "wheel"],
+      "package_index_project": "openadapt-flow",
+      "artifact_authority_by_kind": {"sdist": "pypi", "wheel": "pypi"}
     },
     {
       "id": "openadapt",
@@ -80,7 +111,10 @@
       "lifecycle_subject": "OpenAdapt",
       "source_repository": "OpenAdaptAI/OpenAdapt",
       "release_kind": "public_package",
-      "required_artifact_kinds": ["sdist", "wheel"]
+      "required_claim_scope": "qualified_workflow_launcher_release",
+      "required_artifact_kinds": ["sdist", "wheel"],
+      "package_index_project": "openadapt",
+      "artifact_authority_by_kind": {"sdist": "pypi", "wheel": "pypi"}
     }
   ]
 }

@@ -74,17 +74,17 @@ before extrapolating either result.
 
 ## Product Surfaces
 
-| Surface | Lifecycle | Start here |
-|---|---|---|
-| **Open-source product** | **Beta** | [`OpenAdapt`](https://github.com/OpenAdaptAI/OpenAdapt) installs the unified CLI; [`openadapt-flow`](https://github.com/OpenAdaptAI/openadapt-flow) is the canonical compiler and governed runtime. |
-| **Desktop cockpit** | **Beta** | [`openadapt-desktop`](https://github.com/OpenAdaptAI/openadapt-desktop) provides local recording, qualification, execution, evidence review, and governed repair. Native installers are published from its releases page. |
-| **Cloud control plane** | **Beta** | [`app.openadapt.ai`](https://app.openadapt.ai/) provides managed browser execution plus workflow, evidence, attended-operation, usage, and billing surfaces for customer-controlled execution. Its implementation repository is private. |
-| **Native capture** | **Experimental** | [`openadapt-capture`](https://github.com/OpenAdaptAI/openadapt-capture) is the canonical native screen, input, timing, and window-scoped recording component used by Desktop and Flow. |
-| **Agent bridge** | **Beta** | [`openadapt-agent`](https://github.com/OpenAdaptAI/openadapt-agent) exposes compiled Flow workflows as local MCP tools and Agent Skills without becoming a second runtime. |
-| **Documentation** | **Beta** | [`docs.openadapt.ai`](https://docs.openadapt.ai) is the canonical journey-led site; [`openadapt-ops`](https://github.com/OpenAdaptAI/openadapt-ops) is its **Internal** publishing source. |
-| **Evidence and evaluation** | **Research** | [`openadapt-evals`](https://github.com/OpenAdaptAI/openadapt-evals) contains evaluation infrastructure. Runnable references live in [`openadapt-flow/docs/showcase`](https://github.com/OpenAdaptAI/openadapt-flow/tree/main/docs/showcase), with methods and evidence under [`benchmark`](https://github.com/OpenAdaptAI/openadapt-flow/tree/main/benchmark). |
+| Surface | Start here |
+|---|---|
+| **Open-source product** | [`OpenAdapt`](https://github.com/OpenAdaptAI/OpenAdapt) installs the unified CLI; [`openadapt-flow`](https://github.com/OpenAdaptAI/openadapt-flow) is the canonical compiler and governed runtime. |
+| **Desktop cockpit** | [`openadapt-desktop`](https://github.com/OpenAdaptAI/openadapt-desktop) provides local recording, qualification, execution, evidence review, and governed repair. Native installers are published from its releases page. |
+| **Cloud control plane** | [`app.openadapt.ai`](https://app.openadapt.ai/) provides managed browser execution plus workflow, evidence, attended-operation, usage, and billing surfaces for customer-controlled execution. Its implementation repository is private. |
+| **Native capture** | [`openadapt-capture`](https://github.com/OpenAdaptAI/openadapt-capture) is the canonical native screen, input, timing, and window-scoped recording component used by Desktop and Flow. |
+| **Agent bridge** | [`openadapt-agent`](https://github.com/OpenAdaptAI/openadapt-agent) exposes compiled Flow workflows as local MCP tools and Agent Skills without becoming a second runtime. |
+| **Documentation** | [`docs.openadapt.ai`](https://docs.openadapt.ai) is the canonical journey-led site; [`openadapt-ops`](https://github.com/OpenAdaptAI/openadapt-ops) is its publishing source. |
+| **Evidence and evaluation** | [`openadapt-evals`](https://github.com/OpenAdaptAI/openadapt-evals) contains evaluation infrastructure. Runnable references live in [`openadapt-flow/docs/showcase`](https://github.com/OpenAdaptAI/openadapt-flow/tree/main/docs/showcase), with methods and evidence under [`benchmark`](https://github.com/OpenAdaptAI/openadapt-flow/tree/main/benchmark). |
 
-OpenAdapt is one Beta product across browser, Windows, macOS, Linux, RDP, and
+OpenAdapt is one product across browser, Windows, macOS, Linux, RDP, and
 Citrix/VDI. Those execution surfaces share one qualification contract while
 retaining environment-specific bindings and evidence. Qualification remains
 specific to the workflow, application, environment, identity contract, and
