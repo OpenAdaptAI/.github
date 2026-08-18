@@ -13,7 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-import validate_production_lifecycle as lifecycle
+import validate_production_lifecycle as lifecycle  # noqa: E402
 
 NOW = datetime(2026, 8, 18, 12, 0, 0, tzinfo=timezone.utc)
 SOURCE_COMMIT = "1" * 40
@@ -138,8 +138,11 @@ def build_case(
         for item in policy["targets"]
         if item["id"] == target
     )
-    release_digest = lifecycle._canonical_digest(release)
-    artifact_digest = lifecycle._canonical_digest(release.get("artifacts", []))
+    acceptance_policy_digest = policy["summary_authority"]["acceptance_policy_sha256"]
+    release_digest = lifecycle._target_release_digest(target, claim_scope, release)
+    artifact_digest = lifecycle._artifact_inventory_digest(
+        target, claim_scope, release.get("artifacts", [])
+    )
     release_identity = {
         "schema_version": lifecycle.RELEASE_IDENTITY_SCHEMA,
         "channel": "production",
@@ -153,34 +156,30 @@ def build_case(
             "target": target,
             "claim_scope": claim_scope,
             "verdict": "accepted",
-            "policy_sha256": POLICY_DIGEST,
+            "acceptance_policy_sha256": acceptance_policy_digest,
+            "lifecycle_policy_sha256": POLICY_DIGEST,
             "target_release_sha256": release_digest,
             "target_artifact_inventory_sha256": artifact_digest,
             "evidence_identity_sha256": evidence_identity,
             "source_evidence": {
-                "private_certificate_schema_version": (
-                    "openadapt.execute-live-acceptance-record/v2"
-                ),
-                "private_certificate_sha256": "sha256:" + "6" * 64,
-                "signer_provenance_sha256": "sha256:" + "7" * 64,
-                "qualification_admission_sha256": "sha256:" + "a" * 64,
+                "source_result_sha256": "sha256:" + "0" * 64,
+                "certificate_sha256": "sha256:" + "6" * 64,
                 "campaign_sha256": "sha256:" + "b" * 64,
-                "verified_authority_source_commit": SOURCE_COMMIT,
+                "qualification_admission_sha256": "sha256:" + "a" * 64,
+                "attestation_sha256": "sha256:" + "c" * 64,
+                "attestation_bundle_sha256": "sha256:" + "d" * 64,
             },
             "qualification": {
+                "campaign_contract_sha256": "sha256:" + "b" * 64,
+                "campaign_outcomes_sha256": "sha256:" + "c" * 64,
                 "oracle_contract_sha256": "sha256:" + "d" * 64,
                 "task_count": 1,
                 "condition_count": 1,
                 "required_trial_count": 3,
                 "observed_trial_count": 3,
                 "minimum_trials_per_condition": 3,
-                "conditions": [
-                    {
-                        "task_condition_identity_sha256": "sha256:" + "e" * 64,
-                        "required_trial_count": 3,
-                        "observed_trial_count": 3,
-                    }
-                ],
+                "excluded_trial_count": 0,
+                "task_condition_inventory_sha256": "sha256:" + "e" * 64,
             },
             "failure_taxonomy_counts": {
                 "collateral_effect": 0,
@@ -217,13 +216,13 @@ def build_case(
                 "kms_key_identity_sha256": "sha256:" + "8" * 64,
                 "uploader_identity_sha256": "sha256:" + "9" * 64,
                 "retention_mode": "COMPLIANCE",
-                "retention_until": "2027-08-18T10:00:00Z",
-                "retained_at": "2026-08-18T10:00:00Z",
+                "retention_until": "2027-08-18T10:00:00.000Z",
+                "retained_at": "2026-08-18T10:00:00.000Z",
                 "upload_verified": True,
                 "head_verified": True,
                 "object_lock_verified": True,
                 "private_locator_recorded": True,
-                "acceptance_verified_at": "2026-08-18T09:59:59Z",
+                "acceptance_verified_at": "2026-08-18T09:59:59.500Z",
                 "provenance_attestation": "github-artifact-attestation-v4",
             },
         },
@@ -241,7 +240,8 @@ def build_case(
         "target": target,
         "verdict": "accepted",
         "claim_scope": claim_scope,
-        "policy_sha256": POLICY_DIGEST,
+        "acceptance_policy_sha256": acceptance_policy_digest,
+        "lifecycle_policy_sha256": POLICY_DIGEST,
         "release_identity": release_identity,
         "release_sha256": release_digest,
         "artifact_inventory_sha256": artifact_digest,
@@ -548,14 +548,73 @@ class ProductionLifecycleTests(unittest.TestCase):
         with self.assertRaisesRegex(lifecycle.LifecycleError, "every trial"):
             validate_case(admissions, remote)
 
+    def test_governed_repair_model_calls_remain_informational(self) -> None:
+        admissions, summary, remote = build_case()
+        manifest = json.loads(remote[summary["evidence_manifest"]["url"]])
+        manifest["reliability"]["model_call_count"] = 2
+        replace_manifest(admissions, summary, remote, manifest)
+        self.assertEqual(
+            validate_case(admissions, remote), {"flow": "production:flow:1"}
+        )
+
+    def test_healthy_path_model_call_is_refused(self) -> None:
+        admissions, summary, remote = build_case()
+        manifest = json.loads(remote[summary["evidence_manifest"]["url"]])
+        manifest["failure_taxonomy_counts"]["healthy_path_model_call"] = 1
+        manifest["failure_taxonomy_counts"]["verified"] = 2
+        manifest["reliability"]["model_call_count"] = 1
+        replace_manifest(admissions, summary, remote, manifest)
+        with self.assertRaisesRegex(lifecycle.LifecycleError, "Production failure"):
+            validate_case(admissions, remote)
+
     def test_future_retention_verification_is_refused(self) -> None:
         admissions, summary, remote = build_case()
         manifest = json.loads(remote[summary["evidence_manifest"]["url"]])
-        manifest["retention"]["acceptance_verified_at"] = "2026-08-19T09:59:59Z"
-        manifest["retention"]["retained_at"] = "2026-08-19T10:00:00Z"
-        manifest["retention"]["retention_until"] = "2027-08-19T10:00:00Z"
+        manifest["retention"]["acceptance_verified_at"] = "2026-08-19T09:59:59.000Z"
+        manifest["retention"]["retained_at"] = "2026-08-19T10:00:00.000Z"
+        manifest["retention"]["retention_until"] = "2027-08-19T10:00:00.000Z"
         replace_manifest(admissions, summary, remote, manifest)
         with self.assertRaisesRegex(lifecycle.LifecycleError, "in the future"):
+            validate_case(admissions, remote)
+
+    def test_whole_second_retention_timestamp_is_refused(self) -> None:
+        admissions, summary, remote = build_case()
+        manifest = json.loads(remote[summary["evidence_manifest"]["url"]])
+        manifest["retention"]["retained_at"] = "2026-08-18T10:00:00Z"
+        replace_manifest(admissions, summary, remote, manifest)
+        with self.assertRaisesRegex(
+            lifecycle.LifecycleError, "retained time must be a millisecond UTC"
+        ):
+            validate_case(admissions, remote)
+
+    def test_offset_retention_timestamp_is_refused(self) -> None:
+        admissions, summary, remote = build_case()
+        manifest = json.loads(remote[summary["evidence_manifest"]["url"]])
+        manifest["retention"]["retention_until"] = "2027-08-18T10:00:00.000+00:00"
+        replace_manifest(admissions, summary, remote, manifest)
+        with self.assertRaisesRegex(
+            lifecycle.LifecycleError, "retention end must be a millisecond UTC"
+        ):
+            validate_case(admissions, remote)
+
+    def test_observed_trials_below_condition_minimum_are_refused(self) -> None:
+        admissions, summary, remote = build_case()
+        manifest = json.loads(remote[summary["evidence_manifest"]["url"]])
+        manifest["qualification"]["minimum_trials_per_condition"] = 4
+        replace_manifest(admissions, summary, remote, manifest)
+        with self.assertRaisesRegex(
+            lifecycle.LifecycleError, "observed trial total is too small"
+        ):
+            validate_case(admissions, remote)
+
+    def test_required_trials_below_policy_floor_are_refused(self) -> None:
+        admissions, summary, remote = build_case()
+        manifest = json.loads(remote[summary["evidence_manifest"]["url"]])
+        manifest["qualification"]["condition_count"] = 2
+        replace_manifest(admissions, summary, remote, manifest)
+        with self.assertRaisesRegex(
+            lifecycle.LifecycleError, "required trial total is too small"
+        ):
             validate_case(admissions, remote)
 
     def test_evidence_manifest_schema_mismatch_is_refused(self) -> None:

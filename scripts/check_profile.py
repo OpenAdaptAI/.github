@@ -69,7 +69,7 @@ EXPECTED_CRITICAL_LIFECYCLES = {
     "openadapt-flow": "beta",
     "openadapt-desktop": "beta",
     "openadapt-agent": "beta",
-    "openadapt-capture": "beta",
+    "openadapt-capture": "experimental",
     "OpenAdapter": "archived",
     "OpenReflector": "archived",
 }

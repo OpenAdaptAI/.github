@@ -29,6 +29,7 @@
         "summary_schema_version",
         "private_certificate_schema_version",
         "evidence_manifest_schema_version",
+        "acceptance_policy_sha256",
         "release_identity_schema_version",
         "production_channel",
         "signer_provenance_digest_domain"
@@ -42,6 +43,7 @@
         "summary_schema_version": {"const": "openadapt.production-lifecycle-evidence-summary/v1"},
         "private_certificate_schema_version": {"const": "openadapt.execute-live-acceptance-record/v2"},
         "evidence_manifest_schema_version": {"const": "openadapt.production-acceptance/v1"},
+        "acceptance_policy_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
         "release_identity_schema_version": {"const": "openadapt.monotonic-production-release/v1"},
         "production_channel": {"const": "production"},
         "signer_provenance_digest_domain": {"const": "OpenAdapt production certificate signer provenance v1\u0000"}

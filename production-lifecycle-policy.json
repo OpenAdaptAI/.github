@@ -12,6 +12,7 @@
     "summary_schema_version": "openadapt.production-lifecycle-evidence-summary/v1",
     "private_certificate_schema_version": "openadapt.execute-live-acceptance-record/v2",
     "evidence_manifest_schema_version": "openadapt.production-acceptance/v1",
+    "acceptance_policy_sha256": "sha256:9b1fe55bc6796ae0a46960ca4aa335d88de60b0562c383afa1e85fa0a0c204b8",
     "release_identity_schema_version": "openadapt.monotonic-production-release/v1",
     "production_channel": "production",
     "signer_provenance_digest_domain": "OpenAdapt production certificate signer provenance v1\u0000"

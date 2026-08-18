@@ -9,7 +9,8 @@
     "target",
     "claim_scope",
     "verdict",
-    "policy_sha256",
+    "acceptance_policy_sha256",
+    "lifecycle_policy_sha256",
     "target_release_sha256",
     "target_artifact_inventory_sha256",
     "evidence_identity_sha256",
@@ -24,7 +25,8 @@
     "target": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$"},
     "claim_scope": {"type": "string", "pattern": "^[a-z][a-z0-9_]{2,127}$"},
     "verdict": {"const": "accepted"},
-    "policy_sha256": {"$ref": "#/$defs/digest"},
+    "acceptance_policy_sha256": {"$ref": "#/$defs/digest"},
+    "lifecycle_policy_sha256": {"$ref": "#/$defs/digest"},
     "target_release_sha256": {"$ref": "#/$defs/digest"},
     "target_artifact_inventory_sha256": {"$ref": "#/$defs/digest"},
     "evidence_identity_sha256": {"$ref": "#/$defs/digest"},
@@ -32,55 +34,48 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "private_certificate_schema_version",
-        "private_certificate_sha256",
-        "signer_provenance_sha256",
-        "qualification_admission_sha256",
+        "source_result_sha256",
+        "certificate_sha256",
         "campaign_sha256",
-        "verified_authority_source_commit"
+        "qualification_admission_sha256",
+        "attestation_sha256",
+        "attestation_bundle_sha256"
       ],
       "properties": {
-        "private_certificate_schema_version": {"const": "openadapt.execute-live-acceptance-record/v2"},
-        "private_certificate_sha256": {"$ref": "#/$defs/digest"},
-        "signer_provenance_sha256": {"$ref": "#/$defs/digest"},
-        "qualification_admission_sha256": {"$ref": "#/$defs/digest"},
+        "source_result_sha256": {"$ref": "#/$defs/digest"},
+        "certificate_sha256": {"$ref": "#/$defs/digest"},
         "campaign_sha256": {"$ref": "#/$defs/digest"},
-        "verified_authority_source_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+        "qualification_admission_sha256": {"$ref": "#/$defs/digest"},
+        "attestation_sha256": {"$ref": "#/$defs/digest"},
+        "attestation_bundle_sha256": {"$ref": "#/$defs/digest"}
       }
     },
     "qualification": {
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "campaign_contract_sha256",
+        "campaign_outcomes_sha256",
         "oracle_contract_sha256",
         "task_count",
         "condition_count",
         "required_trial_count",
         "observed_trial_count",
         "minimum_trials_per_condition",
-        "conditions"
+        "excluded_trial_count",
+        "task_condition_inventory_sha256"
       ],
       "properties": {
+        "campaign_contract_sha256": {"$ref": "#/$defs/digest"},
+        "campaign_outcomes_sha256": {"$ref": "#/$defs/digest"},
         "oracle_contract_sha256": {"$ref": "#/$defs/digest"},
         "task_count": {"type": "integer", "minimum": 1},
         "condition_count": {"type": "integer", "minimum": 1},
         "required_trial_count": {"type": "integer", "minimum": 3},
         "observed_trial_count": {"type": "integer", "minimum": 3},
         "minimum_trials_per_condition": {"type": "integer", "minimum": 3},
-        "conditions": {
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["task_condition_identity_sha256", "required_trial_count", "observed_trial_count"],
-            "properties": {
-              "task_condition_identity_sha256": {"$ref": "#/$defs/digest"},
-              "required_trial_count": {"type": "integer", "minimum": 3},
-              "observed_trial_count": {"type": "integer", "minimum": 3}
-            }
-          }
-        }
+        "excluded_trial_count": {"const": 0},
+        "task_condition_inventory_sha256": {"$ref": "#/$defs/digest"}
       }
     },
     "failure_taxonomy_counts": {"$ref": "#/$defs/failureTaxonomy"},
@@ -89,7 +84,7 @@
   },
   "$defs": {
     "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
-    "timestamp": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"},
+    "millisecondTimestamp": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"},
     "count": {"type": "integer", "minimum": 0},
     "failureTaxonomy": {
       "type": "object",
@@ -181,13 +176,13 @@
         "kms_key_identity_sha256": {"$ref": "#/$defs/digest"},
         "uploader_identity_sha256": {"$ref": "#/$defs/digest"},
         "retention_mode": {"const": "COMPLIANCE"},
-        "retention_until": {"$ref": "#/$defs/timestamp"},
-        "retained_at": {"$ref": "#/$defs/timestamp"},
+        "retention_until": {"$ref": "#/$defs/millisecondTimestamp"},
+        "retained_at": {"$ref": "#/$defs/millisecondTimestamp"},
         "upload_verified": {"const": true},
         "head_verified": {"const": true},
         "object_lock_verified": {"const": true},
         "private_locator_recorded": {"const": true},
-        "acceptance_verified_at": {"$ref": "#/$defs/timestamp"},
+        "acceptance_verified_at": {"$ref": "#/$defs/millisecondTimestamp"},
         "provenance_attestation": {"const": "github-artifact-attestation-v4"}
       }
     }

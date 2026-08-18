@@ -43,9 +43,16 @@ HEX40 = re.compile(r"^[0-9a-f]{40}$")
 SEMVER = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$")
 TARGET_ID = re.compile(r"^[a-z][a-z0-9-]{1,63}$")
 ARTIFACT_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$")
+MILLISECOND_UTC = re.compile(
+    r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z$"
+)
 GROUP_RE = re.compile(r"^  ([a-z_]+):(?: \[\])?$")
 REPOSITORY_RE = re.compile(r"^    - (\S+)$")
 MAX_REMOTE_BYTES = 2 * 1024 * 1024
+TARGET_RELEASE_DIGEST_DOMAIN = b"OpenAdapt production lifecycle target release v1\0"
+ARTIFACT_INVENTORY_DIGEST_DOMAIN = (
+    b"OpenAdapt production lifecycle artifact inventory v1\0"
+)
 FAILURE_TAXONOMY_KEYS = {
     "collateral_effect",
     "duplicate_effect",
@@ -67,8 +74,8 @@ RELIABILITY_TO_TAXONOMY = {
     "collateral_effect_count": "collateral_effect",
     "operator_intervention_count": "operator_intervention",
     "uncertain_delivery_count": "uncertain_delivery",
-    "model_call_count": "healthy_path_model_call",
 }
+RELIABILITY_KEYS = {*RELIABILITY_TO_TAXONOMY, "model_call_count"}
 RETENTION_DIGEST_KEYS = {
     "ciphertext_sha256",
     "candidate_sha256",
@@ -92,6 +99,9 @@ EXPECTED_AUTHORITY = {
     "summary_schema_version": SUMMARY_SCHEMA,
     "private_certificate_schema_version": "openadapt.execute-live-acceptance-record/v2",
     "evidence_manifest_schema_version": ("openadapt.production-acceptance/v1"),
+    "acceptance_policy_sha256": (
+        "sha256:9b1fe55bc6796ae0a46960ca4aa335d88de60b0562c383afa1e85fa0a0c204b8"
+    ),
     "release_identity_schema_version": RELEASE_IDENTITY_SCHEMA,
     "production_channel": "production",
     "signer_provenance_digest_domain": (
@@ -231,9 +241,54 @@ def _timestamp(value: object, label: str) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
+def _millisecond_timestamp(value: object, label: str) -> datetime:
+    """Parse a retained-evidence timestamp.
+
+    The private acceptance certificate records retention times in canonical
+    UTC form with millisecond precision (``2026-08-18T12:00:00.000Z``). The
+    exported evidence manifest copies those values verbatim, so this accepts
+    exactly that form. Any other precision, offset, or separator is refused.
+    """
+
+    if not isinstance(value, str) or MILLISECOND_UTC.fullmatch(value) is None:
+        raise LifecycleError(f"{label} must be a millisecond UTC timestamp")
+    try:
+        parsed = datetime.fromisoformat(value.removesuffix("Z") + "+00:00")
+    except ValueError as exc:
+        raise LifecycleError(f"{label} is not a valid UTC timestamp") from exc
+    return parsed.astimezone(timezone.utc)
+
+
 def _canonical_digest(value: object) -> str:
-    payload = json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    payload = json.dumps(
+        value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
     return "sha256:" + hashlib.sha256(payload).hexdigest()
+
+
+def _domain_digest(domain: bytes, value: object) -> str:
+    payload = json.dumps(
+        value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return "sha256:" + hashlib.sha256(domain + payload).hexdigest()
+
+
+def _target_release_digest(
+    target: str, claim_scope: str, release: Mapping[str, Any]
+) -> str:
+    return _domain_digest(
+        TARGET_RELEASE_DIGEST_DOMAIN,
+        {"target": target, "claim_scope": claim_scope, "release": release},
+    )
+
+
+def _artifact_inventory_digest(
+    target: str, claim_scope: str, artifacts: Sequence[Mapping[str, Any]]
+) -> str:
+    return _domain_digest(
+        ARTIFACT_INVENTORY_DIGEST_DOMAIN,
+        {"target": target, "claim_scope": claim_scope, "artifacts": artifacts},
+    )
 
 
 def _bytes_digest(value: bytes) -> str:
@@ -322,6 +377,7 @@ def _validate_policy(value: object) -> tuple[dict[str, Any], dict[str, dict[str,
             "summary_schema_version",
             "private_certificate_schema_version",
             "evidence_manifest_schema_version",
+            "acceptance_policy_sha256",
             "release_identity_schema_version",
             "production_channel",
             "signer_provenance_digest_domain",
@@ -937,7 +993,6 @@ def _validate_manifest(
     admission: Mapping[str, Any],
     summary: Mapping[str, Any],
     authority: Mapping[str, Any],
-    authority_commit: str,
     now: datetime,
 ) -> None:
     target_id = admission["target"]
@@ -948,7 +1003,8 @@ def _validate_manifest(
             "target",
             "claim_scope",
             "verdict",
-            "policy_sha256",
+            "acceptance_policy_sha256",
+            "lifecycle_policy_sha256",
             "target_release_sha256",
             "target_artifact_inventory_sha256",
             "evidence_identity_sha256",
@@ -965,7 +1021,8 @@ def _validate_manifest(
         "target": target_id,
         "claim_scope": admission["claim_scope"],
         "verdict": "accepted",
-        "policy_sha256": summary["policy_sha256"],
+        "acceptance_policy_sha256": summary["acceptance_policy_sha256"],
+        "lifecycle_policy_sha256": summary["lifecycle_policy_sha256"],
         "target_release_sha256": summary["release_sha256"],
         "target_artifact_inventory_sha256": summary["artifact_inventory_sha256"],
         "evidence_identity_sha256": summary["evidence_identity_sha256"],
@@ -979,46 +1036,51 @@ def _validate_manifest(
     source = _closed(
         manifest["source_evidence"],
         {
-            "private_certificate_schema_version",
-            "private_certificate_sha256",
-            "signer_provenance_sha256",
-            "qualification_admission_sha256",
+            "source_result_sha256",
+            "certificate_sha256",
             "campaign_sha256",
-            "verified_authority_source_commit",
+            "qualification_admission_sha256",
+            "attestation_sha256",
+            "attestation_bundle_sha256",
         },
         f"admission {target_id} source evidence",
     )
     certificate = summary["private_certificate_binding"]
-    if (
-        source["private_certificate_schema_version"] != certificate["schema_version"]
-        or source["private_certificate_sha256"] != certificate["sha256"]
-        or source["signer_provenance_sha256"] != certificate["signer_provenance_sha256"]
-        or source["verified_authority_source_commit"] != authority_commit
-    ):
+    if source["certificate_sha256"] != certificate["sha256"]:
         raise LifecycleError(f"admission {target_id} source evidence differs")
-    _digest(
-        source["qualification_admission_sha256"],
-        f"admission {target_id} qualification admission digest",
-    )
-    _digest(source["campaign_sha256"], f"admission {target_id} campaign digest")
+    for key in (
+        "source_result_sha256",
+        "certificate_sha256",
+        "campaign_sha256",
+        "qualification_admission_sha256",
+        "attestation_sha256",
+        "attestation_bundle_sha256",
+    ):
+        _digest(source[key], f"admission {target_id} source evidence {key}")
 
     qualification = _closed(
         manifest["qualification"],
         {
+            "campaign_contract_sha256",
+            "campaign_outcomes_sha256",
             "oracle_contract_sha256",
             "task_count",
             "condition_count",
             "required_trial_count",
             "observed_trial_count",
             "minimum_trials_per_condition",
-            "conditions",
+            "excluded_trial_count",
+            "task_condition_inventory_sha256",
         },
         f"admission {target_id} qualification",
     )
-    _digest(
-        qualification["oracle_contract_sha256"],
-        f"admission {target_id} oracle contract digest",
-    )
+    for key in (
+        "campaign_contract_sha256",
+        "campaign_outcomes_sha256",
+        "oracle_contract_sha256",
+        "task_condition_inventory_sha256",
+    ):
+        _digest(qualification[key], f"admission {target_id} qualification {key}")
     _count(qualification["task_count"], f"admission {target_id} task count", 1)
     condition_count = _count(
         qualification["condition_count"],
@@ -1040,48 +1102,12 @@ def _validate_manifest(
         f"admission {target_id} minimum trials per condition",
         3,
     )
-    conditions_value = qualification["conditions"]
-    if (
-        not isinstance(conditions_value, list)
-        or len(conditions_value) != condition_count
-    ):
-        raise LifecycleError(f"admission {target_id} condition inventory differs")
-    condition_identities: list[str] = []
-    condition_required = 0
-    condition_observed = 0
-    for index, item in enumerate(conditions_value):
-        condition = _closed(
-            item,
-            {
-                "task_condition_identity_sha256",
-                "required_trial_count",
-                "observed_trial_count",
-            },
-            f"admission {target_id} condition {index}",
-        )
-        identity = _digest(
-            condition["task_condition_identity_sha256"],
-            f"admission {target_id} condition {index} identity",
-        )
-        required = _count(
-            condition["required_trial_count"],
-            f"admission {target_id} condition {index} required trials",
-            minimum_trials,
-        )
-        observed = _count(
-            condition["observed_trial_count"],
-            f"admission {target_id} condition {index} observed trials",
-            required,
-        )
-        condition_identities.append(identity)
-        condition_required += required
-        condition_observed += observed
-    if condition_identities != sorted(set(condition_identities)):
-        raise LifecycleError(
-            f"admission {target_id} conditions are not unique and sorted"
-        )
-    if condition_required != required_trials or condition_observed != observed_trials:
-        raise LifecycleError(f"admission {target_id} trial inventory totals differ")
+    if qualification["excluded_trial_count"] != 0:
+        raise LifecycleError(f"admission {target_id} excludes qualification trials")
+    if required_trials < condition_count * 3:
+        raise LifecycleError(f"admission {target_id} required trial total is too small")
+    if observed_trials < condition_count * minimum_trials:
+        raise LifecycleError(f"admission {target_id} observed trial total is too small")
 
     taxonomy = _closed(
         manifest["failure_taxonomy_counts"],
@@ -1096,7 +1122,7 @@ def _validate_manifest(
         )
     reliability = _closed(
         manifest["reliability"],
-        set(RELIABILITY_TO_TAXONOMY),
+        RELIABILITY_KEYS,
         f"admission {target_id} reliability",
     )
     for reliability_key, taxonomy_key in RELIABILITY_TO_TAXONOMY.items():
@@ -1108,17 +1134,14 @@ def _validate_manifest(
             raise LifecycleError(
                 f"admission {target_id} reliability and taxonomy differ"
             )
-    for key in (
-        "silent_incorrect_success_count",
-        "wrong_record_count",
-        "duplicate_effect_count",
-        "collateral_effect_count",
-        "uncertain_delivery_count",
-        "model_call_count",
-    ):
-        if reliability[key] != 0:
+    _count(
+        reliability["model_call_count"],
+        f"admission {target_id} reliability model_call_count",
+    )
+    for key in FAILURE_TAXONOMY_KEYS - {"verified", "safe_halt"}:
+        if taxonomy[key] != 0:
             raise LifecycleError(
-                f"admission {target_id} unsafe reliability count {key} is nonzero"
+                f"admission {target_id} Production failure count {key} is nonzero"
             )
 
     retention = _closed(
@@ -1158,14 +1181,14 @@ def _validate_manifest(
             raise LifecycleError(f"admission {target_id} retention {key} is not true")
     if retention["provenance_attestation"] != "github-artifact-attestation-v4":
         raise LifecycleError(f"admission {target_id} retention provenance is invalid")
-    accepted_at = _timestamp(
+    accepted_at = _millisecond_timestamp(
         retention["acceptance_verified_at"],
         f"admission {target_id} acceptance verification time",
     )
-    retained_at = _timestamp(
+    retained_at = _millisecond_timestamp(
         retention["retained_at"], f"admission {target_id} retained time"
     )
-    retention_until = _timestamp(
+    retention_until = _millisecond_timestamp(
         retention["retention_until"], f"admission {target_id} retention end"
     )
     if not accepted_at <= retained_at < retention_until:
@@ -1256,7 +1279,8 @@ def _validate_remote_summary(
             "target",
             "verdict",
             "claim_scope",
-            "policy_sha256",
+            "acceptance_policy_sha256",
+            "lifecycle_policy_sha256",
             "release_identity",
             "release_sha256",
             "artifact_inventory_sha256",
@@ -1277,8 +1301,14 @@ def _validate_remote_summary(
         )
     if summary["claim_scope"] != admission["claim_scope"]:
         raise LifecycleError(f"admission {target_id} signed claim scope differs")
-    if summary["policy_sha256"] != policy_sha256:
-        raise LifecycleError(f"admission {target_id} signed policy digest differs")
+    if summary["acceptance_policy_sha256"] != authority["acceptance_policy_sha256"]:
+        raise LifecycleError(
+            f"admission {target_id} signed acceptance policy digest differs"
+        )
+    if summary["lifecycle_policy_sha256"] != policy_sha256:
+        raise LifecycleError(
+            f"admission {target_id} signed lifecycle policy digest differs"
+        )
     summary_identity = _validate_release_identity(
         summary["release_identity"],
         authority,
@@ -1286,10 +1316,16 @@ def _validate_remote_summary(
     )
     if summary_identity != admission["release_identity"]:
         raise LifecycleError(f"admission {target_id} signed release identity differs")
-    if summary["release_sha256"] != _canonical_digest(release):
+    expected_release_digest = _target_release_digest(
+        target_id, admission["claim_scope"], release
+    )
+    if summary["release_sha256"] != expected_release_digest:
         raise LifecycleError(f"admission {target_id} summary release digest differs")
     artifacts = release.get("artifacts", [])
-    if summary["artifact_inventory_sha256"] != _canonical_digest(artifacts):
+    expected_artifact_digest = _artifact_inventory_digest(
+        target_id, admission["claim_scope"], artifacts
+    )
+    if summary["artifact_inventory_sha256"] != expected_artifact_digest:
         raise LifecycleError(
             f"admission {target_id} summary artifact inventory differs"
         )
@@ -1369,7 +1405,6 @@ def _validate_remote_summary(
         admission=admission,
         summary=summary,
         authority=authority,
-        authority_commit=authority_commit,
         now=now,
     )
     for key in ("issued_at", "expires_at", "revoked_at"):
