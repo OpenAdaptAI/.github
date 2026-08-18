@@ -1,0 +1,6 @@
+{
+  "$schema": "schemas/production-lifecycle-admissions.schema.json",
+  "schema_version": "openadapt.production-lifecycle-admissions/v1",
+  "policy_sha256": "sha256:5d7b8fdcf9509aad5b2d67723226d06a1972f472e03ae93c9c6057042fd4e96c",
+  "admissions": []
+}

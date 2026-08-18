@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/OpenAdaptAI/.github/blob/main/schemas/production-lifecycle-admissions.schema.json",
+  "title": "OpenAdapt Production lifecycle admissions",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schema_version", "policy_sha256", "admissions"],
+  "properties": {
+    "$schema": {"const": "schemas/production-lifecycle-admissions.schema.json"},
+    "schema_version": {"const": "openadapt.production-lifecycle-admissions/v1"},
+    "policy_sha256": {"$ref": "#/$defs/digest"},
+    "admissions": {"type": "array", "items": {"$ref": "#/$defs/admission"}}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "timestamp": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"},
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "kind", "url", "sha256", "size_bytes"],
+      "properties": {
+        "name": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$"},
+        "kind": {"type": "string", "minLength": 1},
+        "url": {"type": "string", "format": "uri", "pattern": "^https://"},
+        "sha256": {"$ref": "#/$defs/digest"},
+        "size_bytes": {"type": "integer", "minimum": 1}
+      }
+    },
+    "publicPackage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "version", "tag", "source_commit", "immutable_release_url", "artifacts"],
+      "properties": {
+        "kind": {"const": "public_package"},
+        "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$"},
+        "tag": {"type": "string", "minLength": 1},
+        "source_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "immutable_release_url": {"type": "string", "format": "uri", "pattern": "^https://"},
+        "artifacts": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/artifact"}}
+      }
+    },
+    "publicDeployment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "deployment_id", "deployment_sha256", "source_commit", "immutable_release_url", "artifacts"],
+      "properties": {
+        "kind": {"const": "public_deployment"},
+        "deployment_id": {"type": "string", "minLength": 1},
+        "deployment_sha256": {"$ref": "#/$defs/digest"},
+        "source_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "immutable_release_url": {"type": "string", "format": "uri", "pattern": "^https://"},
+        "artifacts": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/artifact"}}
+      }
+    },
+    "privateDeployment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "deployment_release_id", "deployment_release_sha256", "manifest_sha256"],
+      "properties": {
+        "kind": {"const": "private_deployment"},
+        "deployment_release_id": {"type": "string", "minLength": 1},
+        "deployment_release_sha256": {"$ref": "#/$defs/digest"},
+        "manifest_sha256": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "acceptanceEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary_url",
+        "summary_sha256",
+        "attestation_bundle_url",
+        "attestation_bundle_sha256",
+        "authority_source_commit"
+      ],
+      "properties": {
+        "summary_url": {"type": "string", "format": "uri", "pattern": "^https://"},
+        "summary_sha256": {"$ref": "#/$defs/digest"},
+        "attestation_bundle_url": {"type": "string", "format": "uri", "pattern": "^https://"},
+        "attestation_bundle_sha256": {"$ref": "#/$defs/digest"},
+        "authority_source_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+      }
+    },
+    "admission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "admission_id",
+        "target",
+        "policy_revision",
+        "release",
+        "acceptance_evidence",
+        "issued_at",
+        "expires_at",
+        "revoked_at"
+      ],
+      "properties": {
+        "admission_id": {"type": "string", "minLength": 1},
+        "target": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$"},
+        "policy_revision": {"type": "integer", "minimum": 1},
+        "release": {
+          "oneOf": [
+            {"$ref": "#/$defs/publicPackage"},
+            {"$ref": "#/$defs/publicDeployment"},
+            {"$ref": "#/$defs/privateDeployment"}
+          ]
+        },
+        "acceptance_evidence": {"$ref": "#/$defs/acceptanceEvidence"},
+        "issued_at": {"$ref": "#/$defs/timestamp"},
+        "expires_at": {"$ref": "#/$defs/timestamp"},
+        "revoked_at": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/timestamp"}]}
+      }
+    }
+  }
+}

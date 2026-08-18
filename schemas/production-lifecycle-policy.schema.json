@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/OpenAdaptAI/.github/blob/main/schemas/production-lifecycle-policy.schema.json",
+  "title": "OpenAdapt Production lifecycle policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schema_version",
+    "revision",
+    "maximum_admission_days",
+    "summary_authority",
+    "targets"
+  ],
+  "properties": {
+    "$schema": {"const": "schemas/production-lifecycle-policy.schema.json"},
+    "schema_version": {"const": "openadapt.production-lifecycle-policy/v1"},
+    "revision": {"type": "integer", "minimum": 1},
+    "maximum_admission_days": {"type": "integer", "minimum": 1, "maximum": 30},
+    "summary_authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "workflow",
+        "source_ref",
+        "oidc_issuer",
+        "certificate_identity",
+        "summary_schema_version",
+        "private_certificate_schema_version"
+      ],
+      "properties": {
+        "repository": {"type": "string", "pattern": "^OpenAdaptAI/[A-Za-z0-9._-]+$"},
+        "workflow": {"type": "string", "pattern": "^\\.github/workflows/[A-Za-z0-9._-]+\\.ya?ml$"},
+        "source_ref": {"const": "refs/heads/main"},
+        "oidc_issuer": {"const": "https://token.actions.githubusercontent.com"},
+        "certificate_identity": {"type": "string", "format": "uri"},
+        "summary_schema_version": {"const": "openadapt.production-lifecycle-evidence-summary/v1"},
+        "private_certificate_schema_version": {"const": "openadapt.execute-live-acceptance-record/v2"}
+      }
+    },
+    "targets": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "display_name",
+          "lifecycle_scope",
+          "lifecycle_subject",
+          "source_repository",
+          "release_kind",
+          "required_artifact_kinds"
+        ],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$"},
+          "display_name": {"type": "string", "minLength": 1},
+          "lifecycle_scope": {"enum": ["repository", "public_surface"]},
+          "lifecycle_subject": {"type": "string", "minLength": 1},
+          "source_repository": {"type": "string", "pattern": "^OpenAdaptAI/[A-Za-z0-9._-]+$"},
+          "release_kind": {"enum": ["public_package", "private_deployment", "public_deployment"]},
+          "required_artifact_kinds": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    }
+  }
+}

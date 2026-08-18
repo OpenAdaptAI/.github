@@ -1,0 +1,86 @@
+{
+  "$schema": "schemas/production-lifecycle-policy.schema.json",
+  "schema_version": "openadapt.production-lifecycle-policy/v1",
+  "revision": 1,
+  "maximum_admission_days": 30,
+  "summary_authority": {
+    "repository": "OpenAdaptAI/openadapt-evals",
+    "workflow": ".github/workflows/production-lifecycle-evidence.yml",
+    "source_ref": "refs/heads/main",
+    "oidc_issuer": "https://token.actions.githubusercontent.com",
+    "certificate_identity": "https://github.com/OpenAdaptAI/openadapt-evals/.github/workflows/production-lifecycle-evidence.yml@refs/heads/main",
+    "summary_schema_version": "openadapt.production-lifecycle-evidence-summary/v1",
+    "private_certificate_schema_version": "openadapt.execute-live-acceptance-record/v2"
+  },
+  "targets": [
+    {
+      "id": "agent",
+      "display_name": "OpenAdapt Agent",
+      "lifecycle_scope": "repository",
+      "lifecycle_subject": "openadapt-agent",
+      "source_repository": "OpenAdaptAI/openadapt-agent",
+      "release_kind": "public_package",
+      "required_artifact_kinds": ["sdist", "wheel"]
+    },
+    {
+      "id": "capture",
+      "display_name": "OpenAdapt Capture",
+      "lifecycle_scope": "repository",
+      "lifecycle_subject": "openadapt-capture",
+      "source_repository": "OpenAdaptAI/openadapt-capture",
+      "release_kind": "public_package",
+      "required_artifact_kinds": ["sdist", "wheel"]
+    },
+    {
+      "id": "cloud",
+      "display_name": "OpenAdapt Cloud",
+      "lifecycle_scope": "repository",
+      "lifecycle_subject": "openadapt-cloud",
+      "source_repository": "OpenAdaptAI/openadapt-cloud",
+      "release_kind": "private_deployment",
+      "required_artifact_kinds": []
+    },
+    {
+      "id": "desktop",
+      "display_name": "OpenAdapt Desktop",
+      "lifecycle_scope": "repository",
+      "lifecycle_subject": "openadapt-desktop",
+      "source_repository": "OpenAdaptAI/openadapt-desktop",
+      "release_kind": "public_package",
+      "required_artifact_kinds": [
+        "linux-installer",
+        "macos-installer",
+        "sdist",
+        "wheel",
+        "windows-installer"
+      ]
+    },
+    {
+      "id": "docs",
+      "display_name": "OpenAdapt Documentation",
+      "lifecycle_scope": "public_surface",
+      "lifecycle_subject": "docs.openadapt.ai",
+      "source_repository": "OpenAdaptAI/openadapt-ops",
+      "release_kind": "public_deployment",
+      "required_artifact_kinds": ["deployment-manifest", "site-archive"]
+    },
+    {
+      "id": "flow",
+      "display_name": "OpenAdapt Flow",
+      "lifecycle_scope": "repository",
+      "lifecycle_subject": "openadapt-flow",
+      "source_repository": "OpenAdaptAI/openadapt-flow",
+      "release_kind": "public_package",
+      "required_artifact_kinds": ["sdist", "wheel"]
+    },
+    {
+      "id": "openadapt",
+      "display_name": "OpenAdapt",
+      "lifecycle_scope": "repository",
+      "lifecycle_subject": "OpenAdapt",
+      "source_repository": "OpenAdaptAI/OpenAdapt",
+      "release_kind": "public_package",
+      "required_artifact_kinds": ["sdist", "wheel"]
+    }
+  ]
+}

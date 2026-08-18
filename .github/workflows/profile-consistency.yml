@@ -1,15 +1,25 @@
 name: Profile consistency
 
 on:
+  schedule:
+    - cron: "19 7 * * *"
+  workflow_dispatch:
   pull_request:
     paths:
       - ".github/workflows/profile-consistency.yml"
       - "LAUNCH_PLAN.md"
       - "REPOSITORY_LIFECYCLE.md"
       - "profile/README.md"
+      - "production-lifecycle-admissions.json"
+      - "production-lifecycle-policy.json"
       - "README.md"
       - "repository-lifecycle.yml"
       - "scripts/check_profile.py"
+      - "scripts/validate_production_lifecycle.py"
+      - "schemas/production-lifecycle-admissions.schema.json"
+      - "schemas/production-lifecycle-evidence-summary.schema.json"
+      - "schemas/production-lifecycle-policy.schema.json"
+      - "tests/test_production_lifecycle.py"
   push:
     branches: [main]
     paths:
@@ -17,9 +27,16 @@ on:
       - "LAUNCH_PLAN.md"
       - "REPOSITORY_LIFECYCLE.md"
       - "profile/README.md"
+      - "production-lifecycle-admissions.json"
+      - "production-lifecycle-policy.json"
       - "README.md"
       - "repository-lifecycle.yml"
       - "scripts/check_profile.py"
+      - "scripts/validate_production_lifecycle.py"
+      - "schemas/production-lifecycle-admissions.schema.json"
+      - "schemas/production-lifecycle-evidence-summary.schema.json"
+      - "schemas/production-lifecycle-policy.schema.json"
+      - "tests/test_production_lifecycle.py"
 
 permissions:
   contents: read
@@ -30,5 +47,32 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Test Production lifecycle admission failures
+        run: python3 -m unittest discover -s tests -p 'test_*.py'
       - name: Validate product truth and links
         run: python3 scripts/check_profile.py
+
+  report-expired-admission:
+    needs: validate-profile
+    if: >-
+      ${{ always() && needs.validate-profile.result == 'failure' &&
+          (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: File or update the Production lifecycle failure
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TITLE="Production lifecycle admission needs attention"
+          BODY="The scheduled evidence-gated lifecycle check failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          A Production admission is missing, expired, revoked, unreadable, unverifiable, or digest-mismatched. The public Production state must not remain active without current evidence."
+          EXISTING=$(gh issue list --repo "${{ github.repository }}" --state open \
+            --search "in:title \"$TITLE\"" --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --repo "${{ github.repository }}" --body "$BODY"
+          else
+            gh issue create --repo "${{ github.repository }}" --title "$TITLE" --body "$BODY"
+          fi

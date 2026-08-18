@@ -1,6 +1,6 @@
 # OpenAdapt Repository Lifecycle Registry
 
-Last reviewed: 2026-07-27
+Last reviewed: 2026-08-18
 
 This public registry separates the product from experiments and records the
 intended lifecycle of organization repositories. It does not authorize moving
@@ -14,6 +14,7 @@ The machine-readable source is [`repository-lifecycle.yml`](repository-lifecycle
 
 | Status | Meaning |
 |--------|---------|
+| **Production** | Exact current release or deployment with an active, unexpired, non-revoked, independently attested acceptance admission |
 | **Beta** | Active product surface with compatibility intent, but not a blanket production-readiness claim |
 | **Experimental** | Active prototype or optional component with no production support promise |
 | **Research** | Evidence-generating work, not required by the product runtime |
@@ -23,6 +24,29 @@ The machine-readable source is [`repository-lifecycle.yml`](repository-lifecycle
 | **Superseded** | Functionality has a named successor; new integrations use the successor |
 | **Deprecated** | Superseded; migration fixes only, no new integrations |
 | **Archived** | Historical and read-only |
+
+## Production Admission
+
+Production is a derived state. A person cannot create it by changing a table or
+repository description. The canonical
+[`production-lifecycle-policy.json`](production-lifecycle-policy.json) names
+the seven eligible targets and their required release artifacts. The
+[`production-lifecycle-admissions.json`](production-lifecycle-admissions.json)
+file contains only admissions that pass the machine validator.
+
+Each admission binds the exact public package release or deployment identity,
+the complete required artifact inventory and hashes, and an independently
+attested remote-safe evidence summary. The summary binds the private Cloud
+acceptance certificate by schema, digest, and signer-provenance digest. It does
+not publish the private certificate or its location. The summary also binds an
+immutable public evidence-manifest URL and digest. A private Cloud deployment
+uses an opaque release identity and digest; it does not require a public source
+or artifact URL.
+
+An admission expires within 30 days. A missing, expired, revoked, unreadable,
+unverifiable, or digest-mismatched admission fails closed. Repository and
+public-surface Production memberships must equal the active admission set.
+There are no Production memberships or admissions at this revision.
 
 ## Current Product Boundary
 

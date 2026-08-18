@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the public profile without making network requests."""
+"""Check the public profile and its evidence-gated lifecycle."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
+from validate_production_lifecycle import LifecycleError, validate_files
 
 ROOT = Path(__file__).resolve().parents[1]
 PROFILE = ROOT / "profile" / "README.md"
@@ -52,6 +53,7 @@ LINK_RE = re.compile(r"!?\[[^\]]+\]\(([^\s)]+)(?:\s+[^)]*)?\)")
 LIFECYCLE_GROUP_RE = re.compile(r"^  ([a-z_]+):(?: \[\])?$")
 LIFECYCLE_REPOSITORY_RE = re.compile(r"^    - (\S+)$")
 EXPECTED_LIFECYCLE_GROUPS = {
+    "production",
     "beta",
     "experimental",
     "research",
@@ -126,6 +128,11 @@ def main() -> int:
     if missing_links:
         errors.append(f"profile/README.md is missing required links: {missing_links}")
 
+    try:
+        validate_files(ROOT)
+    except LifecycleError as exc:
+        errors.append(f"Production lifecycle refused: {exc}")
+
     lifecycle_text = LIFECYCLE_DATA.read_text(encoding="utf-8")
     pinned_section = lifecycle_text.split("  pinned_repositories:\n", maxsplit=1)
     if len(pinned_section) != 2:
@@ -138,7 +145,9 @@ def main() -> int:
             elif line and not line.startswith("    "):
                 break
         if tuple(pinned) != EXPECTED_PINNED_REPOSITORIES:
-            errors.append("repository-lifecycle.yml product pins do not match the public contract")
+            errors.append(
+                "repository-lifecycle.yml product pins do not match the public contract"
+            )
 
     lifecycle_section = lifecycle_text.split("lifecycle:\n", maxsplit=1)
     if len(lifecycle_section) != 2:
@@ -164,9 +173,13 @@ def main() -> int:
             errors.append(
                 "repository-lifecycle.yml lifecycle groups do not match the public schema"
             )
-        repositories = [repository for values in groups.values() for repository in values]
+        repositories = [
+            repository for values in groups.values() for repository in values
+        ]
         duplicates = sorted(
-            repository for repository in set(repositories) if repositories.count(repository) > 1
+            repository
+            for repository in set(repositories)
+            if repositories.count(repository) > 1
         )
         if duplicates:
             errors.append(
@@ -201,7 +214,9 @@ def main() -> int:
         text = source.read_text(encoding="utf-8")
         links = LINK_RE.findall(text)
         if text.count("](") != len(links):
-            errors.append(f"{source.relative_to(ROOT)} has malformed Markdown link syntax")
+            errors.append(
+                f"{source.relative_to(ROOT)} has malformed Markdown link syntax"
+            )
         for destination in links:
             if error := check_link(source, destination):
                 errors.append(f"{source.relative_to(ROOT)}: {error}")

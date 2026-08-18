@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/OpenAdaptAI/.github/blob/main/schemas/production-lifecycle-evidence-summary.schema.json",
+  "title": "OpenAdapt remote-safe Production lifecycle evidence summary",
+  "description": "An attested public projection. It binds a private acceptance certificate by digest and signer provenance only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "target",
+    "verdict",
+    "release_sha256",
+    "artifact_inventory_sha256",
+    "private_certificate_binding",
+    "evidence_manifest",
+    "issued_at",
+    "expires_at",
+    "revoked_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "openadapt.production-lifecycle-evidence-summary/v1"},
+    "target": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$"},
+    "verdict": {"const": "accepted"},
+    "release_sha256": {"$ref": "#/$defs/digest"},
+    "artifact_inventory_sha256": {"$ref": "#/$defs/digest"},
+    "private_certificate_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "sha256", "signer_provenance_sha256"],
+      "properties": {
+        "schema_version": {"const": "openadapt.execute-live-acceptance-record/v2"},
+        "sha256": {"$ref": "#/$defs/digest"},
+        "signer_provenance_sha256": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "evidence_manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "url", "sha256"],
+      "properties": {
+        "schema_version": {"type": "string", "minLength": 1},
+        "url": {"type": "string", "format": "uri", "pattern": "^https://"},
+        "sha256": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "issued_at": {"$ref": "#/$defs/timestamp"},
+    "expires_at": {"$ref": "#/$defs/timestamp"},
+    "revoked_at": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/timestamp"}]}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "timestamp": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"}
+  }
+}
