@@ -25,16 +25,15 @@ the canonical current engine is
 ## Start Locally
 
 ```bash
-pip install openadapt
-openadapt flow demo-record --out rec
-openadapt flow compile rec --out bundle --name mockmed-triage
-openadapt flow certify bundle --policy permissive
-openadapt flow replay bundle --run-dir run
+python -m pip install --upgrade 'openadapt[browser]'
+openadapt quickstart
 ```
 
-This runs the bundled MockMed example and writes a human-readable `REPORT.md`.
-Use the [five-minute guide](https://docs.openadapt.ai/get-started/) to add lint,
-policy certification, drift, repair, and deployment.
+This runs the bundled MockMed lifecycle. It records, compiles, certifies,
+replays, independently verifies the synthetic effect, and writes a
+human-readable `REPORT.md`. Use the
+[five-minute guide](https://docs.openadapt.ai/get-started/) to add lint, drift,
+repair, and deployment.
 
 ## Evidence
 
