@@ -123,6 +123,18 @@ def main() -> int:
         if marker not in profile_text:
             errors.append(f"profile/README.md is missing required marker: {marker}")
 
+    canonical_quickstart = (
+        "python -m pip install --upgrade 'openadapt[browser]'",
+        "openadapt quickstart",
+    )
+    for command in canonical_quickstart:
+        if command not in profile_text:
+            errors.append(
+                f"profile/README.md is missing canonical quickstart command: {command}"
+            )
+    if "openadapt flow demo-record --out rec" in profile_text:
+        errors.append("profile/README.md publishes the superseded manual tutorial path")
+
     profile_links = set(LINK_RE.findall(profile_text))
     missing_links = sorted(REQUIRED_PROFILE_LINKS - profile_links)
     if missing_links:
