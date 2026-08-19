@@ -19,8 +19,8 @@ public_metadata:
       Beta Desktop cockpit for recording, qualification, local execution,
       evidence, and governed repair across OpenAdapt workflows.
     openadapt-capture: >-
-      Native screen, input, timing, and window-scoped recording for OpenAdapt
-      Desktop and Flow. Experimental component.
+      Beta canonical native screen, input, timing, window-scoped, media, and
+      supported structural-evidence recorder for OpenAdapt Desktop and Flow.
     openadapt-agent: >-
       Beta local bridge exposing governed OpenAdapt workflows as MCP tools and
       Agent Skills; halts remain halts.
@@ -31,9 +31,9 @@ lifecycle:
     - openadapt-flow
     - openadapt-cloud
     - openadapt-desktop
+    - openadapt-capture
     - openadapt-agent
   experimental:
-    - openadapt-capture
     - openadapt-privacy
     - openadapt-types
     - openadapt-console

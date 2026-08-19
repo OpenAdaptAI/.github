@@ -82,7 +82,7 @@ admission. The admission overlay does not rewrite repository history.
 | `openadapt-flow` | **Beta** | Canonical compiler and governed runtime |
 | `openadapt-desktop` | **Beta** | Desktop cockpit for local recording, qualification, execution, evidence review, and governed repair |
 | `openadapt-cloud` | **Beta** | Proprietary control plane for managed browser and customer-controlled execution, attended operations, evidence, usage, and billing |
-| `openadapt-capture` | **Experimental** | Optional native recorder |
+| `openadapt-capture` | **Beta** | Canonical native screen, input, timing, window-scoped, media, and supported structural-evidence recorder for Desktop and Flow |
 | `openadapt-agent` | **Beta** | Local MCP and Agent Skills bridge for compiled, governed Flow workflows |
 | `openadapt-privacy` | **Experimental** | Optional scrubbing component |
 | `openadapt-types` | **Experimental** | Interoperability schemas |
