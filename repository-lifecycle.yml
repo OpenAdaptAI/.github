@@ -1,5 +1,5 @@
-schema_version: 1
-reviewed_on: 2026-07-27
+schema_version: 2
+reviewed_on: 2026-08-18
 canonical_product:
   launcher: OpenAdapt
   engine: openadapt-flow
@@ -25,6 +25,7 @@ public_metadata:
       Beta local bridge exposing governed OpenAdapt workflows as MCP tools and
       Agent Skills; halts remain halts.
 lifecycle:
+  production: []
   beta:
     - OpenAdapt
     - openadapt-flow
@@ -70,3 +71,7 @@ lifecycle:
     - openadapt-gitbook
     - OpenReflector
     - OpenAdapter
+public_surfaces:
+  production: []
+  beta:
+    - docs.openadapt.ai
