@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openadapt.ai/schemas/evidence-registry.schema.json",
+  "title": "OpenAdapt production evidence registry",
+  "description": "Content-addressed, append-only, hash-chained registry of remote-safe acceptance evidence references. Entries bind an HTTPS URL to its exact SHA-256 digest; each entry commits to the digest of its predecessor.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schema_version",
+    "head_entry_sha256",
+    "entries"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "schemas/evidence-registry.schema.json"
+    },
+    "schema_version": {
+      "const": "openadapt.production-evidence-registry/v1"
+    },
+    "head_entry_sha256": {
+      "description": "Chained digest of the last entry, or null while the registry is empty.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      ]
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sequence",
+          "kind",
+          "url",
+          "sha256",
+          "size_bytes",
+          "recorded_at",
+          "prior_entry_sha256",
+          "entry_sha256"
+        ],
+        "properties": {
+          "sequence": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "kind": {
+            "enum": [
+              "evidence-summary",
+              "attestation-bundle",
+              "evidence-manifest",
+              "acceptance-run-record"
+            ]
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 2048,
+            "pattern": "^https://"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "recorded_at": {
+            "type": "string",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+          },
+          "prior_entry_sha256": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              }
+            ]
+          },
+          "entry_sha256": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          }
+        }
+      }
+    }
+  }
+}

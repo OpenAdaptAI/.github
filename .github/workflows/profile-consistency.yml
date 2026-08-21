@@ -10,16 +10,20 @@ on:
       - "LAUNCH_PLAN.md"
       - "REPOSITORY_LIFECYCLE.md"
       - "profile/README.md"
+      - "evidence-registry.json"
       - "production-lifecycle-admissions.json"
       - "production-lifecycle-policy.json"
       - "README.md"
       - "repository-lifecycle.yml"
+      - "schemas/evidence-registry.schema.json"
       - "scripts/check_profile.py"
+      - "scripts/validate_evidence_registry.py"
       - "scripts/validate_production_lifecycle.py"
       - "schemas/production-lifecycle-admissions.schema.json"
       - "schemas/production-lifecycle-evidence-manifest.schema.json"
       - "schemas/production-lifecycle-evidence-summary.schema.json"
       - "schemas/production-lifecycle-policy.schema.json"
+      - "tests/test_evidence_registry.py"
       - "tests/test_production_lifecycle.py"
   push:
     branches: [main]
@@ -28,16 +32,20 @@ on:
       - "LAUNCH_PLAN.md"
       - "REPOSITORY_LIFECYCLE.md"
       - "profile/README.md"
+      - "evidence-registry.json"
       - "production-lifecycle-admissions.json"
       - "production-lifecycle-policy.json"
       - "README.md"
       - "repository-lifecycle.yml"
+      - "schemas/evidence-registry.schema.json"
       - "scripts/check_profile.py"
+      - "scripts/validate_evidence_registry.py"
       - "scripts/validate_production_lifecycle.py"
       - "schemas/production-lifecycle-admissions.schema.json"
       - "schemas/production-lifecycle-evidence-manifest.schema.json"
       - "schemas/production-lifecycle-evidence-summary.schema.json"
       - "schemas/production-lifecycle-policy.schema.json"
+      - "tests/test_evidence_registry.py"
       - "tests/test_production_lifecycle.py"
 
 permissions:
@@ -53,6 +61,18 @@ jobs:
           fetch-depth: 0
       - name: Test Production lifecycle admission failures
         run: python3 -m unittest discover -s tests -p 'test_*.py'
+      - name: Validate the content-addressed evidence registry
+        run: python3 scripts/validate_evidence_registry.py
+      - name: Refuse evidence-registry rollback
+        if: github.event_name == 'pull_request' || github.event_name == 'push'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if git cat-file -e "$BASE_SHA:evidence-registry.json"; then
+            git show "$BASE_SHA:evidence-registry.json" > "$RUNNER_TEMP/previous-evidence-registry.json"
+            python3 scripts/validate_evidence_registry.py \
+              --previous-registry "$RUNNER_TEMP/previous-evidence-registry.json"
+          fi
       - name: Refuse Production release-ledger rollback
         if: github.event_name == 'pull_request' || github.event_name == 'push'
         env:

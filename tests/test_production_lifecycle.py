@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import validate_production_lifecycle as lifecycle  # noqa: E402
+import validate_evidence_registry as evidence_registry  # noqa: E402
 
 NOW = datetime(2026, 8, 18, 12, 0, 0, tzinfo=timezone.utc)
 SOURCE_COMMIT = "1" * 40
@@ -402,12 +403,49 @@ def replace_manifest(
     replace_summary(admissions, summary, remote)
 
 
+def build_registry(admissions: dict, remote: dict[str, bytes]) -> dict | None:
+    """Build a valid central evidence registry for the given admissions."""
+
+    entries = []
+    prior: str | None = None
+    sequence = 0
+    for admission in admissions.get("admissions", []):
+        reference = admission["acceptance_evidence"]
+        for kind, url_key, digest_key in (
+            ("evidence-summary", "summary_url", "summary_sha256"),
+            ("attestation-bundle", "attestation_bundle_url", "attestation_bundle_sha256"),
+        ):
+            sequence += 1
+            entry = evidence_registry.build_entry(
+                sequence=sequence,
+                kind=kind,
+                url=reference[url_key],
+                sha256=reference[digest_key],
+                # Fixture tolerance: some cases reference URLs that are
+                # deliberately absent from the synthetic remote map.
+                size_bytes=len(remote.get(reference[url_key], b"")) or 1,
+                recorded_at="2026-08-18T10:00:00.000Z",
+                prior_entry_sha256=prior,
+            )
+            prior = entry["entry_sha256"]
+            entries.append(entry)
+    if not entries:
+        return None
+    return {
+        "$schema": "schemas/evidence-registry.schema.json",
+        "schema_version": evidence_registry.REGISTRY_SCHEMA,
+        "head_entry_sha256": prior,
+        "entries": entries,
+    }
+
+
 def validate_case(
     admissions: dict,
     remote: dict[str, bytes] | None = None,
     repositories: list[str] | None = None,
     surfaces: list[str] | None = None,
     attestation_valid: bool = True,
+    registry: dict | None = None,
 ) -> dict[str, str]:
     attestation_calls: list[tuple[bytes, bytes]] = []
 
@@ -448,6 +486,9 @@ def validate_case(
         now=NOW,
         fetch=fetch,
         verify_attestation=verify,
+        registry_value=(
+            registry if registry is not None else build_registry(admissions, remote or {})
+        ),
     )
     return result
 

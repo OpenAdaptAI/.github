@@ -1,0 +1,6 @@
+{
+  "$schema": "schemas/evidence-registry.schema.json",
+  "schema_version": "openadapt.production-evidence-registry/v1",
+  "head_entry_sha256": null,
+  "entries": []
+}
