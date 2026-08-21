@@ -29,6 +29,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlsplit
 
+import validate_evidence_registry as evidence_registry
+
 ROOT = Path(__file__).resolve().parents[1]
 POLICY_PATH = ROOT / "production-lifecycle-policy.json"
 ADMISSIONS_PATH = ROOT / "production-lifecycle-admissions.json"
@@ -1426,6 +1428,7 @@ def validate(
     verify_attestation: Callable[
         [bytes, bytes, Mapping[str, Any], str], None
     ] = _verify_attestation,
+    registry_value: object | None = None,
 ) -> dict[str, str]:
     """Validate the complete lifecycle state and return target to admission IDs."""
 
@@ -1443,6 +1446,18 @@ def validate(
     admissions_value_list = admissions_doc["admissions"]
     if not isinstance(admissions_value_list, list):
         raise LifecycleError("production lifecycle admissions must be a list")
+    registry_entries: list[dict[str, Any]] = []
+    if admissions_value_list:
+        # A Production admission can only reference evidence that the central
+        # content-addressed registry already binds by exact digest.
+        if registry_value is None:
+            raise LifecycleError(
+                "production admissions require the central evidence registry"
+            )
+        try:
+            registry_entries = evidence_registry.validate_registry(registry_value)
+        except evidence_registry.EvidenceRegistryError as exc:
+            raise LifecycleError(f"evidence registry is invalid: {exc}") from exc
     active: dict[str, str] = {}
     admission_ids: set[str] = set()
     records_by_target: dict[
@@ -1481,6 +1496,37 @@ def validate(
             )
         if admission["policy_revision"] != policy["revision"]:
             raise LifecycleError(f"admission {target_id} policy revision differs")
+        reference = admission["acceptance_evidence"]
+        if not isinstance(reference, dict):
+            raise LifecycleError(
+                f"admission {target_id} acceptance evidence must be an object"
+            )
+        try:
+            summary_url = reference["summary_url"]
+            summary_sha256 = reference["summary_sha256"]
+            bundle_url = reference["attestation_bundle_url"]
+            bundle_sha256 = reference["attestation_bundle_sha256"]
+        except KeyError as exc:
+            raise LifecycleError(
+                f"admission {target_id} acceptance evidence is missing {exc}"
+            ) from exc
+        try:
+            evidence_registry.require_registered(
+                registry_entries,
+                url=summary_url,
+                sha256=summary_sha256,
+                kind="evidence-summary",
+                label=f"admission {target_id} summary",
+            )
+            evidence_registry.require_registered(
+                registry_entries,
+                url=bundle_url,
+                sha256=bundle_sha256,
+                kind="attestation-bundle",
+                label=f"admission {target_id} attestation bundle",
+            )
+        except evidence_registry.EvidenceRegistryError as exc:
+            raise LifecycleError(str(exc)) from exc
         if admission["claim_scope"] != targets[target_id]["required_claim_scope"]:
             raise LifecycleError(
                 f"admission {target_id} claim scope differs from policy"
@@ -1595,6 +1641,10 @@ def validate_files(root: Path = ROOT, *, now: datetime | None = None) -> dict[st
     policy = _load_json(policy_path, policy_path.name)
     admissions = _load_json(admissions_path, admissions_path.name)
     repositories, surfaces = load_lifecycle(root / LIFECYCLE_PATH.name)
+    registry_path = root / "evidence-registry.json"
+    registry_value: object | None = None
+    if registry_path.exists():
+        registry_value = _load_json(registry_path, registry_path.name)
     return validate(
         policy,
         admissions,
@@ -1602,6 +1652,7 @@ def validate_files(root: Path = ROOT, *, now: datetime | None = None) -> dict[st
         surfaces,
         policy_sha256=_file_digest(policy_path),
         now=now,
+        registry_value=registry_value,
     )
 
 
