@@ -1,6 +1,6 @@
 # OpenAdapt Repository Lifecycle Registry
 
-Last reviewed: 2026-08-18
+Last reviewed: 2026-08-26
 
 This public registry separates the product from experiments and records the
 intended lifecycle of organization repositories. It does not authorize moving
@@ -15,6 +15,7 @@ The machine-readable source is [`repository-lifecycle.yml`](repository-lifecycle
 | Status | Meaning |
 |--------|---------|
 | **Production** | Exact latest release in the signed Production channel with an active, unexpired, non-revoked, independently attested acceptance admission |
+| **Support** | Current public dependency or operational tool |
 | **Beta** | Active product surface with compatibility intent, but not a blanket production-readiness claim |
 | **Experimental** | Active prototype or optional component with no production support promise |
 | **Research** | Evidence-generating work, not required by the product runtime |
@@ -71,30 +72,35 @@ empty for that target. The validator does not fall back to an older release.
 Static Production membership is forbidden. Consumers derive current Production
 at read time from the signed admission, its expiry, and its revocation state.
 
-## Baseline Lifecycle
+## Admission-Gated Targets
 
-The baseline applies when a target does not have a current Production
-admission. The admission overlay does not rewrite repository history.
+The seven product targets do not have fallback lifecycle labels. A target that
+doesn't have a current admission is **not actively admitted**. Expiry,
+revocation, release drift, an authority failure, or missing evidence produces
+the same state. The validator never restores an older admission or replaces
+the state with Beta, Experimental, or Early access.
 
-| Repository | Lifecycle | Role |
+The signed ledger currently has no active admissions. These are the derived
+states:
+
+| Target | Current state | Role |
 |------------|-----------|------|
-| `OpenAdapt` | **Beta** | Launcher/meta-package and unified CLI |
-| `openadapt-flow` | **Beta** | Canonical compiler and governed runtime |
-| `openadapt-desktop` | **Beta** | Desktop cockpit for local recording, qualification, execution, evidence review, and governed repair |
-| `openadapt-cloud` | **Beta** | Proprietary control plane for managed browser and customer-controlled execution, attended operations, evidence, usage, and billing |
-| `openadapt-capture` | **Experimental** | Optional native recorder |
-| `openadapt-agent` | **Beta** | Local MCP and Agent Skills bridge for compiled, governed Flow workflows |
-| `openadapt-privacy` | **Experimental** | Optional scrubbing component |
-| `openadapt-types` | **Experimental** | Interoperability schemas |
-| `openadapt-web` | **Internal** | Marketing website implementation |
+| `openadapt` | **Not actively admitted** | `OpenAdapt` launcher/meta-package and unified CLI |
+| `flow` | **Not actively admitted** | `openadapt-flow` compiler and governed runtime |
+| `cloud` | **Not actively admitted** | Proprietary control plane and hosted execution surface |
+| `desktop` | **Not actively admitted** | Desktop recording, qualification, execution, evidence, and repair cockpit |
+| `capture` | **Not actively admitted** | Native screen, input, timing, window, and media capture |
+| `agent` | **Not actively admitted** | Local MCP and Agent Skills bridge for governed Flow workflows |
+| `docs` | **Not actively admitted** | `docs.openadapt.ai` deployment sourced from `openadapt-ops` |
 
-## Research, Labs, and Internal Work
+## Other Repository Lifecycles
 
 | Group | Repositories |
 |-------|--------------|
+| **Support** | `.github`, `openadapt-web`, `openadapt-ops`, `openadapt-wright`, `openadapt-herald`, `openadapt-crier`, `openadapt-consilium`, `openadapt-telemetry`, `openadapt-viewer`, `openadapt-blog` |
+| **Experimental** | `openadapt-privacy`, `openadapt-types`, `openadapt-console`, `openadapt-tray` |
 | **Research** | `openadapt-ml`, `openadapt-evals`, `openadapt-retrieval`, `openadapt-grounding`, `openadapt-verifier` |
-| **Internal** | `openadapt-ops`, `openadapt-wright`, `openadapt-herald`, `openadapt-crier`, `openadapt-consilium`, `openadapt-presenter`, `openadapt-bootstrap`, `openadapt-telemetry`, `openadapt-viewer`, `openadapt-blog`, `openadapt-internal`, `openadapt-yc` |
-| **Experimental UI/support** | `openadapt-console`, `openadapt-tray` |
+| **Internal** | `openadapt-bootstrap`, `openadapt-internal`, `openadapt-yc`, `openadapt-presenter` |
 | **Labs/forks** | `OmniMCP` (`omnimcp` locally), `SoM`, `PydanticPrompt` |
 | **Archived historical directions** | `OpenAdapter`, `OpenReflector` |
 | **Superseded** | `OpenSanitizer` (successor: `openadapt-privacy`) |

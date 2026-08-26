@@ -1627,10 +1627,10 @@ def validate(
             for group, subjects in lifecycle.items()
             if group != "production" and target["lifecycle_subject"] in subjects
         ]
-        if len(memberships) != 1:
+        if memberships:
             raise LifecycleError(
-                f"target {target_id} must have exactly one baseline lifecycle "
-                f"membership; got {memberships}"
+                f"target {target_id} has static lifecycle membership {memberships}; "
+                "derive its state only from active admissions"
             )
     return active
 

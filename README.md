@@ -21,8 +21,9 @@ Organization owners should apply these settings after this branch is merged:
    attached to the overall `OpenAdapt` project while putting the canonical
    engine and Desktop cockpit beside it.
 4. The Cloud implementation repository is private and cannot be a public
-   organization pin. The documentation implementation is Internal and remains
-   reachable through the public docs link instead of occupying a product pin.
+   organization pin. The documentation implementation is a public Support
+   repository and remains reachable through the docs link instead of occupying
+   a product pin.
 5. Apply the archive queue in
    [REPOSITORY_LIFECYCLE.md](REPOSITORY_LIFECYCLE.md) only after each repository
    has an archive notice and any dirty local work is preserved.

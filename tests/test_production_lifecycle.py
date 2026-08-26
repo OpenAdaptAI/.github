@@ -524,6 +524,45 @@ class ProductionLifecycleTests(unittest.TestCase):
         with self.assertRaisesRegex(lifecycle.LifecycleError, "static Production"):
             validate_case(empty_admissions(), repositories=["openadapt-flow"])
 
+    def test_static_repository_lifecycle_for_target_is_refused(self) -> None:
+        repositories, surfaces = lifecycle.load_lifecycle()
+        repositories = copy.deepcopy(repositories)
+        repositories["beta"].append("openadapt-flow")
+        with self.assertRaisesRegex(
+            lifecycle.LifecycleError, "static lifecycle membership"
+        ):
+            lifecycle.validate(
+                load_policy(),
+                empty_admissions(),
+                repositories,
+                surfaces,
+                policy_sha256=POLICY_DIGEST,
+                now=NOW,
+            )
+
+    def test_static_public_surface_lifecycle_for_target_is_refused(self) -> None:
+        repositories, surfaces = lifecycle.load_lifecycle()
+        surfaces = copy.deepcopy(surfaces)
+        surfaces["beta"].append("docs.openadapt.ai")
+        with self.assertRaisesRegex(
+            lifecycle.LifecycleError, "static lifecycle membership"
+        ):
+            lifecycle.validate(
+                load_policy(),
+                empty_admissions(),
+                repositories,
+                surfaces,
+                policy_sha256=POLICY_DIGEST,
+                now=NOW,
+            )
+
+    def test_current_public_support_repositories_remain_classified(self) -> None:
+        repositories, _surfaces = lifecycle.load_lifecycle()
+        self.assertGreaterEqual(
+            set(repositories["support"]),
+            {".github", "openadapt-web", "openadapt-ops", "openadapt-blog"},
+        )
+
     def test_admission_derives_production_without_static_membership(self) -> None:
         admissions, _summary, remote = build_case()
         self.assertEqual(
