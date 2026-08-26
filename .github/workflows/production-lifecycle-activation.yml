@@ -1,0 +1,149 @@
+name: Production lifecycle activation
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_admission_json:
+        description: One exact Production admission JSON object
+        required: true
+        type: string
+      idempotency_key:
+        description: Domain-bound SHA-256 activation key
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  authorize-lifecycle-app:
+    permissions: {}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse any identity other than the lifecycle App
+        env:
+          ACTOR: ${{ github.actor }}
+          ACTOR_ID: ${{ github.actor_id }}
+          EXPECTED_ACTOR_ID: ${{ vars.OPENADAPT_LIFECYCLE_ACTOR_ID }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          REPOSITORY: ${{ github.repository }}
+          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+        run: |
+          set -euo pipefail
+          test "$REPOSITORY" = 'OpenAdaptAI/.github'
+          test "$REF" = 'refs/heads/main'
+          test "$EVENT_NAME" = 'workflow_dispatch'
+          test "$ACTOR" = 'openadapt-lifecycle[bot]'
+          test "$TRIGGERING_ACTOR" = 'openadapt-lifecycle[bot]'
+          test -n "$EXPECTED_ACTOR_ID"
+          test "$ACTOR_ID" = "$EXPECTED_ACTOR_ID"
+
+  activate:
+    name: Create Production lifecycle activation PR
+    needs: authorize-lifecycle-app
+    if: >-
+      github.repository == 'OpenAdaptAI/.github' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.actor == 'openadapt-lifecycle[bot]' &&
+      github.triggering_actor == 'openadapt-lifecycle[bot]' &&
+      github.actor_id == vars.OPENADAPT_LIFECYCLE_ACTOR_ID
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production-lifecycle-activation
+    permissions:
+      attestations: write
+      contents: write
+      id-token: write
+    steps:
+      - name: Checkout exact main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Create the lifecycle App pull-request token
+        id: lifecycle-app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.OPENADAPT_LIFECYCLE_APP_ID }}
+          private-key: ${{ secrets.OPENADAPT_LIFECYCLE_APP_PRIVATE_KEY }}
+          owner: OpenAdaptAI
+          repositories: .github
+          permission-pull-requests: write
+
+      - name: Verify the exact lifecycle App installation
+        env:
+          EXPECTED_APP_ID: ${{ vars.OPENADAPT_LIFECYCLE_APP_ID }}
+          EXPECTED_INSTALLATION_ID: ${{ vars.OPENADAPT_LIFECYCLE_INSTALLATION_ID }}
+          GH_TOKEN: ${{ steps.lifecycle-app.outputs.token }}
+        run: |
+          set -euo pipefail
+          test "${{ steps.lifecycle-app.outputs.app-slug }}" = 'openadapt-lifecycle'
+          test -n "$EXPECTED_APP_ID"
+          test -n "$EXPECTED_INSTALLATION_ID"
+          test "$(gh api /installation --jq '.app_id | tostring')" = "$EXPECTED_APP_ID"
+          test "$(gh api /installation --jq '.id | tostring')" = "$EXPECTED_INSTALLATION_ID"
+
+      - name: Prepare the exact activation candidate
+        id: candidate
+        env:
+          CANDIDATE_ADMISSION_JSON: ${{ inputs.candidate_admission_json }}
+          IDEMPOTENCY_KEY: ${{ inputs.idempotency_key }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          cp production-lifecycle-admissions.json "$RUNNER_TEMP/previous-admissions.json"
+          branch=$(python3 scripts/prepare_lifecycle_change.py activate \
+            --source-commit "$GITHUB_SHA" \
+            --idempotency-key "$IDEMPOTENCY_KEY")
+          python3 scripts/validate_production_lifecycle.py \
+            --previous-admissions "$RUNNER_TEMP/previous-admissions.json"
+          python3 -m unittest discover -s tests -p 'test_*.py'
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+      - name: Attest the exact activation candidate
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: production-lifecycle-admissions.json
+
+      - name: Push the review branch with the workflow token
+        env:
+          IDEMPOTENCY_KEY: ${{ inputs.idempotency_key }}
+          REVIEW_BRANCH: ${{ steps.candidate.outputs.branch }}
+        run: |
+          set -euo pipefail
+          git switch -c "$REVIEW_BRANCH"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add production-lifecycle-admissions.json
+          git commit -m 'chore: propose Production lifecycle activation' \
+            -m "$IDEMPOTENCY_KEY"
+          existing=$(git ls-remote --heads origin "refs/heads/$REVIEW_BRANCH" | cut -f1)
+          if [ -n "$existing" ]; then
+            git fetch --no-tags origin "refs/heads/$REVIEW_BRANCH"
+            test "$(git rev-parse 'FETCH_HEAD^{tree}')" = "$(git rev-parse 'HEAD^{tree}')"
+          else
+            git push origin "HEAD:refs/heads/$REVIEW_BRANCH"
+          fi
+
+      - name: Open the activation pull request with the lifecycle App
+        env:
+          GH_TOKEN: ${{ steps.lifecycle-app.outputs.token }}
+          REVIEW_BRANCH: ${{ steps.candidate.outputs.branch }}
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          existing=$(gh pr list --base main --head "$REVIEW_BRANCH" --state open \
+            --json url --jq '.[0].url // empty')
+          if [ -n "$existing" ]; then
+            echo "The activation pull request already exists: $existing"
+            exit 0
+          fi
+          gh pr create --base main --head "$REVIEW_BRANCH" \
+            --title 'chore: review Production lifecycle activation' \
+            --body "This PR carries the exact activation candidate generated from OpenAdaptAI/.github@${SOURCE_COMMIT}. It doesn't merge or activate the candidate."
