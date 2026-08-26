@@ -1,5 +1,5 @@
 schema_version: 2
-reviewed_on: 2026-08-18
+reviewed_on: 2026-08-26
 canonical_product:
   launcher: OpenAdapt
   engine: openadapt-flow
@@ -16,24 +16,29 @@ public_metadata:
     - openadapt-evals
   repository_descriptions:
     openadapt-desktop: >-
-      Beta Desktop cockpit for recording, qualification, local execution,
-      evidence, and governed repair across OpenAdapt workflows.
+      Desktop cockpit for recording, qualification, local execution, evidence,
+      and governed repair across OpenAdapt workflows.
     openadapt-capture: >-
       Native screen, input, timing, and window-scoped recording for OpenAdapt
-      Desktop and Flow. Experimental component.
+      Desktop and Flow.
     openadapt-agent: >-
-      Beta local bridge exposing governed OpenAdapt workflows as MCP tools and
-      Agent Skills; halts remain halts.
+      Local bridge exposing governed OpenAdapt workflows as MCP tools and Agent
+      Skills; halts remain halts.
 lifecycle:
   production: []
-  beta:
-    - OpenAdapt
-    - openadapt-flow
-    - openadapt-cloud
-    - openadapt-desktop
-    - openadapt-agent
+  support:
+    - .github
+    - openadapt-web
+    - openadapt-ops
+    - openadapt-wright
+    - openadapt-herald
+    - openadapt-crier
+    - openadapt-consilium
+    - openadapt-telemetry
+    - openadapt-viewer
+    - openadapt-blog
+  beta: []
   experimental:
-    - openadapt-capture
     - openadapt-privacy
     - openadapt-types
     - openadapt-console
@@ -45,19 +50,10 @@ lifecycle:
     - openadapt-grounding
     - openadapt-verifier
   internal:
-    - openadapt-web
-    - openadapt-ops
-    - openadapt-wright
-    - openadapt-herald
-    - openadapt-crier
-    - openadapt-consilium
-    - openadapt-presenter
     - openadapt-bootstrap
-    - openadapt-telemetry
-    - openadapt-viewer
-    - openadapt-blog
     - openadapt-internal
     - openadapt-yc
+    - openadapt-presenter
   labs:
     - OmniMCP
     - SoM
@@ -73,5 +69,4 @@ lifecycle:
     - OpenAdapter
 public_surfaces:
   production: []
-  beta:
-    - docs.openadapt.ai
+  beta: []

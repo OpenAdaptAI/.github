@@ -73,26 +73,36 @@ before extrapolating either result.
 
 ## Product Surfaces
 
-| Surface | Lifecycle | Start here |
+The signed admission ledger has no active records. Each product target is
+therefore **not actively admitted**. A target shows Production only while its
+exact release or deployment has an active, signed, expiring, and revocable
+admission.
+
+| Target | Current state | Role |
 |---|---|---|
-| **Open-source product** | **Beta** | [`OpenAdapt`](https://github.com/OpenAdaptAI/OpenAdapt) installs the unified CLI; [`openadapt-flow`](https://github.com/OpenAdaptAI/openadapt-flow) is the canonical compiler and governed runtime. |
-| **Desktop cockpit** | **Beta** | [`openadapt-desktop`](https://github.com/OpenAdaptAI/openadapt-desktop) provides local recording, qualification, execution, evidence review, and governed repair. Native installers are published from its releases page. |
-| **Cloud control plane** | **Beta** | [`app.openadapt.ai`](https://app.openadapt.ai/) provides managed browser execution plus workflow, evidence, attended-operation, usage, and billing surfaces for customer-controlled execution. Its implementation repository is private. |
-| **Native capture** | **Experimental** | [`openadapt-capture`](https://github.com/OpenAdaptAI/openadapt-capture) is the canonical native screen, input, timing, and window-scoped recording component used by Desktop and Flow. |
-| **Agent bridge** | **Beta** | [`openadapt-agent`](https://github.com/OpenAdaptAI/openadapt-agent) exposes compiled Flow workflows as local MCP tools and Agent Skills without becoming a second runtime. |
-| **Documentation** | **Beta** | [`docs.openadapt.ai`](https://docs.openadapt.ai) is the canonical journey-led site; [`openadapt-ops`](https://github.com/OpenAdaptAI/openadapt-ops) is its **Internal** publishing source. |
-| **Evidence and evaluation** | **Research** | [`openadapt-evals`](https://github.com/OpenAdaptAI/openadapt-evals) contains evaluation infrastructure. Runnable references live in [`openadapt-flow/docs/showcase`](https://github.com/OpenAdaptAI/openadapt-flow/tree/main/docs/showcase), with methods and evidence under [`benchmark`](https://github.com/OpenAdaptAI/openadapt-flow/tree/main/benchmark). |
+| `openadapt` | **Not actively admitted** | [`OpenAdapt`](https://github.com/OpenAdaptAI/OpenAdapt) installs the unified CLI. |
+| `flow` | **Not actively admitted** | [`openadapt-flow`](https://github.com/OpenAdaptAI/openadapt-flow) is the canonical compiler and governed runtime. |
+| `cloud` | **Not actively admitted** | [`app.openadapt.ai`](https://app.openadapt.ai/) provides the control plane for managed browser and customer-controlled execution. Its implementation repository is private. |
+| `desktop` | **Not actively admitted** | [`openadapt-desktop`](https://github.com/OpenAdaptAI/openadapt-desktop) provides local recording, qualification, execution, evidence review, and governed repair. |
+| `capture` | **Not actively admitted** | [`openadapt-capture`](https://github.com/OpenAdaptAI/openadapt-capture) records native screen, input, timing, and window-scoped evidence for Desktop and Flow. |
+| `agent` | **Not actively admitted** | [`openadapt-agent`](https://github.com/OpenAdaptAI/openadapt-agent) exposes governed Flow workflows as local MCP tools and Agent Skills. |
+| `docs` | **Not actively admitted** | [`docs.openadapt.ai`](https://docs.openadapt.ai) is the canonical documentation site. [`openadapt-ops`](https://github.com/OpenAdaptAI/openadapt-ops) is its **Support** publishing source. |
 
-OpenAdapt is one Beta product across browser, Windows, macOS, Linux, RDP, and
-Citrix/VDI. Those execution surfaces share one qualification contract while
-retaining environment-specific bindings and evidence. Qualification remains
-specific to the workflow, application, environment, identity contract, and
-effect verifier rather than being inferred from a platform checkmark.
+[`openadapt-evals`](https://github.com/OpenAdaptAI/openadapt-evals) is a
+Research repository. Runnable references live in
+[`openadapt-flow/docs/showcase`](https://github.com/OpenAdaptAI/openadapt-flow/tree/main/docs/showcase),
+with methods and evidence under
+[`benchmark`](https://github.com/OpenAdaptAI/openadapt-flow/tree/main/benchmark).
 
-Runnable is not the same as certified safe. Review identity coverage,
-postconditions, system-of-record effects, policy, and the published
+These targets form one product across browser, Windows, macOS, Linux, RDP, and
+Citrix/VDI. The execution surfaces share one qualification contract and retain
+environment-specific bindings and evidence. Qualification stays specific to
+the workflow, application, environment, identity contract, and effect verifier.
+
+A runnable workflow can still lack certification. Review its identity coverage,
+postconditions, system-of-record effects, policy, and published
 [limits](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/docs/LIMITS.md)
-for each consequential workflow.
+before you use it for consequential work.
 
 ## Research and Labs
 

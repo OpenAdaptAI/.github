@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -54,6 +55,7 @@ LIFECYCLE_GROUP_RE = re.compile(r"^  ([a-z_]+):(?: \[\])?$")
 LIFECYCLE_REPOSITORY_RE = re.compile(r"^    - (\S+)$")
 EXPECTED_LIFECYCLE_GROUPS = {
     "production",
+    "support",
     "beta",
     "experimental",
     "research",
@@ -65,11 +67,10 @@ EXPECTED_LIFECYCLE_GROUPS = {
     "archived",
 }
 EXPECTED_CRITICAL_LIFECYCLES = {
-    "OpenAdapt": "beta",
-    "openadapt-flow": "beta",
-    "openadapt-desktop": "beta",
-    "openadapt-agent": "beta",
-    "openadapt-capture": "experimental",
+    ".github": "support",
+    "openadapt-web": "support",
+    "openadapt-ops": "support",
+    "openadapt-blog": "support",
     "OpenAdapter": "archived",
     "OpenReflector": "archived",
 }
@@ -141,11 +142,44 @@ def main() -> int:
         errors.append(f"profile/README.md is missing required links: {missing_links}")
 
     try:
-        validate_files(ROOT)
+        active_admissions = validate_files(ROOT)
     except LifecycleError as exc:
         errors.append(f"Production lifecycle refused: {exc}")
+        active_admissions = {}
+
+    policy = json.loads(
+        (ROOT / "production-lifecycle-policy.json").read_text(encoding="utf-8")
+    )
+    for target in policy["targets"]:
+        target_id = target["id"]
+        state = (
+            "Production"
+            if target_id in active_admissions
+            else "Not actively admitted"
+        )
+        marker = f"| `{target_id}` | **{state}** |"
+        for path, text in (
+            (PROFILE, profile_text),
+            (LIFECYCLE_DOC, LIFECYCLE_DOC.read_text(encoding="utf-8")),
+        ):
+            if marker not in text:
+                errors.append(
+                    f"{path.relative_to(ROOT)} does not match the derived state for "
+                    f"target {target_id}: {state}"
+                )
 
     lifecycle_text = LIFECYCLE_DATA.read_text(encoding="utf-8")
+    public_metadata_text = lifecycle_text.split("lifecycle:\n", maxsplit=1)[0]
+    static_target_labels = sorted(
+        label
+        for label in ("Beta", "Experimental", "Early access", "Exploratory")
+        if re.search(rf"\b{re.escape(label)}\b", public_metadata_text, re.IGNORECASE)
+    )
+    if static_target_labels:
+        errors.append(
+            "repository-lifecycle.yml public target metadata contains static "
+            f"lifecycle labels: {static_target_labels}"
+        )
     pinned_section = lifecycle_text.split("  pinned_repositories:\n", maxsplit=1)
     if len(pinned_section) != 2:
         errors.append("repository-lifecycle.yml is missing pinned_repositories")
