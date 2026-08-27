@@ -32,6 +32,22 @@ HEAD_DIGEST_DOMAIN = b"OpenAdapt production evidence registry head v2\0"
 SEMANTIC_IDENTITY_DOMAIN = b"OpenAdapt production evidence semantic identity v1\0"
 BUNDLE_IDENTITY_DOMAIN = b"OpenAdapt production evidence Sigstore bundle identity v1\0"
 SIGNER_REGISTRY_IDENTITY_DOMAIN = b"OpenAdapt qualification signer registry v2\0"
+SIGNER_USAGES = {
+    "private-qualification-evidence-manifest",
+    "private-qualification-evidence-decision-request",
+    "qualification-campaign-permit",
+    "qualification-source-evidence-manifest",
+    "qualification-trial-receipt",
+    "private-qualification-evidence-decision",
+    "private-qualification-evidence-decision-storage-seal",
+    "private-qualification-evidence-decision-final-manifest",
+    "qualification-evidence-decision-receipt",
+    "qualification-authority-state-receipt",
+    "qualification-revocation-state-receipt",
+}
+DECISION_RECEIPT_IDENTITY_DOMAIN = (
+    b"OpenAdapt qualification decision receipt series identity v1\0"
+)
 REPOSITORY = "OpenAdaptAI/.github"
 REPOSITORY_ID = "858454062"
 REPOSITORY_OWNER_ID = "132681217"
@@ -114,6 +130,10 @@ REGULAR_KIND_CONTRACTS: dict[str, tuple[str, str]] = {
     "qualification-revocation-state-receipt": (
         "openadapt.qualification-revocation-state-receipt/v1",
         "application/vnd.openadapt.qualification-revocation-state-receipt+json;version=1",
+    ),
+    "support-release-admission": (
+        "openadapt.support-release-admission/v1",
+        "application/vnd.openadapt.support-release-admission+json;version=1",
     ),
 }
 OBJECT_KIND_CONTRACTS: dict[str, tuple[str, str]] = dict(REGULAR_KIND_CONTRACTS)
@@ -198,6 +218,32 @@ def semantic_identity_digest(
             "subject_sha256": object_value,
         }
         domain = BUNDLE_IDENTITY_DOMAIN
+    elif kind == "qualification-evidence-decision-receipt":
+        if not isinstance(object_value, dict):
+            raise EvidenceRegistryError("decision receipt identity object is invalid")
+        decision_identity = object_value.get("decision_identity_sha256")
+        decision_revision = object_value.get("decision_revision")
+        _digest(decision_identity, "decision identity")
+        _positive_integer(decision_revision, "decision revision")
+        payload = {
+            "decision_identity_sha256": decision_identity,
+            "decision_revision": decision_revision,
+        }
+        domain = DECISION_RECEIPT_IDENTITY_DOMAIN
+    elif kind in {
+        "qualification-authority-state-receipt",
+        "qualification-revocation-state-receipt",
+    }:
+        if not isinstance(object_value, dict):
+            raise EvidenceRegistryError("qualification state identity object is invalid")
+        identity_field = (
+            "authority_state_sha256"
+            if kind == "qualification-authority-state-receipt"
+            else "revocation_state_sha256"
+        )
+        identity = object_value.get(identity_field)
+        _digest(identity, f"{kind} identity")
+        return identity
     else:
         payload = {
             "kind": kind,
@@ -241,6 +287,10 @@ def validate_signer_registry(value: Any) -> dict[str, Any]:
                 "algorithm",
                 "key_id",
                 "public_key",
+                "public_key_spki_der_base64",
+                "public_key_sha256",
+                "statement_schema_versions",
+                "allowed_usages",
                 "allowed_workflows",
                 "allowed_ref_prefixes",
                 "status",
@@ -277,6 +327,32 @@ def validate_signer_registry(value: Any) -> dict[str, Any]:
             raise EvidenceRegistryError(
                 f"{label} key id does not bind the public key"
             )
+        spki = bytes.fromhex("302a300506032b6570032100") + key_bytes
+        expected_spki = base64.b64encode(spki).decode()
+        if signer["public_key_spki_der_base64"] != expected_spki:
+            raise EvidenceRegistryError(
+                f"{label} SPKI does not bind the public key"
+            )
+        if signer["public_key_sha256"] != (
+            "sha256:" + hashlib.sha256(spki).hexdigest()
+        ):
+            raise EvidenceRegistryError(
+                f"{label} public key fingerprint does not bind the public key"
+            )
+        if signer["statement_schema_versions"] != [
+            "openadapt.qualification-evidence-signing-statement/v1"
+        ]:
+            raise EvidenceRegistryError(
+                f"{label} signing statement schema is invalid"
+            )
+        usages = signer["allowed_usages"]
+        if (
+            not isinstance(usages, list)
+            or not usages
+            or usages != sorted(set(usages))
+            or any(item not in SIGNER_USAGES for item in usages)
+        ):
+            raise EvidenceRegistryError(f"{label} usage allowlist is invalid")
         workflows = signer["allowed_workflows"]
         if (
             not isinstance(workflows, list)
@@ -374,6 +450,7 @@ def registry_head_digest(document: Mapping[str, Any]) -> str:
         "revision": document["revision"],
         "previous_registry_head_sha256": document["previous_registry_head_sha256"],
         "signer_registry": document["signer_registry"],
+        "signer_registry_history": document["signer_registry_history"],
         "entry_sha256s": [
             entry["registry_entry_sha256"] for entry in document["entries"]
         ],
@@ -458,6 +535,7 @@ def validate_registry(value: Any, *, root: Path | None = None) -> list[dict[str,
             "previous_registry_head_sha256",
             "registry_head_sha256",
             "signer_registry",
+            "signer_registry_history",
             "entries",
         },
         "evidence registry",
@@ -477,6 +555,27 @@ def validate_registry(value: Any, *, root: Path | None = None) -> list[dict[str,
     if previous is not None:
         _digest(previous, "previous registry head")
     signer_pointer = _validate_signer_pointer(document["signer_registry"])
+    history_value = document["signer_registry_history"]
+    if not isinstance(history_value, list):
+        raise EvidenceRegistryError("signer registry history must be a list")
+    signer_history = [_validate_signer_pointer(item) for item in history_value]
+    if any(item is None for item in signer_history):
+        raise EvidenceRegistryError("signer registry history cannot contain null")
+    typed_history = [item for item in signer_history if item is not None]
+    revisions = [item["registry_revision"] for item in typed_history]
+    if revisions != sorted(set(revisions)) or any(
+        current != previous + 1
+        for previous, current in zip(revisions, revisions[1:])
+    ):
+        raise EvidenceRegistryError(
+            "signer registry history must use unique consecutive revisions"
+        )
+    if (signer_pointer is None) != (not typed_history) or (
+        signer_pointer is not None and signer_pointer != typed_history[-1]
+    ):
+        raise EvidenceRegistryError(
+            "current signer registry must be the last historical pointer"
+        )
     entries = document["entries"]
     if not isinstance(entries, list):
         raise EvidenceRegistryError("registry entries must be a list")
@@ -485,6 +584,7 @@ def validate_registry(value: Any, *, root: Path | None = None) -> list[dict[str,
 
     seen_entries: set[str] = set()
     seen_paths: set[str] = set()
+    seen_regular_identities: set[tuple[str, str]] = set()
     previous_regular: dict[str, Any] | None = None
     validated: list[dict[str, Any]] = []
     for index, value_entry in enumerate(entries):
@@ -514,6 +614,18 @@ def validate_registry(value: Any, *, root: Path | None = None) -> list[dict[str,
                 )
             previous_regular = None
         else:
+            regular_identity = (
+                entry["kind"], entry["semantic_identity_sha256"]
+            )
+            if regular_identity in seen_regular_identities:
+                raise EvidenceRegistryError(
+                    "a regular semantic identity can be registered only once"
+                )
+            seen_regular_identities.add(regular_identity)
+            if previous_regular is not None:
+                raise EvidenceRegistryError(
+                    "every regular object must be immediately followed by its Sigstore bundle"
+                )
             previous_regular = entry
         if root is not None:
             path = root / entry["object_path"]
@@ -541,6 +653,10 @@ def validate_registry(value: Any, *, root: Path | None = None) -> list[dict[str,
                     raise EvidenceRegistryError(
                         f"registered object schema differs: {path}"
                     )
+                if raw != canonical(object_value) + b"\n":
+                    raise EvidenceRegistryError(
+                        f"registered regular object is not canonical JSON plus LF: {path}"
+                    )
                 identity_value = object_value
             expected_identity = semantic_identity_digest(
                 kind=entry["kind"],
@@ -554,25 +670,36 @@ def validate_registry(value: Any, *, root: Path | None = None) -> list[dict[str,
                 )
         validated.append(entry)
 
+    if previous_regular is not None:
+        raise EvidenceRegistryError(
+            "every regular object must be immediately followed by its Sigstore bundle"
+        )
+
     if document["registry_head_sha256"] != registry_head_digest(document):
         raise EvidenceRegistryError("registry head digest is invalid")
-    if root is not None and signer_pointer is not None:
-        signer_path = root / signer_pointer["object_path"]
-        try:
-            signer_raw = signer_path.read_bytes()
-            signer_value = json.loads(signer_raw)
-        except (OSError, json.JSONDecodeError) as exc:
-            raise EvidenceRegistryError("signer registry object is missing or invalid") from exc
-        if "sha256:" + hashlib.sha256(signer_raw).hexdigest() != signer_pointer["object_sha256"]:
-            raise EvidenceRegistryError("signer registry object digest differs")
-        signer_registry = validate_signer_registry(signer_value)
-        if signer_registry["revision"] != signer_pointer["registry_revision"]:
-            raise EvidenceRegistryError("signer registry revision differs")
-        if (
-            signer_registry_identity_digest(signer_registry)
-            != signer_pointer["registry_identity_sha256"]
-        ):
-            raise EvidenceRegistryError("signer registry identity differs")
+    if root is not None:
+        for historical_pointer in typed_history:
+            signer_path = root / historical_pointer["object_path"]
+            try:
+                signer_raw = signer_path.read_bytes()
+                signer_value = json.loads(signer_raw)
+            except (OSError, json.JSONDecodeError) as exc:
+                raise EvidenceRegistryError(
+                    "signer registry object is missing or invalid"
+                ) from exc
+            if (
+                "sha256:" + hashlib.sha256(signer_raw).hexdigest()
+                != historical_pointer["object_sha256"]
+            ):
+                raise EvidenceRegistryError("signer registry object digest differs")
+            historical_registry = validate_signer_registry(signer_value)
+            if (
+                historical_registry["revision"]
+                != historical_pointer["registry_revision"]
+                or signer_registry_identity_digest(historical_registry)
+                != historical_pointer["registry_identity_sha256"]
+            ):
+                raise EvidenceRegistryError("signer registry identity differs")
     return validated
 
 
@@ -601,6 +728,15 @@ def validate_append_only_history(previous_value: object, current_value: object) 
         raise EvidenceRegistryError("registry revision does not bind the previous head")
     if len(current) < len(previous) or current[: len(previous)] != previous:
         raise EvidenceRegistryError("registry history must be an exact append")
+    previous_signers = previous_doc["signer_registry_history"]
+    current_signers = current_doc["signer_registry_history"]
+    if (
+        len(current_signers) < len(previous_signers)
+        or current_signers[: len(previous_signers)] != previous_signers
+    ):
+        raise EvidenceRegistryError(
+            "signer registry pointer history must be an exact append"
+        )
 
 
 def main(argv: list[str] | None = None) -> int:

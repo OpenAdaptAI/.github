@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "qualification-signer-registry.schema.json",
+  "title": "OpenAdapt qualification signer registry v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "revision", "generated_at", "expires_at", "signers"],
+  "properties": {
+    "schema_version": {"const": "openadapt.qualification-signer-registry/v2"},
+    "revision": {"type": "integer", "minimum": 1},
+    "generated_at": {"$ref": "#/$defs/timestamp"},
+    "expires_at": {"$ref": "#/$defs/timestamp"},
+    "signers": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/signer"}
+    }
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "signer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm", "key_id", "public_key", "public_key_spki_der_base64",
+        "public_key_sha256",
+        "statement_schema_versions", "allowed_usages", "allowed_workflows",
+        "allowed_ref_prefixes", "status", "revoked_at"
+      ],
+      "properties": {
+        "algorithm": {"const": "ed25519"},
+        "key_id": {"type": "string", "pattern": "^qa-ed25519-[0-9a-f]{16}$"},
+        "public_key": {"type": "string", "pattern": "^[A-Za-z0-9_-]{43}$"},
+        "public_key_spki_der_base64": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]{59}=$"
+        },
+        "public_key_sha256": {"$ref": "#/$defs/digest"},
+        "statement_schema_versions": {
+          "const": ["openadapt.qualification-evidence-signing-statement/v1"]
+        },
+        "allowed_usages": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "private-qualification-evidence-decision",
+              "private-qualification-evidence-decision-final-manifest",
+              "private-qualification-evidence-decision-request",
+              "private-qualification-evidence-decision-storage-seal",
+              "private-qualification-evidence-manifest",
+              "qualification-authority-state-receipt",
+              "qualification-campaign-permit",
+              "qualification-evidence-decision-receipt",
+              "qualification-revocation-state-receipt",
+              "qualification-source-evidence-manifest",
+              "qualification-trial-receipt"
+            ]
+          }
+        },
+        "allowed_workflows": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^https://github\\.com/OpenAdaptAI/[A-Za-z0-9_.-]+/\\.github/workflows/[A-Za-z0-9_.-]+\\.ya?ml@refs/heads/[A-Za-z0-9._/-]+$"
+          }
+        },
+        "allowed_ref_prefixes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^refs/"}
+        },
+        "status": {"enum": ["active", "revoked"]},
+        "revoked_at": {
+          "oneOf": [{"$ref": "#/$defs/timestamp"}, {"type": "null"}]
+        }
+      }
+    }
+  }
+}

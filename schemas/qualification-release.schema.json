@@ -115,7 +115,36 @@
           "uniqueItems": true,
           "items": {"$ref": "#/$defs/artifact"}
         }
-      }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "kind": {"const": "package"},
+            "version": {"type": "string", "minLength": 1, "maxLength": 80},
+            "tag": {"type": "string", "minLength": 1, "maxLength": 120},
+            "deployment_id": {"type": "null"},
+            "deployment_sha256": {"type": "null"}
+          }
+        },
+        {
+          "properties": {
+            "kind": {"const": "deployment"},
+            "version": {"type": "null"},
+            "tag": {"type": "null"},
+            "deployment_id": {"$ref": "#/$defs/decimal_id"},
+            "deployment_sha256": {"$ref": "#/$defs/digest"}
+          }
+        },
+        {
+          "properties": {
+            "kind": {"const": "hybrid"},
+            "version": {"type": "string", "minLength": 1, "maxLength": 80},
+            "tag": {"type": "string", "minLength": 1, "maxLength": 120},
+            "deployment_id": {"$ref": "#/$defs/decimal_id"},
+            "deployment_sha256": {"$ref": "#/$defs/digest"}
+          }
+        }
+      ]
     },
     "staged_asset": {
       "type": "object",
@@ -146,8 +175,8 @@
           "additionalProperties": false,
           "required": ["include", "exclude"],
           "properties": {
-            "include": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
-            "exclude": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+            "include": {"const": ["refs/tags/v*"]},
+            "exclude": {"const": []}
           }
         }
       }
@@ -178,6 +207,7 @@
         {"$ref": "#/$defs/tag_ruleset"},
         {"properties": {
           "role": {"const": "creation_authority"},
+          "name": {"const": "OpenAdapt policy: release tag creation"},
           "bypass_actors": {"const": [{"actor_id": "4730708", "actor_type": "Integration", "bypass_mode": "always"}]},
           "rules": {"const": [{"type": "creation"}]}
         }}
@@ -188,8 +218,13 @@
         {"$ref": "#/$defs/tag_ruleset"},
         {"properties": {
           "role": {"const": "immutability"},
+          "name": {"const": "OpenAdapt policy: immutable release tags"},
           "bypass_actors": {"const": []},
-          "rules": {"const": [{"type": "deletion"}, {"type": "non_fast_forward"}, {"type": "update"}]}
+          "rules": {"const": [
+            {"type": "deletion"},
+            {"type": "non_fast_forward"},
+            {"type": "update", "parameters": {"update_allows_fetch_and_merge": false}}
+          ]}
         }}
       ]
     },
@@ -200,7 +235,9 @@
         "schema_version", "repository", "repository_id", "draft_release_id", "tag",
         "target_commitish", "draft", "prerelease", "release_app_id",
         "release_app_installation_id", "release_app_bot_user_id", "release_author_login",
-        "assets", "immutable_releases_enabled", "tag_rulesets", "tag_rulesets_sha256", "observed_at"
+        "assets", "immutable_releases", "immutable_releases_sha256",
+        "tag_rulesets", "tag_rulesets_sha256", "tag_ref_state",
+        "tag_ref_state_sha256", "observed_at"
       ],
       "properties": {
         "schema_version": {"const": "openadapt.production-release-staging-evidence/v1"},
@@ -216,7 +253,16 @@
         "release_app_bot_user_id": {"const": "321543906"},
         "release_author_login": {"const": "openadapt-release[bot]"},
         "assets": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/staged_asset"}},
-        "immutable_releases_enabled": {"const": true},
+        "immutable_releases": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "enforced_by_owner"],
+          "properties": {
+            "enabled": {"const": true},
+            "enforced_by_owner": {"type": "boolean"}
+          }
+        },
+        "immutable_releases_sha256": {"$ref": "#/$defs/digest"},
         "tag_rulesets": {
           "type": "array",
           "minItems": 2,
@@ -228,6 +274,16 @@
           "items": false
         },
         "tag_rulesets_sha256": {"$ref": "#/$defs/digest"},
+        "tag_ref_state": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ref", "exists"],
+          "properties": {
+            "ref": {"type": "string", "pattern": "^refs/tags/v[^/]+$"},
+            "exists": {"const": false}
+          }
+        },
+        "tag_ref_state_sha256": {"$ref": "#/$defs/digest"},
         "observed_at": {"$ref": "#/$defs/timestamp"}
       }
     },

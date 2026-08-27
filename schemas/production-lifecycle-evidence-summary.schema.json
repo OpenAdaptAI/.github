@@ -29,7 +29,8 @@
     "signer_registry_sha256",
     "issued_at",
     "not_before",
-    "expires_at"
+    "expires_at",
+    "issuer"
   ],
   "properties": {
     "schema_version": {"const": "openadapt.production-lifecycle-evidence-summary/v2"},
@@ -56,11 +57,27 @@
     "signer_registry_sha256": {"$ref": "#/$defs/digest"},
     "issued_at": {"$ref": "#/$defs/timestamp"},
     "not_before": {"$ref": "#/$defs/timestamp"},
-    "expires_at": {"$ref": "#/$defs/timestamp"}
+    "expires_at": {"$ref": "#/$defs/timestamp"},
+    "issuer": {"$ref": "#/$defs/issuer"}
   },
   "$defs": {
     "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
     "timestamp": {"type": "string", "format": "date-time", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "issuer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "repository_id", "repository_owner_id", "workflow", "ref", "source_commit", "environment"],
+      "properties": {
+        "repository": {"const": "OpenAdaptAI/openadapt-evals"},
+        "repository_id": {"const": "1135998197"},
+        "repository_owner_id": {"const": "132681217"},
+        "workflow": {"const": ".github/workflows/issue-production-acceptance.yml"},
+        "ref": {"const": "refs/heads/main"},
+        "source_commit": {"$ref": "#/$defs/commit"},
+        "environment": {"const": "production-acceptance"}
+      }
+    },
     "regular_reference": {
       "allOf": [
         {"$ref": "production-evidence-object-reference.schema.json"},

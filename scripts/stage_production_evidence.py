@@ -23,6 +23,10 @@ def entry_for(raw: bytes, *, kind: str, subject: str | None) -> dict:
         value = json.loads(raw)
         if not isinstance(value, dict) or value.get("schema_version") != schema:
             raise registry.EvidenceRegistryError("regular object schema differs from kind")
+        if raw != registry.canonical(value) + b"\n":
+            raise registry.EvidenceRegistryError(
+                "regular object bytes must be canonical JSON followed by one LF"
+            )
         identity_value = value
     entry = {
         "kind": kind,
@@ -98,6 +102,34 @@ def main(argv: list[str] | None = None) -> int:
             kind=f"{args.kind}-sigstore-bundle",
             subject=regular["object_sha256"],
         )
+        for index, item in enumerate(document["entries"]):
+            if (
+                item["kind"] != regular["kind"]
+                or item["semantic_identity_sha256"]
+                != regular["semantic_identity_sha256"]
+            ):
+                continue
+            if index + 1 >= len(document["entries"]):
+                raise registry.EvidenceRegistryError(
+                    "existing regular object has no adjacent bundle"
+                )
+            existing_bundle = document["entries"][index + 1]
+            if (
+                item["object_sha256"] != regular["object_sha256"]
+                or existing_bundle["kind"] != bundle["kind"]
+                or existing_bundle["object_sha256"] != bundle["object_sha256"]
+                or existing_bundle["subject_sha256"]
+                != regular["object_sha256"]
+            ):
+                raise registry.EvidenceRegistryError(
+                    "semantic identity conflicts with an existing object pair"
+                )
+            print(
+                json.dumps(
+                    {"regular": item, "bundle": existing_bundle}, sort_keys=True
+                )
+            )
+            return 0
         existing = {item["object_sha256"] for item in document["entries"]}
         if regular["object_sha256"] in existing or bundle["object_sha256"] in existing:
             raise registry.EvidenceRegistryError("object is already registered")

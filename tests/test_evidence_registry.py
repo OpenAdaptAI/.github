@@ -54,6 +54,7 @@ def document(entries: list[dict] | None = None, **overrides) -> dict:
         "previous_registry_head_sha256": None,
         "registry_head_sha256": sha("0"),
         "signer_registry": None,
+        "signer_registry_history": [],
         "entries": values,
     }
     value.update(overrides)
@@ -77,6 +78,21 @@ def reference(value: dict, **overrides) -> dict:
 
 
 class EvidenceRegistryTests(unittest.TestCase):
+    def test_kind_map_has_17_regular_and_17_bundle_kinds(self) -> None:
+        self.assertEqual(len(registry.REGULAR_KIND_CONTRACTS), 17)
+        self.assertEqual(len(registry.OBJECT_KIND_CONTRACTS), 34)
+        self.assertEqual(
+            registry.REGULAR_KIND_CONTRACTS["support-release-admission"],
+            (
+                "openadapt.support-release-admission/v1",
+                "application/vnd.openadapt.support-release-admission+json;version=1",
+            ),
+        )
+        self.assertNotIn(
+            "openadapt-tray",
+            {"agent", "capture", "cloud", "desktop", "docs", "flow", "openadapt"},
+        )
+
     def test_repository_registry_is_valid_v2(self) -> None:
         value = json.loads((ROOT / "evidence-registry.json").read_text())
         self.assertEqual(registry.validate_registry(value, root=ROOT), [])
@@ -134,8 +150,17 @@ class EvidenceRegistryTests(unittest.TestCase):
             "registry_identity_sha256": sha("1"),
             "registry_revision": 1,
         }
-        valid = document([regular, bundle], signer_registry=signer)
+        valid = document(
+            [regular, bundle],
+            signer_registry=signer,
+            signer_registry_history=[signer],
+        )
         registry.validate_registry(valid)
+        trailing = document(
+            [regular], signer_registry=signer, signer_registry_history=[signer]
+        )
+        with self.assertRaisesRegex(registry.EvidenceRegistryError, "every regular"):
+            registry.validate_registry(trailing)
         invalid = copy.deepcopy(valid)
         invalid["entries"].reverse()
         invalid["registry_head_sha256"] = registry.registry_head_digest(invalid)
@@ -160,6 +185,23 @@ class EvidenceRegistryTests(unittest.TestCase):
             path = root / regular["object_path"]
             path.parent.mkdir(parents=True)
             path.write_bytes(raw)
+            bundle_raw = b'{"mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"}\n'
+            bundle_sha = "sha256:" + hashlib.sha256(bundle_raw).hexdigest()
+            bundle = entry(
+                "production-acceptance-manifest-sigstore-bundle",
+                object_sha256=bundle_sha,
+                size_bytes=len(bundle_raw),
+                subject_sha256=regular["object_sha256"],
+                semantic_identity_sha256=registry.semantic_identity_digest(
+                    kind="production-acceptance-manifest-sigstore-bundle",
+                    object_schema_version=registry.BUNDLE_MEDIA_TYPE,
+                    object_value=regular["object_sha256"],
+                    object_sha256=bundle_sha,
+                ),
+            )
+            bundle_path = root / bundle["object_path"]
+            bundle_path.parent.mkdir(parents=True)
+            bundle_path.write_bytes(bundle_raw)
             signer = {
                 "schema_version": registry.SIGNER_POINTER_SCHEMA,
                 "object_path": (
@@ -171,7 +213,11 @@ class EvidenceRegistryTests(unittest.TestCase):
                 "registry_identity_sha256": sha("1"),
                 "registry_revision": 1,
             }
-            value = document([regular], signer_registry=signer)
+            value = document(
+                [regular, bundle],
+                signer_registry=signer,
+                signer_registry_history=[signer],
+            )
             with self.assertRaisesRegex(registry.EvidenceRegistryError, "signer registry"):
                 registry.validate_registry(value, root=root)
             path.write_bytes(raw + b" ")
@@ -181,6 +227,7 @@ class EvidenceRegistryTests(unittest.TestCase):
     def test_signer_registry_key_id_binds_canonical_key(self) -> None:
         key = bytes(range(32))
         public_key = registry.base64.urlsafe_b64encode(key).decode().rstrip("=")
+        spki = bytes.fromhex("302a300506032b6570032100") + key
         value = {
             "schema_version": registry.SIGNER_REGISTRY_SCHEMA,
             "revision": 1,
@@ -191,6 +238,16 @@ class EvidenceRegistryTests(unittest.TestCase):
                     "algorithm": "ed25519",
                     "key_id": "qa-ed25519-" + hashlib.sha256(key).hexdigest()[:16],
                     "public_key": public_key,
+                    "public_key_spki_der_base64": registry.base64.b64encode(spki).decode(),
+                    "public_key_sha256": (
+                        "sha256:" + hashlib.sha256(spki).hexdigest()
+                    ),
+                    "statement_schema_versions": [
+                        "openadapt.qualification-evidence-signing-statement/v1"
+                    ],
+                    "allowed_usages": [
+                        "qualification-evidence-decision-receipt"
+                    ],
                     "allowed_workflows": [
                         "https://github.com/OpenAdaptAI/openadapt-internal/"
                         ".github/workflows/issue-private-qualification-evidence-decision.yml"
@@ -218,6 +275,60 @@ class EvidenceRegistryTests(unittest.TestCase):
         current["registry_head_sha256"] = registry.registry_head_digest(current)
         with self.assertRaisesRegex(registry.EvidenceRegistryError, "previous head"):
             registry.validate_append_only_history(previous, current)
+
+    def test_decision_revision_semantic_identity_cannot_conflict(self) -> None:
+        receipt_identity = {
+            "decision_identity_sha256": sha("1"),
+            "decision_revision": 7,
+        }
+        semantic = registry.semantic_identity_digest(
+            kind="qualification-evidence-decision-receipt",
+            object_schema_version=(
+                "openadapt.qualification-evidence-decision-receipt/v1"
+            ),
+            object_value=receipt_identity,
+            object_sha256=sha("2"),
+        )
+        first = entry(
+            "qualification-evidence-decision-receipt",
+            object_sha256=sha("2"),
+            semantic_identity_sha256=semantic,
+        )
+        first_bundle = entry(
+            "qualification-evidence-decision-receipt-sigstore-bundle",
+            object_sha256=sha("3"),
+            subject_sha256=first["object_sha256"],
+        )
+        conflicting = entry(
+            "qualification-evidence-decision-receipt",
+            object_sha256=sha("4"),
+            semantic_identity_sha256=semantic,
+        )
+        conflicting_bundle = entry(
+            "qualification-evidence-decision-receipt-sigstore-bundle",
+            object_sha256=sha("5"),
+            subject_sha256=conflicting["object_sha256"],
+        )
+        signer = {
+            "schema_version": registry.SIGNER_POINTER_SCHEMA,
+            "object_path": (
+                "production-evidence/signer-registries/sha256/ff/"
+                + "f" * 64
+                + ".qualification-signer-registry.json"
+            ),
+            "object_sha256": sha("f"),
+            "registry_identity_sha256": sha("6"),
+            "registry_revision": 1,
+        }
+        value = document(
+            [first, first_bundle, conflicting, conflicting_bundle],
+            signer_registry=signer,
+            signer_registry_history=[signer],
+        )
+        with self.assertRaisesRegex(
+            registry.EvidenceRegistryError, "semantic identity"
+        ):
+            registry.validate_registry(value)
 
 
 if __name__ == "__main__":

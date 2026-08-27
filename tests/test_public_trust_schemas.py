@@ -13,6 +13,114 @@ SCHEMA_ROOT = ROOT / "schemas"
 
 
 EXPECTED_TOP_LEVEL_FIELDS = {
+    "support-release-admission.schema.json": {
+        "schema_version",
+        "admission_id_sha256",
+        "lifecycle_state",
+        "support_target",
+        "verdict",
+        "claim_scope",
+        "release_identity",
+        "release",
+        "release_sha256",
+        "artifact_inventory_sha256",
+        "publication_staging",
+        "publication_staging_sha256",
+        "authority_state_sha256",
+        "revocation_state_sha256",
+        "signer_registry_sha256",
+        "support_policy_sha256",
+        "issued_at",
+        "not_before",
+        "expires_at",
+        "issuer",
+    },
+    "production-release-authority-policy.schema.json": {
+        "$schema",
+        "schema_version",
+        "release_app",
+        "repository_selection",
+        "permissions",
+        "repositories",
+        "tag_rulesets",
+        "support_release_authorities",
+    },
+    "production-publication-recovery-authorization.schema.json": {
+        "schema_version",
+        "authorization_id_sha256",
+        "qualification_release_reference",
+        "qualification_release_object_sha256",
+        "release_sha256",
+        "artifact_inventory_sha256",
+        "publication_staging_sha256",
+        "repository",
+        "repository_id",
+        "target",
+        "tag",
+        "tag_ref",
+        "tag_object_id",
+        "target_commit",
+        "draft_release_id",
+        "requested_effects",
+        "run_id",
+        "run_attempt",
+        "dispatcher_actor_id",
+        "environment",
+        "release_app",
+        "idempotency_key",
+        "issued_at",
+        "not_before",
+        "expires_at",
+        "issuer",
+    },
+    "production-cloud-deploy-authorization.schema.json": {
+        "schema_version",
+        "authorization_sha256",
+        "deployment_intent_sha256",
+        "profile_repository",
+        "profile_repository_id",
+        "profile_commit",
+        "profile_workflow",
+        "profile_run_id",
+        "profile_run_attempt",
+        "cloud_source_commitment_sha256",
+        "expected_live_attestation_sha256",
+        "provider_idempotency_key",
+        "audience",
+        "signer_registry_sha256",
+        "revocation_state_sha256",
+        "issued_at",
+        "not_before",
+        "expires_at",
+        "issuer",
+    },
+    "production-cloud-deployment-result.schema.json": {
+        "schema_version",
+        "handoff_id_sha256",
+        "authorization_reference",
+        "authorization_bundle_reference",
+        "authorization_sha256",
+        "cloud_source_commitment_sha256",
+        "profile_commit",
+        "profile_run_id",
+        "profile_run_attempt",
+        "source_proof_request",
+        "source_proof_request_sha256",
+        "source_proof_response",
+        "source_proof_response_sha256",
+        "reviewed_public_values_sha256",
+        "expected_live_attestation_sha256",
+        "live_attestation_sha256",
+        "provider_idempotency_key",
+        "audience",
+        "signer_registry_sha256",
+        "revocation_state_sha256",
+        "verdict",
+        "issued_at",
+        "not_before",
+        "expires_at",
+        "issuer",
+    },
     "production-lifecycle-evidence-manifest.schema.json": {
         "schema_version",
         "target",
@@ -38,6 +146,7 @@ EXPECTED_TOP_LEVEL_FIELDS = {
         "issued_at",
         "not_before",
         "expires_at",
+        "issuer",
     },
     "production-current-default.schema.json": {
         "schema_version",
@@ -75,6 +184,8 @@ EXPECTED_TOP_LEVEL_FIELDS = {
         "reference_schema_version",
         "transport",
         "signer_registry_schema_version",
+        "embedded_signatures",
+        "message_signature",
         "sigstore",
     },
     "production-lifecycle-checkpoint.schema.json": {
@@ -132,6 +243,7 @@ EXPECTED_TOP_LEVEL_FIELDS = {
         "issued_at",
         "not_before",
         "expires_at",
+        "issuer",
     },
     "production-lifecycle-feed.schema.json": {
         "schema_version",
@@ -221,6 +333,8 @@ EXPECTED_TOP_LEVEL_FIELDS = {
     },
     "qualification-evidence-decision-receipt.schema.json": {
         "schema_version",
+        "decision_identity_sha256",
+        "decision_revision",
         "decision_commitment_sha256",
         "evidence_manifest_sha256",
         "organization_id_sha256",
@@ -236,7 +350,7 @@ EXPECTED_TOP_LEVEL_FIELDS = {
         "identity_contract_sha256",
         "effect_contract_sha256",
         "policy_contract_sha256",
-        "evidence_authority_sha256",
+        "evidence_authority_contract_sha256",
         "campaign_permit_sha256",
         "signer_registry_sha256",
         "revocation_state_sha256",
@@ -248,8 +362,10 @@ EXPECTED_TOP_LEVEL_FIELDS = {
         "expires_at",
         "issuer_key_id",
         "algorithm",
+        "signing_statement",
         "signature",
         "campaign_artifact_sha256",
+        "issuer",
     },
     "qualification-release.schema.json": {
         "schema_version",
@@ -346,6 +462,26 @@ class PublicTrustSchemaTests(unittest.TestCase):
         )
         self.assertEqual(schema["$defs"]["publication_staging"]["properties"]["tag_rulesets"]["minItems"], 2)
         self.assertEqual(schema["$defs"]["publication_staging"]["properties"]["tag_rulesets"]["maxItems"], 2)
+
+    def test_verification_policy_freezes_both_sigstore_profiles(self) -> None:
+        policy = json.loads(
+            (ROOT / "production-evidence-policy.json").read_text(encoding="utf-8")
+        )
+        identities = policy["sigstore"]["certificate_identities"]
+        self.assertEqual(
+            [item["kind"] for item in identities],
+            sorted(item["kind"] for item in identities),
+        )
+        profiles = {item["kind"]: item["bundle_profile"] for item in identities}
+        self.assertEqual(
+            profiles["qualification-evidence-decision-receipt"],
+            "sigstore-message-signature",
+        )
+        self.assertEqual(profiles["qualification-release"], "github-attestation")
+        message = policy["message_signature"]
+        self.assertEqual(message["version"], "3.1.3")
+        self.assertEqual(message["runner"], "ubuntu-24.04")
+        self.assertEqual(message["architecture"], "linux-amd64")
 
 
 if __name__ == "__main__":
