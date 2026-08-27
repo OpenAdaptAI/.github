@@ -1,0 +1,264 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "production-lifecycle-checkpoint.schema.json",
+  "title": "OpenAdapt production lifecycle checkpoint v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "checkpoint_id_sha256",
+    "checkpoint_revision",
+    "previous_checkpoint_sha256",
+    "registry_source_commit",
+    "registry_revision",
+    "registry_head_sha256",
+    "signer_registry",
+    "lifecycle_policy_sha256",
+    "current_default_reference",
+    "current_default_bundle_reference",
+    "lifecycle_projection",
+    "lifecycle_projection_sha256",
+    "release_admissions",
+    "release_admission_set_sha256",
+    "workflow_admissions",
+    "workflow_admission_set_sha256",
+    "authority_state_reference",
+    "authority_state_bundle_reference",
+    "authority_state_sha256",
+    "revocation_state_reference",
+    "revocation_state_bundle_reference",
+    "revocation_state_sha256",
+    "generated_at",
+    "not_before",
+    "expires_at",
+    "issuer"
+  ],
+  "properties": {
+    "schema_version": {"const": "openadapt.production-lifecycle-checkpoint/v1"},
+    "checkpoint_id_sha256": {"$ref": "#/$defs/digest"},
+    "checkpoint_revision": {"type": "integer", "minimum": 1},
+    "previous_checkpoint_sha256": {"oneOf": [{"$ref": "#/$defs/digest"}, {"type": "null"}]},
+    "registry_source_commit": {"$ref": "#/$defs/commit"},
+    "registry_revision": {"type": "integer", "minimum": 1},
+    "registry_head_sha256": {"$ref": "#/$defs/digest"},
+    "signer_registry": {"$ref": "#/$defs/signer_registry_pointer"},
+    "lifecycle_policy_sha256": {"$ref": "#/$defs/digest"},
+    "current_default_reference": {"$ref": "#/$defs/current_default_reference"},
+    "current_default_bundle_reference": {"$ref": "#/$defs/current_default_bundle_reference"},
+    "lifecycle_projection": {"$ref": "#/$defs/lifecycle_projection"},
+    "lifecycle_projection_sha256": {"$ref": "#/$defs/digest"},
+    "release_admissions": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/release_admission_pair"}
+    },
+    "release_admission_set_sha256": {"$ref": "#/$defs/digest"},
+    "workflow_admissions": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/workflow_admission_pair"}
+    },
+    "workflow_admission_set_sha256": {"$ref": "#/$defs/digest"},
+    "authority_state_reference": {"$ref": "#/$defs/authority_state_reference"},
+    "authority_state_bundle_reference": {"$ref": "#/$defs/authority_state_bundle_reference"},
+    "authority_state_sha256": {"$ref": "#/$defs/digest"},
+    "revocation_state_reference": {"$ref": "#/$defs/revocation_state_reference"},
+    "revocation_state_bundle_reference": {"$ref": "#/$defs/revocation_state_bundle_reference"},
+    "revocation_state_sha256": {"$ref": "#/$defs/digest"},
+    "generated_at": {"$ref": "#/$defs/timestamp"},
+    "not_before": {"$ref": "#/$defs/timestamp"},
+    "expires_at": {"$ref": "#/$defs/timestamp"},
+    "issuer": {"$ref": "#/$defs/issuer"}
+  },
+  "$defs": {
+    "target": {"enum": ["agent", "capture", "cloud", "desktop", "docs", "flow", "openadapt"]},
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "timestamp": {"type": "string", "format": "date-time", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"},
+    "signer_registry_pointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "object_path", "object_sha256", "registry_identity_sha256", "registry_revision"],
+      "properties": {
+        "schema_version": {"const": "openadapt.qualification-signer-registry-pointer/v1"},
+        "object_path": {"type": "string", "pattern": "^production-evidence/signer-registries/sha256/[0-9a-f]{2}/[0-9a-f]{64}\\.qualification-signer-registry\\.json$"},
+        "object_sha256": {"$ref": "#/$defs/digest"},
+        "registry_identity_sha256": {"$ref": "#/$defs/digest"},
+        "registry_revision": {"type": "integer", "minimum": 1}
+      }
+    },
+    "regular_reference": {
+      "allOf": [
+        {"$ref": "production-evidence-object-reference.schema.json"},
+        {"properties": {"subject_sha256": {"type": "null"}}}
+      ]
+    },
+    "bundle_reference": {
+      "allOf": [
+        {"$ref": "production-evidence-object-reference.schema.json"},
+        {"properties": {
+          "object_schema_version": {"const": "application/vnd.dev.sigstore.bundle.v0.3+json"},
+          "object_media_type": {"const": "application/vnd.dev.sigstore.bundle.v0.3+json"},
+          "subject_sha256": {"$ref": "#/$defs/digest"}
+        }}
+      ]
+    },
+    "current_default_reference": {
+      "allOf": [
+        {"$ref": "#/$defs/regular_reference"},
+        {"properties": {
+          "kind": {"const": "production-current-default"},
+          "object_schema_version": {"const": "openadapt.production-current-default/v1"},
+          "object_media_type": {"const": "application/vnd.openadapt.production-current-default+json;version=1"}
+        }}
+      ]
+    },
+    "current_default_bundle_reference": {
+      "allOf": [
+        {"$ref": "#/$defs/bundle_reference"},
+        {"properties": {"kind": {"const": "production-current-default-sigstore-bundle"}}}
+      ]
+    },
+    "release_reference": {
+      "allOf": [
+        {"$ref": "#/$defs/regular_reference"},
+        {"properties": {
+          "kind": {"const": "qualification-release"},
+          "object_schema_version": {"const": "openadapt.qualification-release/v1"},
+          "object_media_type": {"const": "application/vnd.openadapt.qualification-release+json;version=1"}
+        }}
+      ]
+    },
+    "release_bundle_reference": {
+      "allOf": [
+        {"$ref": "#/$defs/bundle_reference"},
+        {"properties": {"kind": {"const": "qualification-release-sigstore-bundle"}}}
+      ]
+    },
+    "workflow_reference": {
+      "allOf": [
+        {"$ref": "#/$defs/regular_reference"},
+        {"properties": {
+          "kind": {"const": "qualification-admission"},
+          "object_schema_version": {"const": "openadapt.qualification-admission/v3"},
+          "object_media_type": {"const": "application/vnd.openadapt.qualification-admission+json;version=3"}
+        }}
+      ]
+    },
+    "workflow_bundle_reference": {
+      "allOf": [
+        {"$ref": "#/$defs/bundle_reference"},
+        {"properties": {"kind": {"const": "qualification-admission-sigstore-bundle"}}}
+      ]
+    },
+    "authority_state_reference": {
+      "allOf": [
+        {"$ref": "#/$defs/regular_reference"},
+        {"properties": {
+          "kind": {"const": "qualification-authority-state-receipt"},
+          "object_schema_version": {"const": "openadapt.qualification-authority-state-receipt/v2"},
+          "object_media_type": {"const": "application/vnd.openadapt.qualification-authority-state-receipt+json;version=2"}
+        }}
+      ]
+    },
+    "authority_state_bundle_reference": {
+      "allOf": [
+        {"$ref": "#/$defs/bundle_reference"},
+        {"properties": {"kind": {"const": "qualification-authority-state-receipt-sigstore-bundle"}}}
+      ]
+    },
+    "revocation_state_reference": {
+      "allOf": [
+        {"$ref": "#/$defs/regular_reference"},
+        {"properties": {
+          "kind": {"const": "qualification-revocation-state-receipt"},
+          "object_schema_version": {"const": "openadapt.qualification-revocation-state-receipt/v1"},
+          "object_media_type": {"const": "application/vnd.openadapt.qualification-revocation-state-receipt+json;version=1"}
+        }}
+      ]
+    },
+    "revocation_state_bundle_reference": {
+      "allOf": [
+        {"$ref": "#/$defs/bundle_reference"},
+        {"properties": {"kind": {"const": "qualification-revocation-state-receipt-sigstore-bundle"}}}
+      ]
+    },
+    "release_admission_pair": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target", "admission_reference", "admission_bundle_reference"],
+      "properties": {
+        "target": {"$ref": "#/$defs/target"},
+        "admission_reference": {"$ref": "#/$defs/release_reference"},
+        "admission_bundle_reference": {"$ref": "#/$defs/release_bundle_reference"}
+      }
+    },
+    "workflow_admission_pair": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["admission_reference", "admission_bundle_reference"],
+      "properties": {
+        "admission_reference": {"$ref": "#/$defs/workflow_reference"},
+        "admission_bundle_reference": {"$ref": "#/$defs/workflow_bundle_reference"}
+      }
+    },
+    "lifecycle_projection_target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target", "state", "claim_scope", "release_sha256", "artifact_inventory_sha256",
+        "release_admission_object_sha256", "default_identity_sha256", "not_before", "expires_at", "reason_codes"
+      ],
+      "properties": {
+        "target": {"$ref": "#/$defs/target"},
+        "state": {"enum": ["Production", "not actively admitted"]},
+        "claim_scope": {"type": "string", "pattern": "^production_[a-z]+$"},
+        "release_sha256": {"$ref": "#/$defs/digest"},
+        "artifact_inventory_sha256": {"$ref": "#/$defs/digest"},
+        "release_admission_object_sha256": {"$ref": "#/$defs/digest"},
+        "default_identity_sha256": {"$ref": "#/$defs/digest"},
+        "not_before": {"$ref": "#/$defs/timestamp"},
+        "expires_at": {"$ref": "#/$defs/timestamp"},
+        "reason_codes": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}}
+      }
+    },
+    "lifecycle_projection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "overall_state", "targets"],
+      "properties": {
+        "schema_version": {"const": "openadapt.production-lifecycle-projection/v2"},
+        "overall_state": {"enum": ["Production", "not actively admitted"]},
+        "targets": {
+          "type": "array",
+          "minItems": 7,
+          "maxItems": 7,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/lifecycle_projection_target"}
+        }
+      }
+    },
+    "issuer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository", "repository_id", "workflow", "ref", "source_commit",
+        "policy_repository", "policy_repository_id", "policy_source_commit", "policy_path"
+      ],
+      "properties": {
+        "repository": {"const": "OpenAdaptAI/openadapt-ops"},
+        "repository_id": {"const": "1172011294"},
+        "workflow": {"const": ".github/workflows/production-lifecycle-checkpoint.yml"},
+        "ref": {"const": "refs/heads/main"},
+        "source_commit": {"$ref": "#/$defs/commit"},
+        "policy_repository": {"const": "OpenAdaptAI/.github"},
+        "policy_repository_id": {"const": "858454062"},
+        "policy_source_commit": {"$ref": "#/$defs/commit"},
+        "policy_path": {"const": "production-lifecycle-policy.json"}
+      }
+    }
+  }
+}

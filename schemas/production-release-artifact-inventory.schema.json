@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "production-release-artifact-inventory.schema.json",
+  "title": "OpenAdapt production release artifact inventory v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "target", "claim_scope", "artifacts"],
+  "properties": {
+    "schema_version": {"const": "openadapt.production-release-artifact-inventory/v1"},
+    "target": {"$ref": "#/$defs/target"},
+    "claim_scope": {"type": "string", "pattern": "^production_[a-z]+$"},
+    "artifacts": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/artifact"}
+    }
+  },
+  "$defs": {
+    "target": {"enum": ["agent", "capture", "cloud", "desktop", "docs", "flow", "openadapt"]},
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "kind", "sha256", "size_bytes", "media_type", "publish_destinations"],
+      "properties": {
+        "name": {"type": "string", "pattern": "^[^/\\\\]+$", "minLength": 1, "maxLength": 255},
+        "kind": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        "sha256": {"$ref": "#/$defs/digest"},
+        "size_bytes": {"type": "integer", "minimum": 1},
+        "media_type": {"type": "string", "pattern": "^[^/]+/[^/]+$", "maxLength": 200},
+        "publish_destinations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {"enum": ["deployment", "github-release", "pypi"]}
+        }
+      }
+    }
+  }
+}
