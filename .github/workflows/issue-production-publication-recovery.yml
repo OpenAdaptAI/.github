@@ -1,0 +1,178 @@
+name: Issue one publication effect authorization
+
+on:
+  workflow_call:
+    inputs:
+      requested_effect:
+        description: One exact publication effect
+        required: true
+        type: string
+      execution_mode:
+        description: Initial or recovery execution
+        required: false
+        default: recovery
+        type: string
+      qualification_release_reference_base64:
+        description: Canonical active release reference plus LF, in base64
+        required: false
+        default: ""
+        type: string
+      stage_artifact_inventory_base64:
+        description: Canonical pre-admission artifact inventory plus LF, in base64
+        required: false
+        default: ""
+        type: string
+      stage_repository:
+        description: Exact repository for a pre-admission stage
+        required: false
+        default: ""
+        type: string
+      stage_repository_id:
+        description: Exact repository ID for a pre-admission stage
+        required: false
+        default: ""
+        type: string
+      stage_source_commit:
+        description: Exact protected source commit for a pre-admission stage
+        required: false
+        default: ""
+        type: string
+      stage_tag:
+        description: Exact future tag for a pre-admission stage
+        required: false
+        default: ""
+        type: string
+      actions_artifact_id:
+        description: Exact caller Actions artifact ID for a pre-admission stage
+        required: false
+        default: ""
+        type: string
+      actions_artifact_name:
+        description: Exact caller Actions artifact name for a pre-admission stage
+        required: false
+        default: ""
+        type: string
+      actions_artifact_digest:
+        description: Exact caller Actions artifact digest for a pre-admission stage
+        required: false
+        default: ""
+        type: string
+    outputs:
+      authorization_base64:
+        value: ${{ jobs.release-identity.outputs.authorization_base64 || jobs.mcp-registry.outputs.authorization_base64 }}
+      authorization_sha256:
+        value: ${{ jobs.release-identity.outputs.authorization_sha256 || jobs.mcp-registry.outputs.authorization_sha256 }}
+      authorization_size_bytes:
+        value: ${{ jobs.release-identity.outputs.authorization_size_bytes || jobs.mcp-registry.outputs.authorization_size_bytes }}
+      bundle_base64:
+        value: ${{ jobs.release-identity.outputs.bundle_base64 || jobs.mcp-registry.outputs.bundle_base64 }}
+      bundle_sha256:
+        value: ${{ jobs.release-identity.outputs.bundle_sha256 || jobs.mcp-registry.outputs.bundle_sha256 }}
+      bundle_size_bytes:
+        value: ${{ jobs.release-identity.outputs.bundle_size_bytes || jobs.mcp-registry.outputs.bundle_size_bytes }}
+
+permissions: {}
+
+concurrency:
+  group: publication-effect-${{ github.repository_id }}-${{ inputs.requested_effect }}-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  validate-shape:
+    runs-on: ubuntu-24.04
+    permissions: {}
+    steps:
+      - name: Refuse an invalid effect shape before any protected environment
+        env:
+          ACTIONS_ARTIFACT_DIGEST: ${{ inputs.actions_artifact_digest }}
+          ACTIONS_ARTIFACT_ID: ${{ inputs.actions_artifact_id }}
+          ACTIONS_ARTIFACT_NAME: ${{ inputs.actions_artifact_name }}
+          EXECUTION_MODE: ${{ inputs.execution_mode }}
+          RELEASE_REFERENCE_BASE64: ${{ inputs.qualification_release_reference_base64 }}
+          REQUESTED_EFFECT: ${{ inputs.requested_effect }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          STAGE_INVENTORY_BASE64: ${{ inputs.stage_artifact_inventory_base64 }}
+          STAGE_REPOSITORY: ${{ inputs.stage_repository }}
+          STAGE_REPOSITORY_ID: ${{ inputs.stage_repository_id }}
+          STAGE_SOURCE_COMMIT: ${{ inputs.stage_source_commit }}
+          STAGE_TAG: ${{ inputs.stage_tag }}
+        run: |
+          set -euo pipefail
+          test "$RUN_ATTEMPT" = '1'
+          case "$EXECUTION_MODE" in
+            initial|recovery) ;;
+            *) echo 'execution_mode must be initial or recovery' >&2; exit 1 ;;
+          esac
+          case "$REQUESTED_EFFECT" in
+            stage-draft-assets)
+              test "$EXECUTION_MODE" = 'initial'
+              test -z "$RELEASE_REFERENCE_BASE64"
+              test -n "$STAGE_INVENTORY_BASE64"
+              test -n "$STAGE_REPOSITORY"
+              test -n "$STAGE_REPOSITORY_ID"
+              test -n "$STAGE_SOURCE_COMMIT"
+              test -n "$STAGE_TAG"
+              test -n "$ACTIONS_ARTIFACT_ID"
+              test -n "$ACTIONS_ARTIFACT_NAME"
+              test -n "$ACTIONS_ARTIFACT_DIGEST"
+              ;;
+            publish-github-release|publish-mcp-registry)
+              test -n "$RELEASE_REFERENCE_BASE64"
+              test -z "$STAGE_INVENTORY_BASE64"
+              test -z "$STAGE_REPOSITORY"
+              test -z "$STAGE_REPOSITORY_ID"
+              test -z "$STAGE_SOURCE_COMMIT"
+              test -z "$STAGE_TAG"
+              test -z "$ACTIONS_ARTIFACT_ID"
+              test -z "$ACTIONS_ARTIFACT_NAME"
+              test -z "$ACTIONS_ARTIFACT_DIGEST"
+              ;;
+            publish-pypi)
+              echo 'PyPI Trusted Publishing cannot run in a reusable workflow.' >&2
+              echo 'Call the exact-SHA authority action immediately before the pinned PyPA action in the protected pypi job.' >&2
+              exit 1
+              ;;
+            *) echo 'requested_effect is not supported' >&2; exit 1 ;;
+          esac
+
+  release-identity:
+    needs: validate-shape
+    if: >-
+      inputs.requested_effect == 'stage-draft-assets' ||
+      inputs.requested_effect == 'publish-github-release'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: release-identity
+    permissions: {}
+    outputs:
+      authorization_base64: ""
+      authorization_sha256: ""
+      authorization_size_bytes: ""
+      bundle_base64: ""
+      bundle_sha256: ""
+      bundle_size_bytes: ""
+    steps:
+      - name: Refuse until the isolated exact-SHA authority action is integrated
+        run: |
+          echo 'The isolated publication authority action is not present in this commit.' >&2
+          exit 1
+
+  mcp-registry:
+    needs: validate-shape
+    if: inputs.requested_effect == 'publish-mcp-registry'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: mcp-registry
+    permissions: {}
+    outputs:
+      authorization_base64: ""
+      authorization_sha256: ""
+      authorization_size_bytes: ""
+      bundle_base64: ""
+      bundle_sha256: ""
+      bundle_size_bytes: ""
+    steps:
+      - name: Refuse until the isolated exact-SHA authority action is integrated
+        run: |
+          echo 'The isolated publication authority action is not present in this commit.' >&2
+          exit 1
