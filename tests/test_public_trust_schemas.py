@@ -45,6 +45,8 @@ EXPECTED_TOP_LEVEL_FIELDS = {
         "worker_identity_sha256",
         "live_provider_observation_sha256",
         "admitted_runtime_sha256",
+        "live_provider_observation_sha256",
+        "admitted_runtime_sha256",
         "worker_image_sha256",
         "baseline_sha256",
         "host_identity_sha256",
@@ -112,12 +114,16 @@ EXPECTED_TOP_LEVEL_FIELDS = {
         "dispatch_id_sha256",
         "provider_identity_sha256",
         "worker_identity_sha256",
+        "live_provider_observation_sha256",
+        "admitted_runtime_sha256",
         "run_id",
         "run_attempt",
         "start_id_sha256",
         "task_id_sha256",
         "task_condition_sha256",
         "capability_handle_sha256",
+        "launch_attempt",
+        "launch_attempt_sha256",
         "process",
         "oracle_sha256",
         "result_sha256",
@@ -675,7 +681,28 @@ class PublicTrustSchemaTests(unittest.TestCase):
             dispatch["$defs"]["issuer"]["properties"]["workflow"]["const"],
             ".github/workflows/issue-qualification-worker-dispatch.yml",
         )
-        uncertain = terminal["allOf"][0]["then"]["properties"]
+        process_schema = terminal["properties"]["process"]["oneOf"][0]
+        self.assertEqual(
+            set(process_schema["required"]),
+            {
+                "pid",
+                "process_group_id",
+                "process_start_ticks",
+                "launched_at",
+                "executable_sha256",
+                "process_start_identity_sha256",
+            },
+        )
+        prelaunch = terminal["allOf"][0]["then"]["properties"]
+        self.assertIs(prelaunch["effect_started"]["const"], False)
+        self.assertEqual(prelaunch["delivery_state"]["const"], "not_started")
+        self.assertEqual(
+            prelaunch["terminal_state"]["const"], "PRELAUNCH_QUARANTINED"
+        )
+        self.assertIs(
+            prelaunch["quarantine"]["properties"]["active"]["const"], True
+        )
+        uncertain = terminal["allOf"][2]["then"]["properties"]
         self.assertIs(uncertain["effect_started"]["const"], True)
         self.assertEqual(
             uncertain["terminal_state"]["enum"],
