@@ -13,6 +13,31 @@ SCHEMA_ROOT = ROOT / "schemas"
 
 
 EXPECTED_TOP_LEVEL_FIELDS = {
+    "production-public-trust-signing-statement.schema.json": {
+        "schema_version",
+        "object_kind",
+        "object_schema_version",
+        "object_media_type",
+        "object_sha256",
+        "object_size_bytes",
+        "semantic_identity_sha256",
+        "source_issuer",
+        "signer_registry_sha256",
+        "authority_state_sha256",
+        "revocation_state_sha256",
+        "issued_at",
+        "not_before",
+        "expires_at",
+        "request_id_sha256",
+        "signing_authority",
+        "key_id",
+        "signature_profile",
+    },
+    "production-public-trust-dsse-bundle.schema.json": {
+        "mediaType",
+        "verificationMaterial",
+        "dsseEnvelope",
+    },
     "qualification-worker-admission.schema.json": {
         "schema_version",
         "admission_id_sha256",
