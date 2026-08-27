@@ -80,6 +80,15 @@ class GovernanceWorkflowContractTests(unittest.TestCase):
         self.assertIn("group: ${{ github.workflow }}-${{ github.event_name }}", content)
         self.assertIn("cancel-in-progress: false", content)
 
+    def test_v1_release_history_gate_does_not_parse_the_v2_policy_as_v1(self) -> None:
+        content = _read(".github/workflows/profile-consistency.yml")
+        rollback_step = content.split(
+            "      - name: Refuse Production release-ledger rollback\n", 1
+        )[1].split("      - name:", 1)[0]
+        self.assertIn("--history-only", rollback_step)
+        self.assertIn("--previous-admissions", rollback_step)
+        self.assertNotIn("previous-production-lifecycle-policy", rollback_step)
+
     def test_profile_dispatch_refuses_the_lifecycle_app_in_every_job(self) -> None:
         content = _read(".github/workflows/profile-consistency.yml")
         self.assertIn("  reject-lifecycle-app:\n    permissions: {}", content)

@@ -1015,6 +1015,24 @@ class ProductionLifecycleTests(unittest.TestCase):
         with self.assertRaisesRegex(lifecycle.LifecycleError, "only append"):
             lifecycle.validate_append_only_history(previous, current)
 
+    def test_history_gate_refuses_nonclosed_legacy_document(self) -> None:
+        previous, _summary, _remote = build_case()
+        current = copy.deepcopy(previous)
+        current["unexpected"] = True
+        with self.assertRaisesRegex(lifecycle.LifecycleError, "must contain exactly"):
+            lifecycle.validate_history_document(
+                current, "current Production admission history"
+            )
+
+    def test_history_gate_refuses_non_v1_document(self) -> None:
+        previous, _summary, _remote = build_case()
+        current = copy.deepcopy(previous)
+        current["schema_version"] = "openadapt.production-lifecycle-admissions/v2"
+        with self.assertRaisesRegex(lifecycle.LifecycleError, "not supported"):
+            lifecycle.validate_history_document(
+                current, "current Production admission history"
+            )
+
     def test_pinned_target_map_refuses_subject_substitution(self) -> None:
         policy = load_policy()
         next(item for item in policy["targets"] if item["id"] == "flow")[

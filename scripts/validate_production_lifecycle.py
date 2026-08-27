@@ -1656,6 +1656,21 @@ def validate_files(root: Path = ROOT, *, now: datetime | None = None) -> dict[st
     )
 
 
+def validate_history_document(value: object, label: str) -> None:
+    """Validate one retained v1 admission-ledger document without its policy."""
+
+    document = _closed(
+        value,
+        {"$schema", "schema_version", "policy_sha256", "admissions"},
+        label,
+    )
+    if document["schema_version"] != ADMISSIONS_SCHEMA:
+        raise LifecycleError(f"{label} schema is not supported")
+    _digest(document["policy_sha256"], f"{label} policy digest")
+    if not isinstance(document["admissions"], list):
+        raise LifecycleError(f"{label} admissions must be a list")
+
+
 def validate_append_only_history(previous_value: object, current_value: object) -> None:
     """Reject release-ledger rollback while allowing one-way current revocation."""
 
@@ -1700,8 +1715,33 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--previous-admissions", type=Path)
+    parser.add_argument(
+        "--history-only",
+        action="store_true",
+        help=(
+            "validate only the retained v1 admission-ledger append-only relation; "
+            "requires --previous-admissions"
+        ),
+    )
     args = parser.parse_args()
+    if args.history_only and args.previous_admissions is None:
+        parser.error("--history-only requires --previous-admissions")
     try:
+        if args.history_only:
+            previous = _load_json(
+                args.previous_admissions, "previous Production lifecycle admissions"
+            )
+            current = _load_json(
+                args.root / ADMISSIONS_PATH.name,
+                "current Production lifecycle admissions",
+            )
+            validate_history_document(
+                previous, "previous Production admission history"
+            )
+            validate_history_document(current, "current Production admission history")
+            validate_append_only_history(previous, current)
+            print("Validated retained v1 Production admission history.")
+            return 0
         active = validate_files(args.root)
         if args.previous_admissions is not None:
             previous = _load_json(
