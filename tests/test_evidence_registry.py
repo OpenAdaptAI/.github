@@ -1,10 +1,12 @@
-"""Fail-closed tests for the content-addressed evidence registry."""
+"""Fail-closed tests for production evidence object references v2."""
 
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -14,140 +16,208 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import validate_evidence_registry as registry  # noqa: E402
 
 
-def make_entry(sequence: int = 1, prior: str | None = None, **overrides) -> dict:
-    entry = registry.build_entry(
-        sequence=sequence,
-        kind=overrides.pop("kind", "evidence-summary"),
-        url=overrides.pop(
-            "url", "https://evidence.openadapt.ai/objects/" + "a" * 64 + "/summary.json"
+def sha(character: str) -> str:
+    return "sha256:" + character * 64
+
+
+def entry(kind: str = "production-acceptance-manifest", **overrides) -> dict:
+    schema, media = registry.OBJECT_KIND_CONTRACTS[kind]
+    object_sha = overrides.pop("object_sha256", sha("a"))
+    digest_hex = object_sha.removeprefix("sha256:")
+    value = {
+        "kind": kind,
+        "object_schema_version": schema,
+        "object_path": (
+            f"production-evidence/objects/sha256/{digest_hex[:2]}/"
+            f"{digest_hex}.{kind}.json"
         ),
-        sha256=overrides.pop("sha256", "sha256:" + "b" * 64),
-        size_bytes=overrides.pop("size_bytes", 128),
-        recorded_at=overrides.pop("recorded_at", "2026-08-21T00:00:00.000Z"),
-        prior_entry_sha256=prior,
-    )
-    entry.update(overrides)
-    return entry
+        "object_sha256": object_sha,
+        "size_bytes": 123,
+        "object_media_type": media,
+        "semantic_identity_sha256": sha("b"),
+        "subject_sha256": None,
+    }
+    value.update(overrides)
+    value["registry_entry_sha256"] = registry.entry_digest(value)
+    return value
 
 
-def wrap(entries: list[dict]) -> dict:
-    head = entries[-1]["entry_sha256"] if entries else None
-    return {
+def document(entries: list[dict] | None = None, **overrides) -> dict:
+    values = entries or []
+    value = {
         "$schema": "schemas/evidence-registry.schema.json",
         "schema_version": registry.REGISTRY_SCHEMA,
-        "head_entry_sha256": head,
-        "entries": entries,
+        "repository": registry.REPOSITORY,
+        "repository_id": registry.REPOSITORY_ID,
+        "repository_owner_id": registry.REPOSITORY_OWNER_ID,
+        "revision": 1,
+        "previous_registry_head_sha256": None,
+        "registry_head_sha256": sha("0"),
+        "signer_registry": None,
+        "entries": values,
     }
+    value.update(overrides)
+    value["registry_head_sha256"] = registry.registry_head_digest(value)
+    return value
+
+
+def reference(value: dict, **overrides) -> dict:
+    result = {
+        "schema_version": registry.REFERENCE_SCHEMA,
+        "repository": registry.REPOSITORY,
+        "repository_id": registry.REPOSITORY_ID,
+        "repository_owner_id": registry.REPOSITORY_OWNER_ID,
+        "registry_source_commit": "c" * 40,
+        "registry_revision": 7,
+        "registry_head_sha256": sha("d"),
+        **value,
+    }
+    result.update(overrides)
+    return result
 
 
 class EvidenceRegistryTests(unittest.TestCase):
-    def test_empty_registry_is_valid(self) -> None:
-        self.assertEqual(registry.validate_registry(wrap([])), [])
+    def test_repository_registry_is_valid_v2(self) -> None:
+        value = json.loads((ROOT / "evidence-registry.json").read_text())
+        self.assertEqual(registry.validate_registry(value, root=ROOT), [])
 
-    def test_chained_entries_are_valid(self) -> None:
-        first = make_entry(1, None)
-        second = make_entry(2, first["entry_sha256"])
-        third = make_entry(3, second["entry_sha256"], kind="attestation-bundle")
-        result = registry.validate_registry(wrap([first, second, third]))
-        self.assertEqual(len(result), 3)
-
-    def test_broken_chain_is_refused(self) -> None:
-        first = make_entry(1, None)
-        second = make_entry(2, "sha256:" + "0" * 64)
-        with self.assertRaisesRegex(registry.EvidenceRegistryError, "chain"):
-            registry.validate_registry(wrap([first, second]))
-
-    def test_stale_head_is_refused(self) -> None:
-        first = make_entry(1, None)
-        document = wrap([first])
-        document["head_entry_sha256"] = "sha256:" + "e" * 64
-        with self.assertRaisesRegex(registry.EvidenceRegistryError, "head"):
-            registry.validate_registry(document)
-
-    def test_sequence_gap_is_refused(self) -> None:
-        first = make_entry(1, None)
-        second = make_entry(3, first["entry_sha256"])
-        with self.assertRaisesRegex(registry.EvidenceRegistryError, "sequence"):
-            registry.validate_registry(wrap([first, second]))
-
-    def test_tampered_digest_breaks_the_chain(self) -> None:
-        first = make_entry(1, None)
-        tampered = dict(first)
-        tampered["sha256"] = "sha256:" + "f" * 64
-        with self.assertRaisesRegex(registry.EvidenceRegistryError, "chained digest"):
-            registry.validate_registry(wrap([tampered]))
-
-    def test_non_https_url_is_refused(self) -> None:
-        with self.assertRaisesRegex(registry.EvidenceRegistryError, "HTTPS"):
-            make_entry(1, None, url="http://evidence.openadapt.ai/summary.json")
-
-    def test_unsupported_kind_is_refused(self) -> None:
-        entry = make_entry(1, None)
-        entry["kind"] = "screenshot"
-        with self.assertRaisesRegex(registry.EvidenceRegistryError, "kind"):
-            registry.validate_registry(wrap([entry]))
-
-    def test_closed_schema_refuses_extra_fields(self) -> None:
-        document = wrap([make_entry(1, None)])
-        document["extra"] = True
-        with self.assertRaisesRegex(registry.EvidenceRegistryError, "unexpected"):
-            registry.validate_registry(document)
-
-    def test_require_registered_matches_exact_pair(self) -> None:
-        entry = make_entry(1, None)
-        entries = registry.validate_registry(wrap([entry]))
-        registry.require_registered(
-            entries,
-            url=entry["url"],
-            sha256=entry["sha256"],
-            kind="evidence-summary",
-            label="case summary",
+    def test_reference_has_exact_16_keys_and_derives_raw_url(self) -> None:
+        value = reference(entry())
+        self.assertEqual(set(value), registry.REFERENCE_FIELDS)
+        registry.validate_reference(value)
+        self.assertEqual(
+            registry.raw_github_url(value),
+            "https://raw.githubusercontent.com/OpenAdaptAI/.github/"
+            + "c" * 40
+            + "/"
+            + value["object_path"],
         )
-        with self.assertRaisesRegex(
-            registry.EvidenceRegistryError, "not registered"
-        ):
-            registry.require_registered(
-                entries,
-                url=entry["url"],
-                sha256="sha256:" + "9" * 64,
-                kind="evidence-summary",
-                label="case summary",
-            )
-        with self.assertRaisesRegex(registry.EvidenceRegistryError, "kind"):
-            registry.require_registered(
-                entries,
-                url=entry["url"],
-                sha256=entry["sha256"],
-                kind="attestation-bundle",
-                label="case bundle",
-            )
 
-    def test_rewritten_history_is_refused(self) -> None:
-        first = make_entry(1, None)
-        second = make_entry(2, first["entry_sha256"])
-        rewritten_first = dict(first)
-        rewritten_first["recorded_at"] = "2026-08-20T00:00:00.000Z"
-        # Rebuilding history from the edited first entry produces a different
-        # chained digest than the recorded one.
-        forged_second = registry.build_entry(
-            sequence=2,
-            kind="evidence-summary",
-            url=second["url"],
-            sha256=second["sha256"],
-            size_bytes=second["size_bytes"],
-            recorded_at=second["recorded_at"],
-            prior_entry_sha256=rewritten_first["entry_sha256"],
+    def test_url_field_is_refused(self) -> None:
+        value = reference(entry())
+        value["url"] = "https://evidence.openadapt.ai/object.json"
+        with self.assertRaisesRegex(registry.EvidenceRegistryError, "exactly"):
+            registry.validate_reference(value)
+
+    def test_repository_id_and_commit_are_pinned(self) -> None:
+        value = reference(entry(), repository_id="1")
+        with self.assertRaisesRegex(registry.EvidenceRegistryError, "repository"):
+            registry.validate_reference(value)
+        value = reference(entry(), registry_source_commit="main")
+        with self.assertRaisesRegex(registry.EvidenceRegistryError, "commit"):
+            registry.validate_reference(value)
+
+    def test_object_path_must_bind_digest_and_kind(self) -> None:
+        value = entry()
+        value["object_path"] = "production-evidence/objects/sha256/aa/wrong.json"
+        value["registry_entry_sha256"] = registry.entry_digest(value)
+        with self.assertRaisesRegex(registry.EvidenceRegistryError, "content-addressed"):
+            registry.validate_reference(reference(value))
+
+    def test_bundle_must_immediately_follow_and_bind_regular_object(self) -> None:
+        regular = entry()
+        bundle = entry(
+            "production-acceptance-manifest-sigstore-bundle",
+            object_sha256=sha("e"),
+            subject_sha256=regular["object_sha256"],
         )
-        document = wrap([rewritten_first, forged_second])
-        with self.assertRaisesRegex(registry.EvidenceRegistryError, "chained digest"):
-            registry.validate_registry(document)
+        with self.assertRaisesRegex(registry.EvidenceRegistryError, "signer registry"):
+            registry.validate_registry(document([regular, bundle]))
+        signer = {
+            "schema_version": registry.SIGNER_POINTER_SCHEMA,
+            "object_path": (
+                "production-evidence/signer-registries/sha256/ff/"
+                + "f" * 64
+                + ".qualification-signer-registry.json"
+            ),
+            "object_sha256": sha("f"),
+            "registry_identity_sha256": sha("1"),
+            "registry_revision": 1,
+        }
+        valid = document([regular, bundle], signer_registry=signer)
+        registry.validate_registry(valid)
+        invalid = copy.deepcopy(valid)
+        invalid["entries"].reverse()
+        invalid["registry_head_sha256"] = registry.registry_head_digest(invalid)
+        with self.assertRaisesRegex(registry.EvidenceRegistryError, "immediately"):
+            registry.validate_registry(invalid)
 
-    def test_repository_file_is_valid_and_empty(self) -> None:
-        raw = (ROOT / "evidence-registry.json").read_text(encoding="utf-8")
-        value = json.loads(raw)
-        self.assertEqual(value["entries"], [])
-        self.assertIsNone(value["head_entry_sha256"])
-        registry.validate_registry(copy.deepcopy(value))
+    def test_registry_readback_binds_exact_bytes_and_size(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            raw = b'{"schema_version":"openadapt.production-acceptance/v2"}\n'
+            object_sha = "sha256:" + hashlib.sha256(raw).hexdigest()
+            regular = entry(
+                object_sha256=object_sha,
+                size_bytes=len(raw),
+                semantic_identity_sha256=registry.semantic_identity_digest(
+                    kind="production-acceptance-manifest",
+                    object_schema_version="openadapt.production-acceptance/v2",
+                    object_value=json.loads(raw),
+                    object_sha256=object_sha,
+                ),
+            )
+            path = root / regular["object_path"]
+            path.parent.mkdir(parents=True)
+            path.write_bytes(raw)
+            signer = {
+                "schema_version": registry.SIGNER_POINTER_SCHEMA,
+                "object_path": (
+                    "production-evidence/signer-registries/sha256/ff/"
+                    + "f" * 64
+                    + ".qualification-signer-registry.json"
+                ),
+                "object_sha256": sha("f"),
+                "registry_identity_sha256": sha("1"),
+                "registry_revision": 1,
+            }
+            value = document([regular], signer_registry=signer)
+            with self.assertRaisesRegex(registry.EvidenceRegistryError, "signer registry"):
+                registry.validate_registry(value, root=root)
+            path.write_bytes(raw + b" ")
+            with self.assertRaisesRegex(registry.EvidenceRegistryError, "bytes differ"):
+                registry.validate_registry(value, root=root)
+
+    def test_signer_registry_key_id_binds_canonical_key(self) -> None:
+        key = bytes(range(32))
+        public_key = registry.base64.urlsafe_b64encode(key).decode().rstrip("=")
+        value = {
+            "schema_version": registry.SIGNER_REGISTRY_SCHEMA,
+            "revision": 1,
+            "generated_at": "2026-08-27T00:00:00Z",
+            "expires_at": "2026-09-03T00:00:00Z",
+            "signers": [
+                {
+                    "algorithm": "ed25519",
+                    "key_id": "qa-ed25519-" + hashlib.sha256(key).hexdigest()[:16],
+                    "public_key": public_key,
+                    "allowed_workflows": [
+                        "https://github.com/OpenAdaptAI/openadapt-internal/"
+                        ".github/workflows/issue-private-qualification-evidence-decision.yml"
+                        "@refs/heads/main"
+                    ],
+                    "allowed_ref_prefixes": ["refs/heads/main"],
+                    "status": "active",
+                    "revoked_at": None,
+                }
+            ],
+        }
+        registry.validate_signer_registry(value)
+        value["signers"][0]["key_id"] = "qa-ed25519-" + "0" * 16
+        with self.assertRaisesRegex(registry.EvidenceRegistryError, "bind"):
+            registry.validate_signer_registry(value)
+
+    def test_append_only_revision_binds_previous_head(self) -> None:
+        previous = document()
+        current = document(
+            revision=2,
+            previous_registry_head_sha256=previous["registry_head_sha256"],
+        )
+        registry.validate_append_only_history(previous, current)
+        current["previous_registry_head_sha256"] = sha("9")
+        current["registry_head_sha256"] = registry.registry_head_digest(current)
+        with self.assertRaisesRegex(registry.EvidenceRegistryError, "previous head"):
+            registry.validate_append_only_history(previous, current)
 
 
 if __name__ == "__main__":

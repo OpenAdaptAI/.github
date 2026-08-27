@@ -1,0 +1,99 @@
+name: Production lifecycle feed ref
+
+on:
+  workflow_dispatch:
+    inputs:
+      feed_update_json:
+        description: Closed openadapt.production-lifecycle-feed-update/v1 JSON
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-lifecycle-feed-ref
+  cancel-in-progress: false
+
+jobs:
+  authorize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions: {}
+    steps:
+      - name: Require the registered lifecycle App dispatcher
+        env:
+          ACTOR: ${{ github.actor }}
+          ACTOR_ID: ${{ github.actor_id }}
+          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$ACTOR" = 'openadapt-lifecycle[bot]'
+          test "$ACTOR_ID" = '321544198'
+          test "$TRIGGERING_ACTOR" = 'openadapt-lifecycle[bot]'
+
+  update:
+    needs: authorize
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production-lifecycle-feed
+    steps:
+      - name: Check out current protected main
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Mint the lifecycle App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: '4730735'
+          private-key: ${{ secrets.OPENADAPT_LIFECYCLE_APP_PRIVATE_KEY }}
+          owner: OpenAdaptAI
+          repositories: .github
+
+      - name: Validate the exact feed commit
+        env:
+          FEED_UPDATE_JSON: ${{ inputs.feed_update_json }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          new_commit=$(python3 -c 'import json,os; print(json.loads(os.environ["FEED_UPDATE_JSON"])["new_commit"])')
+          git fetch --no-tags origin "$new_commit"
+          python3 scripts/validate_production_lifecycle_ref.py \
+            --update-json "$FEED_UPDATE_JSON" \
+            --trusted-main "${{ github.sha }}"
+
+      - name: Verify lifecycle App installation
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(gh api /installation --jq '.app_id|tostring')" = '4730735'
+          test "$(gh api /installation --jq '.id|tostring')" = '156835618'
+          test "$(gh api /installation --jq '.account.id|tostring')" = '132681217'
+
+      - name: Compare and swap the protected feed ref
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          FEED_UPDATE_JSON: ${{ inputs.feed_update_json }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_old=$(python3 -c 'import json,os; print(json.loads(os.environ["FEED_UPDATE_JSON"])["expected_old_commit"] or "")')
+          new_commit=$(python3 -c 'import json,os; print(json.loads(os.environ["FEED_UPDATE_JSON"])["new_commit"])')
+          current=$(gh api /repos/OpenAdaptAI/.github/git/ref/heads/production-lifecycle-feed \
+            --jq .object.sha 2>/dev/null || true)
+          test "$current" = "$expected_old"
+          if [ -z "$expected_old" ]; then
+            gh api --method POST /repos/OpenAdaptAI/.github/git/refs \
+              -f ref=refs/heads/production-lifecycle-feed -f sha="$new_commit" >/dev/null
+          else
+            test "$(gh api /repos/OpenAdaptAI/.github/git/ref/heads/production-lifecycle-feed --jq .object.sha)" = "$expected_old"
+            gh api --method PATCH /repos/OpenAdaptAI/.github/git/refs/heads/production-lifecycle-feed \
+              -f sha="$new_commit" -F force=false >/dev/null
+          fi
+          test "$(gh api /repos/OpenAdaptAI/.github/git/ref/heads/production-lifecycle-feed --jq .object.sha)" = "$new_commit"

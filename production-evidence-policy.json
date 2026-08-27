@@ -1,0 +1,33 @@
+{
+  "schema_version": "openadapt.production-evidence-verification-policy/v1",
+  "repository": "OpenAdaptAI/.github",
+  "repository_id": "858454062",
+  "repository_owner_id": "132681217",
+  "reference_schema_version": "openadapt.production-evidence-object-reference/v2",
+  "transport": "exact-commit-raw-github",
+  "signer_registry_schema_version": "openadapt.qualification-signer-registry/v2",
+  "sigstore": {
+    "tool": "gh",
+    "version": "2.98.0",
+    "cert_oidc_issuer": "https://token.actions.githubusercontent.com",
+    "deny_self_hosted_runners": true,
+    "allow_public_good": false,
+    "archives": [
+      {"os":"linux","arch":"amd64","url":"https://github.com/cli/cli/releases/download/v2.98.0/gh_2.98.0_linux_amd64.tar.gz","sha256":"sha256:3b8ac6b30336802fc1a858d7c084e11cdf24ac1a761ca90b68022d7d729208de"},
+      {"os":"linux","arch":"arm64","url":"https://github.com/cli/cli/releases/download/v2.98.0/gh_2.98.0_linux_arm64.tar.gz","sha256":"sha256:cf689084f3a3618f7eae4a2420d335d74626d65f5e594b9828d125d69f800d86"},
+      {"os":"macos","arch":"amd64","url":"https://github.com/cli/cli/releases/download/v2.98.0/gh_2.98.0_macOS_amd64.zip","sha256":"sha256:734c7bbd0bc56a3974500ee9aea74d60f0e5b89be09e92b9d9148939a3a1e0e6"},
+      {"os":"macos","arch":"arm64","url":"https://github.com/cli/cli/releases/download/v2.98.0/gh_2.98.0_macOS_arm64.zip","sha256":"sha256:8cfb027cc5310675f2b830eac8f9865c1155a45ffcf9757f699fdd5a22046ca4"}
+    ],
+    "certificate_identities": [
+      {"kind":"production-acceptance-manifest","issuer_repository":"OpenAdaptAI/openadapt-evals","certificate_identity":"https://github.com/OpenAdaptAI/openadapt-evals/.github/workflows/issue-production-acceptance.yml@refs/heads/main"},
+      {"kind":"production-acceptance-summary","issuer_repository":"OpenAdaptAI/openadapt-evals","certificate_identity":"https://github.com/OpenAdaptAI/openadapt-evals/.github/workflows/issue-production-acceptance.yml@refs/heads/main"},
+      {"kind":"production-current-default","issuer_repository":"OpenAdaptAI/openadapt-ops","certificate_identity":"https://github.com/OpenAdaptAI/openadapt-ops/.github/workflows/production-current-default.yml@refs/heads/main"},
+      {"kind":"production-lifecycle-checkpoint","issuer_repository":"OpenAdaptAI/openadapt-ops","certificate_identity":"https://github.com/OpenAdaptAI/openadapt-ops/.github/workflows/production-lifecycle-checkpoint.yml@refs/heads/main"},
+      {"kind":"qualification-admission","issuer_repository":"OpenAdaptAI/.github","certificate_identity":"https://github.com/OpenAdaptAI/.github/.github/workflows/issue-qualification-admission.yml@refs/heads/main"},
+      {"kind":"qualification-authority-state-receipt","issuer_repository":"OpenAdaptAI/openadapt-ops","certificate_identity":"https://github.com/OpenAdaptAI/openadapt-ops/.github/workflows/qualification-authority-state.yml@refs/heads/main"},
+      {"kind":"qualification-evidence-decision-receipt","issuer_repository":"OpenAdaptAI/openadapt-internal","certificate_identity":"https://github.com/OpenAdaptAI/openadapt-internal/.github/workflows/issue-private-qualification-evidence-decision.yml@refs/heads/main"},
+      {"kind":"qualification-release","issuer_repository":"OpenAdaptAI/.github","certificate_identity":"https://github.com/OpenAdaptAI/.github/.github/workflows/issue-production-release-admission.yml@refs/heads/main"}
+      ,{"kind":"qualification-revocation-state-receipt","issuer_repository":"OpenAdaptAI/openadapt-ops","certificate_identity":"https://github.com/OpenAdaptAI/openadapt-ops/.github/workflows/qualification-revocation-state.yml@refs/heads/main"}
+    ]
+  }
+}

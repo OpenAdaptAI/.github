@@ -1,0 +1,110 @@
+name: Verify Production release admission
+
+on:
+  workflow_call:
+    inputs:
+      admission_reference_json: {required: true, type: string}
+      artifact_inventory_json: {required: true, type: string}
+      candidate_artifact_name: {required: true, type: string}
+      expected_target: {required: true, type: string}
+      expected_repository: {required: true, type: string}
+      expected_repository_id: {required: true, type: string}
+      expected_source_commit: {required: true, type: string}
+      expected_version: {required: true, type: string}
+      expected_tag: {required: true, type: string}
+    outputs:
+      admission_object_sha256:
+        value: ${{ jobs.verify.outputs.admission_object_sha256 }}
+      release_sha256:
+        value: ${{ jobs.verify.outputs.release_sha256 }}
+      artifact_inventory_sha256:
+        value: ${{ jobs.verify.outputs.artifact_inventory_sha256 }}
+      publication_staging_json:
+        value: ${{ jobs.verify.outputs.publication_staging_json }}
+      publication_staging_sha256:
+        value: ${{ jobs.verify.outputs.publication_staging_sha256 }}
+      draft_release_id:
+        value: ${{ jobs.verify.outputs.draft_release_id }}
+      expires_at:
+        value: ${{ jobs.verify.outputs.expires_at }}
+      registry_source_commit:
+        value: ${{ jobs.verify.outputs.registry_source_commit }}
+
+permissions:
+  contents: read
+  attestations: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      admission_object_sha256: ${{ steps.verify.outputs.admission_object_sha256 }}
+      release_sha256: ${{ steps.verify.outputs.release_sha256 }}
+      artifact_inventory_sha256: ${{ steps.verify.outputs.artifact_inventory_sha256 }}
+      publication_staging_json: ${{ steps.verify.outputs.publication_staging_json }}
+      publication_staging_sha256: ${{ steps.verify.outputs.publication_staging_sha256 }}
+      draft_release_id: ${{ steps.verify.outputs.draft_release_id }}
+      expires_at: ${{ steps.verify.outputs.expires_at }}
+      registry_source_commit: ${{ steps.verify.outputs.registry_source_commit }}
+    steps:
+      - name: Check out the exact central verifier
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: OpenAdaptAI/.github
+          ref: ${{ github.workflow_sha }}
+          path: central-trust
+          persist-credentials: false
+
+      - name: Download the exact candidate artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: ${{ inputs.candidate_artifact_name }}
+          path: candidate
+
+      - name: Install the pinned GitHub attestation verifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/gh_2.98.0_linux_amd64.tar.gz"
+          curl --fail --location --silent --show-error \
+            --output "$archive" \
+            https://github.com/cli/cli/releases/download/v2.98.0/gh_2.98.0_linux_amd64.tar.gz
+          echo "3b8ac6b30336802fc1a858d7c084e11cdf24ac1a761ca90b68022d7d729208de  $archive" \
+            | sha256sum --check --strict
+          tar --extract --gzip --file "$archive" --directory "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/gh_2.98.0_linux_amd64/bin" >> "$GITHUB_PATH"
+
+      - name: Materialize closed verifier inputs
+        shell: bash
+        env:
+          ADMISSION_REFERENCE_JSON: ${{ inputs.admission_reference_json }}
+          ARTIFACT_INVENTORY_JSON: ${{ inputs.artifact_inventory_json }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$ADMISSION_REFERENCE_JSON" > "$RUNNER_TEMP/admission-reference.json"
+          printf '%s' "$ARTIFACT_INVENTORY_JSON" > "$RUNNER_TEMP/artifact-inventory.json"
+
+      - name: Verify admission and exact candidate bytes
+        id: verify
+        shell: bash
+        env:
+          EXPECTED_TARGET: ${{ inputs.expected_target }}
+          EXPECTED_REPOSITORY: ${{ inputs.expected_repository }}
+          EXPECTED_REPOSITORY_ID: ${{ inputs.expected_repository_id }}
+          EXPECTED_SOURCE_COMMIT: ${{ inputs.expected_source_commit }}
+          EXPECTED_VERSION: ${{ inputs.expected_version }}
+          EXPECTED_TAG: ${{ inputs.expected_tag }}
+        run: |
+          set -euo pipefail
+          python3 central-trust/scripts/verify_production_release_admission.py \
+            --admission-reference "$RUNNER_TEMP/admission-reference.json" \
+            --artifact-inventory "$RUNNER_TEMP/artifact-inventory.json" \
+            --artifact-root candidate \
+            --expected-target "$EXPECTED_TARGET" \
+            --expected-repository "$EXPECTED_REPOSITORY" \
+            --expected-repository-id "$EXPECTED_REPOSITORY_ID" \
+            --expected-source-commit "$EXPECTED_SOURCE_COMMIT" \
+            --expected-version "$EXPECTED_VERSION" \
+            --expected-tag "$EXPECTED_TAG" \
+            --github-output "$GITHUB_OUTPUT"
