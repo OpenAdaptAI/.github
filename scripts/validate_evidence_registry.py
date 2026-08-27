@@ -44,10 +44,12 @@ SIGNER_USAGES = {
     "private-qualification-evidence-decision",
     "private-qualification-evidence-decision-storage-seal",
     "private-qualification-evidence-decision-final-manifest",
+    "private-qualification-evidence-recovery-receipt",
     "qualification-evidence-decision-receipt",
     "qualification-authority-state-receipt",
     "qualification-revocation-state-receipt",
 }
+RECOVERY_SIGNER_USAGE = "private-qualification-evidence-recovery-receipt"
 DECISION_RECEIPT_IDENTITY_DOMAIN = (
     b"OpenAdapt qualification decision receipt series identity v1\0"
 )
@@ -374,6 +376,10 @@ def validate_signer_registry(value: Any) -> dict[str, Any]:
             or any(item not in SIGNER_USAGES for item in usages)
         ):
             raise EvidenceRegistryError(f"{label} usage allowlist is invalid")
+        if RECOVERY_SIGNER_USAGE in usages and usages != [RECOVERY_SIGNER_USAGE]:
+            raise EvidenceRegistryError(
+                f"{label} recovery usage must use a distinct signer"
+            )
         workflows = signer["allowed_workflows"]
         if (
             not isinstance(workflows, list)
@@ -412,7 +418,38 @@ def validate_signer_registry(value: Any) -> dict[str, Any]:
                 )
         else:
             raise EvidenceRegistryError(f"{label} status is invalid")
+    recovery_signers = [
+        signer
+        for signer in signers
+        if RECOVERY_SIGNER_USAGE in signer.get("allowed_usages", [])
+    ]
+    if recovery_signers and sum(
+        signer["status"] == "active" for signer in recovery_signers
+    ) != 1:
+        raise EvidenceRegistryError(
+            "signer registry must identify exactly one active recovery signer"
+        )
     return registry
+
+
+def require_active_signer_for_usage(
+    value: Any, usage: str
+) -> dict[str, Any]:
+    """Select the one active signer for a closed private signing usage."""
+
+    if usage not in SIGNER_USAGES:
+        raise EvidenceRegistryError("requested signer usage is invalid")
+    registry = validate_signer_registry(value)
+    matches = [
+        signer
+        for signer in registry["signers"]
+        if signer["status"] == "active" and usage in signer["allowed_usages"]
+    ]
+    if len(matches) != 1:
+        raise EvidenceRegistryError(
+            f"signer registry must identify exactly one active signer for {usage}"
+        )
+    return matches[0]
 
 
 def _object_path(value: Any, kind: str, object_sha256: str) -> str:

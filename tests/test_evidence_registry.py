@@ -17,9 +17,9 @@ from cryptography.hazmat.primitives.asymmetric import ec
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-import public_trust_kms as kms
-import stage_production_evidence as stage
-import validate_evidence_registry as registry
+import public_trust_kms as kms  # noqa: E402
+import stage_production_evidence as stage  # noqa: E402
+import validate_evidence_registry as registry  # noqa: E402
 
 
 def sha(character: str) -> str:
@@ -81,6 +81,47 @@ def reference(value: dict, **overrides) -> dict:
     }
     result.update(overrides)
     return result
+
+
+def ed25519_signer(
+    key_byte: int,
+    usage: str,
+    *,
+    status: str = "active",
+) -> dict:
+    key = bytes([key_byte]) * 32
+    spki = bytes.fromhex("302a300506032b6570032100") + key
+    return {
+        "algorithm": "ed25519",
+        "key_id": "qa-ed25519-" + hashlib.sha256(key).hexdigest()[:16],
+        "public_key": base64.urlsafe_b64encode(key).decode().rstrip("="),
+        "public_key_spki_der_base64": base64.b64encode(spki).decode(),
+        "public_key_sha256": "sha256:" + hashlib.sha256(spki).hexdigest(),
+        "statement_schema_versions": [
+            "openadapt.qualification-evidence-signing-statement/v1"
+        ],
+        "allowed_usages": [usage],
+        "allowed_workflows": [
+            (
+                "https://github.com/OpenAdaptAI/openadapt-internal/"
+                ".github/workflows/issue-private-qualification-evidence-decision.yml"
+                "@refs/heads/main"
+            )
+        ],
+        "allowed_ref_prefixes": ["refs/heads/main"],
+        "status": status,
+        "revoked_at": "2026-08-27T01:00:00Z" if status == "revoked" else None,
+    }
+
+
+def signer_registry(*signers: dict) -> dict:
+    return {
+        "schema_version": registry.SIGNER_REGISTRY_SCHEMA,
+        "revision": 1,
+        "generated_at": "2026-08-27T00:00:00Z",
+        "expires_at": "2026-09-03T00:00:00Z",
+        "signers": list(signers),
+    }
 
 
 class EvidenceRegistryTests(unittest.TestCase):
@@ -272,6 +313,66 @@ class EvidenceRegistryTests(unittest.TestCase):
         value["signers"][0]["key_id"] = "qa-ed25519-" + "0" * 16
         with self.assertRaisesRegex(registry.EvidenceRegistryError, "bind"):
             registry.validate_signer_registry(value)
+
+    def test_recovery_receipt_uses_one_distinct_active_signer(self) -> None:
+        schema = json.loads(
+            (ROOT / "schemas/qualification-signer-registry.schema.json").read_text()
+        )
+        self.assertIn(
+            registry.RECOVERY_SIGNER_USAGE,
+            schema["$defs"]["ed25519_signer"]["properties"]["allowed_usages"]
+            ["items"]["enum"],
+        )
+        recovery = ed25519_signer(
+            17, registry.RECOVERY_SIGNER_USAGE
+        )
+        storage = ed25519_signer(
+            18, "private-qualification-evidence-decision-storage-seal"
+        )
+        value = signer_registry(recovery, storage)
+        self.assertEqual(registry.validate_signer_registry(value), value)
+        self.assertEqual(
+            registry.require_active_signer_for_usage(
+                value, registry.RECOVERY_SIGNER_USAGE
+            )["key_id"],
+            recovery["key_id"],
+        )
+        self.assertNotEqual(recovery["public_key_sha256"], storage["public_key_sha256"])
+
+    def test_recovery_signer_mismatch_revocation_and_reuse_fail_closed(self) -> None:
+        mismatch = signer_registry(
+            ed25519_signer(19, "qualification-evidence-decision-receipt")
+        )
+        with self.assertRaisesRegex(
+            registry.EvidenceRegistryError, "exactly one active signer"
+        ):
+            registry.require_active_signer_for_usage(
+                mismatch, registry.RECOVERY_SIGNER_USAGE
+            )
+
+        revoked = signer_registry(
+            ed25519_signer(
+                20, registry.RECOVERY_SIGNER_USAGE, status="revoked"
+            )
+        )
+        with self.assertRaisesRegex(
+            registry.EvidenceRegistryError, "exactly one active recovery signer"
+        ):
+            registry.validate_signer_registry(revoked)
+
+        reused = signer_registry(
+            ed25519_signer(21, registry.RECOVERY_SIGNER_USAGE)
+        )
+        reused["signers"][0]["allowed_usages"] = sorted(
+            [
+                registry.RECOVERY_SIGNER_USAGE,
+                "private-qualification-evidence-decision-storage-seal",
+            ]
+        )
+        with self.assertRaisesRegex(
+            registry.EvidenceRegistryError, "distinct signer"
+        ):
+            registry.validate_signer_registry(reused)
 
     def test_signer_registry_accepts_only_exact_aws_kms_p256_profile(self) -> None:
         public_key = ec.derive_private_key(7, ec.SECP256R1()).public_key()

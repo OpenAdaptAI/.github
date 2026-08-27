@@ -60,6 +60,7 @@
               "private-qualification-evidence-decision-final-manifest",
               "private-qualification-evidence-decision-request",
               "private-qualification-evidence-decision-storage-seal",
+              "private-qualification-evidence-recovery-receipt",
               "private-qualification-evidence-manifest",
               "qualification-authority-state-receipt",
               "qualification-campaign-permit",
