@@ -21,7 +21,9 @@ from cryptography.hazmat.primitives.asymmetric.utils import (
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-import public_trust_kms as kms
+import public_trust_kms as kms  # noqa: E402
+import public_trust_resolver as resolver  # noqa: E402
+import validate_evidence_registry as evidence  # noqa: E402
 
 NOW = datetime(2026, 8, 27, 12, 0, 30, tzinfo=timezone.utc)
 KMS_ARN = (
@@ -88,18 +90,18 @@ def source_issuer() -> dict:
     }
 
 
-def object_value() -> dict:
+def object_value(registry_sha256: str = sha("registry")) -> dict:
     return {
         "schema_version": "test/v1",
         "authority_state_sha256": sha("authority"),
         "revocation_state_sha256": sha("revocation"),
-        "signer_registry_sha256": sha("registry"),
+        "signer_registry_sha256": registry_sha256,
         "issuer": source_issuer(),
     }
 
 
-def statement() -> dict:
-    value = object_value()
+def statement(registry_sha256: str = sha("registry")) -> dict:
+    value = object_value(registry_sha256)
     raw = kms.canonical_lf(value)
     active_signer = signer()
     return {
@@ -111,7 +113,7 @@ def statement() -> dict:
         "object_size_bytes": len(raw),
         "semantic_identity_sha256": sha("release-identity"),
         "source_issuer": source_issuer(),
-        "signer_registry_sha256": sha("registry"),
+        "signer_registry_sha256": registry_sha256,
         "authority_state_sha256": sha("authority"),
         "revocation_state_sha256": sha("revocation"),
         "issued_at": "2026-08-27T12:00:00Z",
@@ -161,6 +163,47 @@ def bundle(value: dict | None = None) -> dict:
             ],
         },
     }
+
+
+def reference(kind: str, raw: bytes, *, semantic: str, subject: str | None) -> dict:
+    object_sha256 = "sha256:" + hashlib.sha256(raw).hexdigest()
+    digest_hex = object_sha256.removeprefix("sha256:")
+    schema, media = evidence.OBJECT_KIND_CONTRACTS[kind]
+    entry = {
+        "kind": kind,
+        "object_schema_version": schema,
+        "object_path": (
+            f"production-evidence/objects/sha256/{digest_hex[:2]}/"
+            f"{digest_hex}.{kind}.json"
+        ),
+        "object_sha256": object_sha256,
+        "size_bytes": len(raw),
+        "object_media_type": media,
+        "semantic_identity_sha256": semantic,
+        "subject_sha256": subject,
+    }
+    entry["registry_entry_sha256"] = evidence.entry_digest(entry)
+    return {
+        "schema_version": evidence.REFERENCE_SCHEMA,
+        "repository": evidence.REPOSITORY,
+        "repository_id": evidence.REPOSITORY_ID,
+        "repository_owner_id": evidence.REPOSITORY_OWNER_ID,
+        "registry_source_commit": "c" * 40,
+        "registry_revision": 5,
+        "registry_head_sha256": sha("registry-head"),
+        **entry,
+    }
+
+
+def registry_raw() -> bytes:
+    value = {
+        "schema_version": evidence.SIGNER_REGISTRY_SCHEMA,
+        "revision": 5,
+        "generated_at": "2026-08-27T11:00:00Z",
+        "expires_at": "2026-08-27T13:00:00Z",
+        "signers": [signer()],
+    }
+    return evidence.canonical(value) + b"\n"
 
 
 class PublicTrustKmsTests(unittest.TestCase):
@@ -316,6 +359,134 @@ class PublicTrustKmsTests(unittest.TestCase):
                         expected_statement=signed_statement,
                         signer=active_signer,
                     )
+
+    def test_registered_pair_resolves_raw_bytes_and_current_state_offline(self) -> None:
+        signer_registry_raw = registry_raw()
+        registry_identity = evidence.signer_registry_identity_digest(
+            json.loads(signer_registry_raw)
+        )
+        signed_object = object_value(registry_identity)
+        object_raw = kms.canonical_lf(signed_object)
+        semantic = evidence.semantic_identity_digest(
+            kind="qualification-release",
+            object_schema_version="openadapt.qualification-release/v1",
+            object_value=signed_object,
+            object_sha256="sha256:" + hashlib.sha256(object_raw).hexdigest(),
+        )
+        signed_statement = statement(registry_identity)
+        signed_statement["object_sha256"] = "sha256:" + hashlib.sha256(object_raw).hexdigest()
+        signed_statement["object_size_bytes"] = len(object_raw)
+        signed_statement["semantic_identity_sha256"] = semantic
+        signed_bundle = bundle(signed_statement)
+        bundle_raw = kms.canonical_lf(signed_bundle)
+        object_ref = reference(
+            "qualification-release",
+            object_raw,
+            semantic=semantic,
+            subject=None,
+        )
+        bundle_sha = "sha256:" + hashlib.sha256(bundle_raw).hexdigest()
+        bundle_ref = reference(
+            "qualification-release-sigstore-bundle",
+            bundle_raw,
+            semantic=evidence.semantic_identity_digest(
+                kind="qualification-release-sigstore-bundle",
+                object_schema_version="sigstore.bundle/v0.3",
+                object_value=object_ref["object_sha256"],
+                object_sha256=bundle_sha,
+            ),
+            subject=object_ref["object_sha256"],
+        )
+        result = resolver.verify_registered_public_trust_pair(
+            object_raw=object_raw,
+            object_reference=object_ref,
+            bundle_raw=bundle_raw,
+            bundle_reference=bundle_ref,
+            signer_registry_raw=signer_registry_raw,
+            expected_signer_registry_sha256=registry_identity,
+            expected_authority_state_sha256=sha("authority"),
+            expected_revocation_state_sha256=sha("revocation"),
+            now=NOW,
+        )
+        self.assertEqual(result["object"], signed_object)
+        self.assertEqual(result["signing_statement"], signed_statement)
+
+    def test_registered_pair_refuses_raw_tamper_wrong_state_and_wrong_key(self) -> None:
+        signer_registry_raw = registry_raw()
+        registry_identity = evidence.signer_registry_identity_digest(
+            json.loads(signer_registry_raw)
+        )
+        signed_object = object_value(registry_identity)
+        object_raw = kms.canonical_lf(signed_object)
+        semantic = evidence.semantic_identity_digest(
+            kind="qualification-release",
+            object_schema_version="openadapt.qualification-release/v1",
+            object_value=signed_object,
+            object_sha256="sha256:" + hashlib.sha256(object_raw).hexdigest(),
+        )
+        signed_statement = statement(registry_identity)
+        signed_statement["object_sha256"] = "sha256:" + hashlib.sha256(object_raw).hexdigest()
+        signed_statement["object_size_bytes"] = len(object_raw)
+        signed_statement["semantic_identity_sha256"] = semantic
+        signed_bundle = bundle(signed_statement)
+        bundle_raw = kms.canonical_lf(signed_bundle)
+        object_ref = reference(
+            "qualification-release",
+            object_raw,
+            semantic=semantic,
+            subject=None,
+        )
+        bundle_sha = "sha256:" + hashlib.sha256(bundle_raw).hexdigest()
+        bundle_ref = reference(
+            "qualification-release-sigstore-bundle",
+            bundle_raw,
+            semantic=evidence.semantic_identity_digest(
+                kind="qualification-release-sigstore-bundle",
+                object_schema_version="sigstore.bundle/v0.3",
+                object_value=object_ref["object_sha256"],
+                object_sha256=bundle_sha,
+            ),
+            subject=object_ref["object_sha256"],
+        )
+        base = {
+            "object_raw": object_raw,
+            "object_reference": object_ref,
+            "bundle_raw": bundle_raw,
+            "bundle_reference": bundle_ref,
+            "signer_registry_raw": signer_registry_raw,
+            "expected_signer_registry_sha256": registry_identity,
+            "expected_authority_state_sha256": sha("authority"),
+            "expected_revocation_state_sha256": sha("revocation"),
+            "now": NOW,
+        }
+        for label, mutate, message in (
+            (
+                "object bytes",
+                lambda value: value.__setitem__("object_raw", object_raw + b" "),
+                "bytes or size",
+            ),
+            (
+                "authority state",
+                lambda value: value.__setitem__(
+                    "expected_authority_state_sha256", sha("other-authority")
+                ),
+                "authority_state_sha256",
+            ),
+            (
+                "registry identity",
+                lambda value: value.__setitem__(
+                    "expected_signer_registry_sha256", sha("other-registry")
+                ),
+                "not current",
+            ),
+        ):
+            with self.subTest(label=label):
+                changed = copy.deepcopy(base)
+                mutate(changed)
+                with self.assertRaisesRegex(
+                    resolver.PublicTrustResolutionError, message
+                ):
+                    resolver.verify_registered_public_trust_pair(**changed)
 
 
 if __name__ == "__main__":

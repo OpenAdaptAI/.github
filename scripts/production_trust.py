@@ -2529,15 +2529,20 @@ def validate_current_default(value: Any, *, now: datetime | None = None) -> dict
             require_decimal_id(target["deployment_id"], "deployment id")
     issuer = closed(
         current["issuer"],
-        {"repository", "repository_id", "workflow", "ref", "source_commit"},
+        {
+            "repository", "repository_id", "repository_owner_id", "workflow",
+            "ref", "source_commit", "environment",
+        },
         "current default issuer",
     )
     if (
         issuer["repository"] != "OpenAdaptAI/openadapt-ops"
         or issuer["repository_id"] != "1172011294"
+        or issuer["repository_owner_id"] != "132681217"
         or issuer["workflow"]
         != ".github/workflows/production-current-default.yml"
         or issuer["ref"] != "refs/heads/main"
+        or issuer["environment"] != "production-current-default"
         or not isinstance(issuer["source_commit"], str)
         or HEX40.fullmatch(issuer["source_commit"]) is None
     ):
@@ -2645,8 +2650,9 @@ def validate_checkpoint(value: Any, *, now: datetime | None = None) -> dict[str,
     issuer = closed(
         checkpoint["issuer"],
         {
-            "repository", "repository_id", "workflow", "ref", "source_commit",
-            "policy_repository", "policy_repository_id", "policy_source_commit", "policy_path",
+            "repository", "repository_id", "repository_owner_id", "workflow",
+            "ref", "source_commit", "environment", "policy_repository",
+            "policy_repository_id", "policy_source_commit", "policy_path",
         },
         "checkpoint issuer",
     )
@@ -2656,9 +2662,11 @@ def validate_checkpoint(value: Any, *, now: datetime | None = None) -> dict[str,
     if (
         issuer["repository"] != "OpenAdaptAI/openadapt-ops"
         or issuer["repository_id"] != "1172011294"
+        or issuer["repository_owner_id"] != "132681217"
         or issuer["workflow"]
         != ".github/workflows/production-lifecycle-checkpoint.yml"
         or issuer["ref"] != "refs/heads/main"
+        or issuer["environment"] != "production-lifecycle-checkpoint"
         or issuer["policy_repository"] != "OpenAdaptAI/.github"
         or issuer["policy_repository_id"] != "858454062"
         or issuer["policy_source_commit"] != checkpoint["registry_source_commit"]

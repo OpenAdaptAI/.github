@@ -6,15 +6,16 @@ import copy
 import hashlib
 import json
 import sys
+import types
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import validate_production_lifecycle as lifecycle  # noqa: E402
-import validate_evidence_registry as evidence_registry  # noqa: E402
 
 NOW = datetime(2026, 8, 18, 12, 0, 0, tzinfo=timezone.utc)
 SOURCE_COMMIT = "1" * 40
@@ -25,10 +26,91 @@ def digest_bytes(value: bytes) -> str:
     return "sha256:" + hashlib.sha256(value).hexdigest()
 
 
-def load_policy() -> dict:
-    return json.loads(
-        (ROOT / "production-lifecycle-policy.json").read_text(encoding="utf-8")
+class LegacyRegistryError(ValueError):
+    pass
+
+
+def legacy_entry_digest(entry: dict) -> str:
+    projection = {
+        field: entry[field]
+        for field in (
+            "kind", "prior_entry_sha256", "recorded_at", "sequence",
+            "sha256", "size_bytes", "url",
+        )
+    }
+    return digest_bytes(
+        b"OpenAdapt production evidence registry entry v1\0"
+        + json.dumps(
+            projection, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode()
     )
+
+
+def legacy_build_entry(**fields: object) -> dict:
+    entry = dict(fields)
+    entry["entry_sha256"] = legacy_entry_digest(entry)
+    return entry
+
+
+def legacy_registry_adapter() -> types.SimpleNamespace:
+    def validate_registry(value: object) -> list[dict]:
+        if not isinstance(value, dict) or set(value) != {
+            "$schema", "schema_version", "head_entry_sha256", "entries"
+        }:
+            raise LegacyRegistryError("evidence registry object is not closed")
+        if value["schema_version"] != "openadapt.production-evidence-registry/v1":
+            raise LegacyRegistryError("evidence registry schema is not supported")
+        entries = value["entries"]
+        if not isinstance(entries, list):
+            raise LegacyRegistryError("evidence registry entries must be a list")
+        prior = None
+        for index, entry in enumerate(entries):
+            if (
+                entry["sequence"] != index + 1
+                or entry["prior_entry_sha256"] != prior
+                or entry["entry_sha256"] != legacy_entry_digest(entry)
+            ):
+                raise LegacyRegistryError("evidence registry chain is invalid")
+            prior = entry["entry_sha256"]
+        if value["head_entry_sha256"] != prior:
+            raise LegacyRegistryError("evidence registry head digest is stale")
+        return entries
+
+    def require_registered(
+        entries: list[dict], *, url: str, sha256: str, kind: str, label: str
+    ) -> None:
+        matches = [
+            entry for entry in entries
+            if entry["url"] == url and entry["sha256"] == sha256
+        ]
+        if len(matches) != 1:
+            raise LegacyRegistryError(
+                f"{label} is not registered in the central evidence registry"
+            )
+        if matches[0]["kind"] != kind:
+            raise LegacyRegistryError(f"{label} is registered with the wrong kind")
+
+    return types.SimpleNamespace(
+        EvidenceRegistryError=LegacyRegistryError,
+        validate_registry=validate_registry,
+        require_registered=require_registered,
+    )
+
+
+def load_policy() -> dict:
+    # The first v2 migration PR retains the v1 validator for recovery only.
+    # Keep these tests on its own closed contract instead of feeding it v2 bytes.
+    return {
+        "$schema": "schemas/production-lifecycle-policy.schema.json",
+        "schema_version": lifecycle.POLICY_SCHEMA,
+        "revision": 1,
+        "maximum_admission_days": 30,
+        "summary_authority": copy.deepcopy(lifecycle.EXPECTED_AUTHORITY),
+        "targets": [
+            {"id": target, **copy.deepcopy(contract)}
+            for target, contract in lifecycle.EXPECTED_TARGETS.items()
+        ],
+    }
 
 
 def flow_release() -> dict:
@@ -407,6 +489,7 @@ def build_registry(admissions: dict, remote: dict[str, bytes]) -> dict | None:
     """Build a valid central evidence registry for the given admissions."""
 
     entries = []
+    seen_references: set[tuple[str, str, str]] = set()
     prior: str | None = None
     sequence = 0
     for admission in admissions.get("admissions", []):
@@ -415,8 +498,12 @@ def build_registry(admissions: dict, remote: dict[str, bytes]) -> dict | None:
             ("evidence-summary", "summary_url", "summary_sha256"),
             ("attestation-bundle", "attestation_bundle_url", "attestation_bundle_sha256"),
         ):
+            identity = (kind, reference[url_key], reference[digest_key])
+            if identity in seen_references:
+                continue
+            seen_references.add(identity)
             sequence += 1
-            entry = evidence_registry.build_entry(
+            entry = legacy_build_entry(
                 sequence=sequence,
                 kind=kind,
                 url=reference[url_key],
@@ -433,7 +520,7 @@ def build_registry(admissions: dict, remote: dict[str, bytes]) -> dict | None:
         return None
     return {
         "$schema": "schemas/evidence-registry.schema.json",
-        "schema_version": evidence_registry.REGISTRY_SCHEMA,
+        "schema_version": "openadapt.production-evidence-registry/v1",
         "head_entry_sha256": prior,
         "entries": entries,
     }
@@ -477,19 +564,24 @@ def validate_case(
             if group != "production" and subject in subjects:
                 subjects.remove(subject)
 
-    result = lifecycle.validate(
-        load_policy(),
-        admissions,
-        repository_lifecycle,
-        surface_lifecycle,
-        policy_sha256=POLICY_DIGEST,
-        now=NOW,
-        fetch=fetch,
-        verify_attestation=verify,
-        registry_value=(
-            registry if registry is not None else build_registry(admissions, remote or {})
-        ),
-    )
+    with mock.patch.object(
+        lifecycle, "evidence_registry", legacy_registry_adapter()
+    ):
+        result = lifecycle.validate(
+            load_policy(),
+            admissions,
+            repository_lifecycle,
+            surface_lifecycle,
+            policy_sha256=POLICY_DIGEST,
+            now=NOW,
+            fetch=fetch,
+            verify_attestation=verify,
+            registry_value=(
+                registry
+                if registry is not None
+                else build_registry(admissions, remote or {})
+            ),
+        )
     return result
 
 

@@ -245,15 +245,18 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "repository", "repository_id", "workflow", "ref", "source_commit",
-        "policy_repository", "policy_repository_id", "policy_source_commit", "policy_path"
+        "repository", "repository_id", "repository_owner_id", "workflow",
+        "ref", "source_commit", "environment", "policy_repository",
+        "policy_repository_id", "policy_source_commit", "policy_path"
       ],
       "properties": {
         "repository": {"const": "OpenAdaptAI/openadapt-ops"},
         "repository_id": {"const": "1172011294"},
+        "repository_owner_id": {"const": "132681217"},
         "workflow": {"const": ".github/workflows/production-lifecycle-checkpoint.yml"},
         "ref": {"const": "refs/heads/main"},
         "source_commit": {"$ref": "#/$defs/commit"},
+        "environment": {"const": "production-lifecycle-checkpoint"},
         "policy_repository": {"const": "OpenAdaptAI/.github"},
         "policy_repository_id": {"const": "858454062"},
         "policy_source_commit": {"$ref": "#/$defs/commit"},

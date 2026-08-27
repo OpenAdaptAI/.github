@@ -589,6 +589,41 @@ class PublicTrustSchemaTests(unittest.TestCase):
             "openadapt.production-evidence-object-reference/v2",
         )
 
+    def test_current_default_and_checkpoint_bind_complete_signed_issuers(self) -> None:
+        current = json.loads(
+            (SCHEMA_ROOT / "production-current-default.schema.json").read_text()
+        )
+        checkpoint = json.loads(
+            (SCHEMA_ROOT / "production-lifecycle-checkpoint.schema.json").read_text()
+        )
+        common = {
+            "repository", "repository_id", "repository_owner_id", "workflow",
+            "ref", "source_commit", "environment",
+        }
+        current_issuer = current["$defs"]["issuer"]
+        checkpoint_issuer = checkpoint["$defs"]["issuer"]
+        self.assertEqual(set(current_issuer["required"]), common)
+        self.assertEqual(
+            current_issuer["properties"]["repository_owner_id"]["const"],
+            "132681217",
+        )
+        self.assertEqual(
+            current_issuer["properties"]["environment"]["const"],
+            "production-current-default",
+        )
+        self.assertEqual(
+            set(checkpoint_issuer["required"]),
+            common
+            | {
+                "policy_repository", "policy_repository_id",
+                "policy_source_commit", "policy_path",
+            },
+        )
+        self.assertEqual(
+            checkpoint_issuer["properties"]["environment"]["const"],
+            "production-lifecycle-checkpoint",
+        )
+
     def test_release_artifacts_bind_publish_destinations(self) -> None:
         schema = json.loads(
             (SCHEMA_ROOT / "qualification-release.schema.json").read_text(

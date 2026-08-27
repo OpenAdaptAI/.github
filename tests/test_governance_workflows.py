@@ -1,17 +1,19 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import re
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-import prepare_lifecycle_change as prepare
-import validate_evidence_registry as registry
+import prepare_lifecycle_change as prepare  # noqa: E402
 
 LIFECYCLE_WORKFLOWS = {
     "production-lifecycle-activation.yml": "production-lifecycle-activation",
@@ -26,6 +28,45 @@ def _read(path: str) -> str:
 
 def _write_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
+
+
+def _legacy_entry_digest(entry: dict) -> str:
+    projection = {
+        field: entry[field]
+        for field in (
+            "kind", "prior_entry_sha256", "recorded_at", "sequence",
+            "sha256", "size_bytes", "url",
+        )
+    }
+    encoded = json.dumps(
+        projection, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode()
+    return "sha256:" + hashlib.sha256(
+        b"OpenAdapt production evidence registry entry v1\0" + encoded
+    ).hexdigest()
+
+
+def _legacy_build_entry(**fields: object) -> dict:
+    entry = dict(fields)
+    entry["entry_sha256"] = _legacy_entry_digest(entry)
+    return entry
+
+
+def _legacy_registry_adapter() -> types.SimpleNamespace:
+    def validate_registry(value: dict) -> list[dict]:
+        if value.get("schema_version") != "openadapt.production-evidence-registry/v1":
+            raise ValueError("legacy registry schema differs")
+        return value["entries"]
+
+    def validate_append_only_history(previous: dict, current: dict) -> None:
+        if current["entries"][:-1] != previous["entries"]:
+            raise ValueError("legacy registry history changed")
+
+    return types.SimpleNamespace(
+        build_entry=_legacy_build_entry,
+        validate_registry=validate_registry,
+        validate_append_only_history=validate_append_only_history,
+    )
 
 
 class GovernanceWorkflowContractTests(unittest.TestCase):
@@ -66,7 +107,8 @@ class GovernanceWorkflowContractTests(unittest.TestCase):
                 discovered.add(path.name)
         self.assertEqual(
             discovered,
-            set(LIFECYCLE_WORKFLOWS) | {"profile-consistency.yml"},
+            set(LIFECYCLE_WORKFLOWS)
+            | {"production-lifecycle-ref.yml", "profile-consistency.yml"},
         )
 
     def test_lifecycle_workflows_are_app_only_review_paths(self) -> None:
@@ -166,7 +208,7 @@ class LifecycleCandidateTests(unittest.TestCase):
                 "entries": [],
             }
             _write_json(root / "evidence-registry.json", empty)
-            entry = registry.build_entry(
+            entry = _legacy_build_entry(
                 sequence=1,
                 kind="evidence-summary",
                 url="https://example.test/summary.json",
@@ -179,16 +221,19 @@ class LifecycleCandidateTests(unittest.TestCase):
                 prepare.AUTHORITY_DOMAIN,
                 {"source_commit": self.SOURCE_COMMIT, "entry": entry},
             )
-            prepare.record_authority(
-                root=root,
-                source_commit=self.SOURCE_COMMIT,
-                kind=entry["kind"],
-                url=entry["url"],
-                sha256=entry["sha256"],
-                size_bytes=entry["size_bytes"],
-                recorded_at=entry["recorded_at"],
-                idempotency_key=key,
-            )
+            with mock.patch.object(
+                prepare, "evidence_registry", _legacy_registry_adapter()
+            ):
+                prepare.record_authority(
+                    root=root,
+                    source_commit=self.SOURCE_COMMIT,
+                    kind=entry["kind"],
+                    url=entry["url"],
+                    sha256=entry["sha256"],
+                    size_bytes=entry["size_bytes"],
+                    recorded_at=entry["recorded_at"],
+                    idempotency_key=key,
+                )
             current = json.loads((root / "evidence-registry.json").read_text())
             self.assertEqual(current["entries"], [entry])
             self.assertEqual(current["head_entry_sha256"], entry["entry_sha256"])
