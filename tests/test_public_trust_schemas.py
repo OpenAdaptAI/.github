@@ -7,7 +7,6 @@ import unittest
 from pathlib import Path
 from typing import Any
 
-
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_ROOT = ROOT / "schemas"
 
@@ -43,8 +42,6 @@ EXPECTED_TOP_LEVEL_FIELDS = {
         "admission_id_sha256",
         "provider_identity_sha256",
         "worker_identity_sha256",
-        "live_provider_observation_sha256",
-        "admitted_runtime_sha256",
         "live_provider_observation_sha256",
         "admitted_runtime_sha256",
         "worker_image_sha256",
@@ -702,7 +699,12 @@ class PublicTrustSchemaTests(unittest.TestCase):
         self.assertIs(
             prelaunch["quarantine"]["properties"]["active"]["const"], True
         )
-        uncertain = terminal["allOf"][2]["then"]["properties"]
+        uncertain = next(
+            rule["then"]["properties"]
+            for rule in terminal["allOf"]
+            if rule["if"]["properties"].get("delivery_state")
+            == {"const": "uncertain"}
+        )
         self.assertIs(uncertain["effect_started"]["const"], True)
         self.assertEqual(
             uncertain["terminal_state"]["enum"],

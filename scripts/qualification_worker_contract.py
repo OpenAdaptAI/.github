@@ -66,6 +66,7 @@ LAUNCH_ATTEMPT_FIELDS = {
     "executable_sha256",
     "capability_handle_sha256",
     "evidence_sha256",
+    "child_created",
     "failure_classification",
 }
 ISSUER_FIELDS = {
@@ -206,6 +207,10 @@ def validate_terminal_receipt(value: Any) -> dict[str, Any]:
         "evidence_sha256",
     ):
         _digest(launch_attempt[field], f"launch attempt {field}")
+    if not isinstance(launch_attempt["child_created"], bool):
+        raise QualificationWorkerContractError(
+            "launch attempt child_created must be boolean"
+        )
     if launch_attempt["capability_handle_sha256"] != receipt["capability_handle_sha256"]:
         raise QualificationWorkerContractError(
             "launch attempt capability differs from the terminal receipt"
@@ -253,17 +258,22 @@ def validate_terminal_receipt(value: Any) -> dict[str, Any]:
         launched_at = _timestamp(process["launched_at"], "launched_at")
         if (
             launch_attempt["failure_classification"] is not None
+            or not launch_attempt["child_created"]
             or launch_attempt["executable_sha256"] != process["executable_sha256"]
             or not attempted_at <= launched_at
         ):
             raise QualificationWorkerContractError(
                 "completed process differs from its launch attempt"
             )
-        earliest = launched_at
+        if not attempted_at <= burned_at <= launched_at <= completed_at:
+            raise QualificationWorkerContractError(
+                "terminal receipt time order is invalid"
+            )
     else:
-        earliest = attempted_at
-    if not earliest <= burned_at <= completed_at:
-        raise QualificationWorkerContractError("terminal receipt time order is invalid")
+        if not attempted_at <= burned_at <= completed_at:
+            raise QualificationWorkerContractError(
+                "terminal receipt time order is invalid"
+            )
     if not isinstance(receipt["effect_started"], bool):
         raise QualificationWorkerContractError("effect_started must be boolean")
     if receipt["delivery_state"] not in {"not_started", "verified", "uncertain"}:
@@ -295,15 +305,21 @@ def validate_terminal_receipt(value: Any) -> dict[str, Any]:
             not in {
                 "PROCESS_START_REFUSED",
                 "PROCESS_START_FAILED",
-                "PROCESS_IDENTITY_UNAVAILABLE",
             }
+            or launch_attempt["child_created"]
             or quarantine["reason_code"]
             != launch_attempt["failure_classification"]
+            or quarantine["evidence_sha256"]
+            != launch_attempt["evidence_sha256"]
         ):
             raise QualificationWorkerContractError(
                 "a prelaunch terminal receipt must quarantine without an effect"
             )
         _digest(quarantine["evidence_sha256"], "prelaunch quarantine evidence")
+    elif receipt["terminal_state"] == "PRELAUNCH_QUARANTINED":
+        raise QualificationWorkerContractError(
+            "PRELAUNCH_QUARANTINED cannot contain a process identity"
+        )
     if receipt["delivery_state"] == "uncertain":
         _digest(receipt["uncertainty_sha256"], "uncertainty")
         if (
@@ -352,19 +368,7 @@ def validate_terminal_replay(previous_value: Any, current_value: Any) -> dict[st
     current = validate_terminal_receipt(current_value)
     if canonical(previous) == canonical(current):
         return current
-    previous_dispatch = (
-        previous["worker_admission_sha256"],
-        previous["dispatch_id_sha256"],
-        previous["run_id"],
-        previous["start_id_sha256"],
-    )
-    current_dispatch = (
-        current["worker_admission_sha256"],
-        current["dispatch_id_sha256"],
-        current["run_id"],
-        current["start_id_sha256"],
-    )
-    if previous_dispatch == current_dispatch:
+    if previous["dispatch_id_sha256"] == current["dispatch_id_sha256"]:
         raise QualificationWorkerContractError(
             "one worker dispatch has conflicting terminal receipts"
         )

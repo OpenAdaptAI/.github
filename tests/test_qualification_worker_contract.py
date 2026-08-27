@@ -69,6 +69,7 @@ def terminal(*, process: bool = True) -> dict:
             "executable_sha256": sha("executable"),
             "capability_handle_sha256": sha("capability"),
             "evidence_sha256": sha("launch-evidence"),
+            "child_created": process,
             "failure_classification": "PROCESS_START_FAILED" if not process else None,
         },
         "launch_attempt_sha256": sha("pending-launch"),
@@ -89,7 +90,7 @@ def terminal(*, process: bool = True) -> dict:
         "quarantine": {
             "active": True,
             "reason_code": "PROCESS_START_FAILED" if not process else "SAFE_HALT",
-            "evidence_sha256": sha("quarantine"),
+            "evidence_sha256": sha("launch-evidence") if not process else sha("quarantine"),
         },
         "completed_at": "2026-08-27T12:01:01Z",
         "issuer": {
@@ -107,7 +108,7 @@ def terminal(*, process: bool = True) -> dict:
             "pid": 4242,
             "process_group_id": 4242,
             "process_start_ticks": "987654321",
-            "launched_at": "2026-08-27T12:00:00Z",
+            "launched_at": "2026-08-27T12:01:00Z",
             "executable_sha256": sha("executable"),
             "process_start_identity_sha256": sha("pending-process"),
         }
@@ -165,6 +166,45 @@ class QualificationWorkerContractTests(unittest.TestCase):
         ):
             worker.validate_terminal_replay(original, conflicting)
 
+    def test_capability_burn_must_precede_process_launch(self) -> None:
+        launched_before_burn = terminal()
+        launched_before_burn["process"]["launched_at"] = "2026-08-27T11:59:59Z"
+        refresh(launched_before_burn)
+        with self.assertRaisesRegex(
+            worker.QualificationWorkerContractError, "time order"
+        ):
+            worker.validate_terminal_receipt(launched_before_burn)
+
+        launch_attempt_after_burn = terminal()
+        launch_attempt_after_burn["launch_attempt"]["attempted_at"] = (
+            "2026-08-27T12:00:01Z"
+        )
+        launch_attempt_after_burn["process"]["launched_at"] = (
+            "2026-08-27T12:00:02Z"
+        )
+        refresh(launch_attempt_after_burn)
+        with self.assertRaisesRegex(
+            worker.QualificationWorkerContractError, "time order"
+        ):
+            worker.validate_terminal_receipt(launch_attempt_after_burn)
+
+    def test_dispatch_id_uniquely_selects_one_terminal_receipt(self) -> None:
+        previous = terminal()
+        for field, changed_value in (
+            ("worker_admission_sha256", sha("other-admission")),
+            ("run_id", "101"),
+            ("start_id_sha256", sha("other-start")),
+        ):
+            current = copy.deepcopy(previous)
+            current[field] = changed_value
+            refresh(current)
+            worker.validate_terminal_receipt(current)
+            with self.assertRaisesRegex(
+                worker.QualificationWorkerContractError,
+                "one worker dispatch has conflicting terminal receipts",
+            ):
+                worker.validate_terminal_replay(previous, current)
+
     def test_prelaunch_failure_is_a_bound_quarantined_terminal_receipt(self) -> None:
         value = terminal(process=False)
         self.assertEqual(worker.validate_terminal_receipt(value), value)
@@ -175,6 +215,36 @@ class QualificationWorkerContractTests(unittest.TestCase):
             worker.QualificationWorkerContractError, "prelaunch terminal"
         ):
             worker.validate_terminal_receipt(changed)
+
+    def test_prelaunch_refuses_post_pid_classification_and_split_evidence(self) -> None:
+        identity_unavailable = terminal(process=False)
+        identity_unavailable["launch_attempt"]["failure_classification"] = (
+            "PROCESS_IDENTITY_UNAVAILABLE"
+        )
+        identity_unavailable["quarantine"]["reason_code"] = (
+            "PROCESS_IDENTITY_UNAVAILABLE"
+        )
+        refresh(identity_unavailable)
+        with self.assertRaisesRegex(
+            worker.QualificationWorkerContractError, "prelaunch terminal"
+        ):
+            worker.validate_terminal_receipt(identity_unavailable)
+
+        process_exists = terminal(process=True)
+        process_exists["terminal_state"] = "PRELAUNCH_QUARANTINED"
+        refresh(process_exists)
+        with self.assertRaisesRegex(
+            worker.QualificationWorkerContractError, "cannot contain a process"
+        ):
+            worker.validate_terminal_receipt(process_exists)
+
+        split_evidence = terminal(process=False)
+        split_evidence["quarantine"]["evidence_sha256"] = sha("other-evidence")
+        refresh(split_evidence)
+        with self.assertRaisesRegex(
+            worker.QualificationWorkerContractError, "prelaunch terminal"
+        ):
+            worker.validate_terminal_receipt(split_evidence)
 
     def test_cross_contract_identity_drift_is_refused(self) -> None:
         changed_dispatch = dispatch()
