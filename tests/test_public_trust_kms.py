@@ -211,6 +211,9 @@ class PublicTrustKmsTests(unittest.TestCase):
                 object_schema_version="openadapt.qualification-release/v1",
                 object_media_type="application/vnd.openadapt.qualification-release+json;version=1",
                 semantic_identity_sha256=sha("release-identity"),
+                expected_signer_registry_sha256=sha("registry"),
+                expected_authority_state_sha256=sha("authority"),
+                expected_revocation_state_sha256=sha("revocation"),
             ),
             statement(),
         )
@@ -223,6 +226,9 @@ class PublicTrustKmsTests(unittest.TestCase):
                 object_schema_version="openadapt.qualification-release/v1",
                 object_media_type="application/vnd.openadapt.qualification-release+json;version=1",
                 semantic_identity_sha256=sha("release-identity"),
+                expected_signer_registry_sha256=sha("registry"),
+                expected_authority_state_sha256=sha("authority"),
+                expected_revocation_state_sha256=sha("revocation"),
             )
 
     def test_kms_digest_is_sha256_of_exact_dsse_pae(self) -> None:

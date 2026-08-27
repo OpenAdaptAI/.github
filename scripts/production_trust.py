@@ -1180,7 +1180,9 @@ def validate_publication_recovery_replay(
     )
 
 
-def validate_receipt(value: Any, *, now: datetime | None = None) -> dict[str, Any]:
+def _validate_receipt_structure(
+    value: Any, *, now: datetime | None = None
+) -> dict[str, Any]:
     fields = {
         "schema_version", "decision_identity_sha256", "decision_revision",
         "decision_commitment_sha256", "evidence_manifest_sha256",
@@ -1281,6 +1283,36 @@ def validate_receipt(value: Any, *, now: datetime | None = None) -> dict[str, An
     ):
         raise TrustError("decision receipt issuer differs")
     validate_window(receipt, maximum=timedelta(days=7), now=now)
+    return receipt
+
+
+def validate_receipt(
+    value: Any,
+    *,
+    signer_registry: Any,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Validate the receipt bytes and its active registered Ed25519 signature."""
+
+    receipt = _validate_receipt_structure(value, now=now)
+    try:
+        registry = evidence.validate_signer_registry(signer_registry)
+    except evidence.EvidenceRegistryError as exc:
+        raise TrustError(str(exc)) from exc
+    if receipt["signer_registry_sha256"] != evidence.signer_registry_identity_digest(
+        registry
+    ):
+        raise TrustError("decision receipt signer registry identity differs")
+    verify_embedded_signature(
+        receipt,
+        signer_registry=registry,
+        object_schema_version=(
+            "openadapt.qualification-evidence-decision-receipt/v1"
+        ),
+        signature_domain=DECISION_RECEIPT_SIGNATURE_DOMAIN,
+        usage="qualification-evidence-decision-receipt",
+        now=now,
+    )
     return receipt
 
 
@@ -1404,6 +1436,7 @@ def verify_embedded_signature(
             ],
             capture_output=True,
             text=True,
+            check=False,
         )
     if result.returncode:
         raise TrustError("embedded Ed25519 signing statement verification failed")
@@ -1827,9 +1860,12 @@ def _validate_receipt_admission_binding(
     receipt_value: Any,
     admission_value: Any,
     *,
+    signer_registry: Any,
     now: datetime | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    receipt = validate_receipt(receipt_value, now=now)
+    receipt = validate_receipt(
+        receipt_value, signer_registry=signer_registry, now=now
+    )
     admission = validate_qualification_admission(admission_value, now=now)
     validate_reference_pair(
         admission["decision_receipt_reference"],
@@ -1890,6 +1926,7 @@ def validate_acceptance_manifest(
     *,
     receipt: Any,
     qualification_admission: Any,
+    receipt_signer_registry: Any,
     now: datetime | None = None,
 ) -> dict[str, Any]:
     fields = {
@@ -1996,7 +2033,10 @@ def validate_acceptance_manifest(
         kind="qualification-admission",
     )
     bound_receipt, bound_admission = _validate_receipt_admission_binding(
-        receipt, qualification_admission, now=now
+        receipt,
+        qualification_admission,
+        signer_registry=receipt_signer_registry,
+        now=now,
     )
     if (
         manifest["qualification_evidence_decision_receipt_reference"]
@@ -2052,6 +2092,7 @@ def validate_acceptance_summary(
     manifest: Any,
     receipt: Any,
     qualification_admission: Any,
+    receipt_signer_registry: Any,
     now: datetime | None = None,
 ) -> dict[str, Any]:
     fields = {
@@ -2102,6 +2143,7 @@ def validate_acceptance_summary(
         manifest,
         receipt=receipt,
         qualification_admission=qualification_admission,
+        receipt_signer_registry=receipt_signer_registry,
         now=now,
     )
     for field in (
@@ -2142,6 +2184,7 @@ def validate_release_evidence_chain(
     manifest: Any,
     receipt: Any,
     qualification_admission: Any,
+    receipt_signer_registry: Any,
     now: datetime | None = None,
 ) -> dict[str, Any]:
     release = validate_release(release_value, now=now)
@@ -2150,6 +2193,7 @@ def validate_release_evidence_chain(
         manifest=manifest,
         receipt=receipt,
         qualification_admission=qualification_admission,
+        receipt_signer_registry=receipt_signer_registry,
         now=now,
     )
     bound_manifest = dict(manifest)
@@ -2670,9 +2714,9 @@ def validate_checkpoint_expiry_containment(
     ]
     authority = validate_authority_state(authority_state)
     revocation = validate_revocation_state(revocation_state)
-    summaries = [validate_acceptance_summary(item) for item in acceptance_summaries]
-    manifests = [validate_acceptance_manifest(item) for item in acceptance_manifests]
-    receipts = [validate_evidence_decision_receipt(item) for item in decision_receipts]
+    summaries = list(acceptance_summaries)
+    manifests = list(acceptance_manifests)
+    receipts = [_validate_receipt_structure(item) for item in decision_receipts]
     if len(releases) != len(checkpoint["release_admissions"]):
         raise TrustError("checkpoint release object count differs")
     if len(workflows) != len(checkpoint["workflow_admissions"]):

@@ -109,6 +109,29 @@ PUBLIC_SIGNER_FIELDS = {
     "status",
     "revoked_at",
 }
+PUBLIC_EVIDENCE_KINDS = {
+    "production-acceptance-manifest",
+    "production-acceptance-summary",
+    "production-cloud-deploy-authorization",
+    "production-cloud-deployment-result",
+    "production-current-default",
+    "production-deployment-observation",
+    "production-lifecycle-checkpoint",
+    "qualification-admission",
+    "qualification-authority-state-receipt",
+    "qualification-campaign-permit",
+    "qualification-campaign-permit-policy",
+    "qualification-campaign-permit-receipt",
+    "qualification-campaign-permit-request",
+    "qualification-evidence-decision-receipt",
+    "qualification-release",
+    "qualification-revocation-state-receipt",
+    "support-release-admission",
+}
+PUBLIC_SIGNING_WORKFLOW = (
+    "https://github.com/OpenAdaptAI/.github/"
+    ".github/workflows/sign-production-evidence.yml@refs/heads/main"
+)
 
 
 class PublicTrustKmsError(ValueError):
@@ -222,7 +245,12 @@ def validate_public_signer(value: Any) -> dict[str, Any]:
         raise PublicTrustKmsError("public-trust statement schema is not supported")
     if signer["allowed_usages"] != ["production-public-evidence"]:
         raise PublicTrustKmsError("public-trust signer usage is not supported")
-    for field in ("allowed_kinds", "allowed_workflows", "allowed_ref_prefixes", "allowed_environments"):
+    for field in (
+        "allowed_kinds",
+        "allowed_workflows",
+        "allowed_ref_prefixes",
+        "allowed_environments",
+    ):
         values = signer[field]
         if (
             not isinstance(values, list)
@@ -230,7 +258,17 @@ def validate_public_signer(value: Any) -> dict[str, Any]:
             or values != sorted(set(values))
             or not all(isinstance(item, str) and item for item in values)
         ):
-            raise PublicTrustKmsError(f"public-trust signer {field} must be sorted and unique")
+            raise PublicTrustKmsError(
+                f"public-trust signer {field} must be sorted and unique"
+            )
+    if any(kind not in PUBLIC_EVIDENCE_KINDS for kind in signer["allowed_kinds"]):
+        raise PublicTrustKmsError("public-trust signer object-kind allowlist is invalid")
+    if signer["allowed_workflows"] != [PUBLIC_SIGNING_WORKFLOW]:
+        raise PublicTrustKmsError("public-trust signer workflow allowlist is invalid")
+    if signer["allowed_ref_prefixes"] != ["refs/heads/main"]:
+        raise PublicTrustKmsError("public-trust signer ref allowlist is invalid")
+    if signer["allowed_environments"] != ["public-trust-signing"]:
+        raise PublicTrustKmsError("public-trust signer environment allowlist is invalid")
     if signer["status"] not in {"active", "revoked"}:
         raise PublicTrustKmsError("public-trust signer status is invalid")
     if signer["status"] == "active" and signer["revoked_at"] is not None:
@@ -423,6 +461,31 @@ def verify_bundle(
     return bundle
 
 
+def statement_from_bundle(bundle_value: Any) -> dict[str, Any]:
+    bundle = _closed(
+        bundle_value,
+        {"mediaType", "verificationMaterial", "dsseEnvelope"},
+        "public-trust DSSE bundle",
+    )
+    envelope = _closed(
+        bundle["dsseEnvelope"],
+        {"payload", "payloadType", "signatures"},
+        "DSSE envelope",
+    )
+    if envelope["payloadType"] != STATEMENT_MEDIA_TYPE:
+        raise PublicTrustKmsError("DSSE payload type is invalid")
+    payload = _canonical_base64(envelope["payload"], "DSSE payload")
+    if payload[-1:] != b"\n":
+        raise PublicTrustKmsError("DSSE payload must end with exactly one LF")
+    try:
+        value = json.loads(payload)
+    except json.JSONDecodeError as exc:
+        raise PublicTrustKmsError("DSSE payload is not JSON") from exc
+    if payload != canonical_lf(value):
+        raise PublicTrustKmsError("DSSE payload is not canonical JSON plus LF")
+    return validate_signing_statement(value)
+
+
 def validate_statement_object_binding(
     statement_value: Any,
     *,
@@ -432,6 +495,9 @@ def validate_statement_object_binding(
     object_schema_version: str,
     object_media_type: str,
     semantic_identity_sha256: str,
+    expected_signer_registry_sha256: str,
+    expected_authority_state_sha256: str,
+    expected_revocation_state_sha256: str,
 ) -> dict[str, Any]:
     statement = validate_signing_statement(statement_value)
     if object_raw != canonical_lf(object_value):
@@ -453,11 +519,15 @@ def validate_statement_object_binding(
     projected_issuer = {field: source_issuer[field] for field in ISSUER_FIELDS if field in source_issuer}
     if set(projected_issuer) != ISSUER_FIELDS or statement["source_issuer"] != projected_issuer:
         raise PublicTrustKmsError("public-trust statement source issuer binding differs")
-    for field in (
-        "signer_registry_sha256",
-        "authority_state_sha256",
-        "revocation_state_sha256",
-    ):
-        if statement[field] != object_value.get(field):
+    expected_trust_state = {
+        "signer_registry_sha256": expected_signer_registry_sha256,
+        "authority_state_sha256": expected_authority_state_sha256,
+        "revocation_state_sha256": expected_revocation_state_sha256,
+    }
+    for field, expected in expected_trust_state.items():
+        _digest(expected, f"expected {field}")
+        if statement[field] != expected:
             raise PublicTrustKmsError(f"public-trust statement {field} binding differs")
+        if field in object_value and object_value[field] != expected:
+            raise PublicTrustKmsError(f"public-trust object {field} binding differs")
     return statement

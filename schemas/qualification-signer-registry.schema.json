@@ -24,6 +24,12 @@
       "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
     },
     "signer": {
+      "oneOf": [
+        {"$ref": "#/$defs/ed25519_signer"},
+        {"$ref": "#/$defs/public_trust_p256_signer"}
+      ]
+    },
+    "ed25519_signer": {
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -79,6 +85,64 @@
           "uniqueItems": true,
           "items": {"type": "string", "pattern": "^refs/"}
         },
+        "status": {"enum": ["active", "revoked"]},
+        "revoked_at": {
+          "oneOf": [{"$ref": "#/$defs/timestamp"}, {"type": "null"}]
+        }
+      }
+    },
+    "public_trust_p256_signer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm", "key_id", "key_origin", "kms_key_arn", "public_key",
+        "public_key_spki_der_base64", "public_key_sha256", "signature_encoding",
+        "statement_schema_versions", "allowed_usages", "allowed_kinds",
+        "allowed_workflows", "allowed_ref_prefixes", "allowed_environments",
+        "status", "revoked_at"
+      ],
+      "properties": {
+        "algorithm": {"const": "ecdsa-p256-sha256"},
+        "key_id": {"type": "string", "pattern": "^oa-public-trust-p256-[0-9a-f]{16}$"},
+        "key_origin": {"const": "aws-kms"},
+        "kms_key_arn": {"type": "string", "pattern": "^arn:aws:kms:us-east-1:992382684924:key/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
+        "public_key": {"type": "string", "pattern": "^[A-Za-z0-9_-]{87}$"},
+        "public_key_spki_der_base64": {"type": "string", "pattern": "^[A-Za-z0-9+/]{122}==$"},
+        "public_key_sha256": {"$ref": "#/$defs/digest"},
+        "signature_encoding": {"const": "asn1-der-low-s-base64-rfc4648-padded"},
+        "statement_schema_versions": {"const": ["openadapt.production-public-trust-signing-statement/v1"]},
+        "allowed_usages": {"const": ["production-public-evidence"]},
+        "allowed_kinds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "production-acceptance-manifest",
+              "production-acceptance-summary",
+              "production-cloud-deploy-authorization",
+              "production-cloud-deployment-result",
+              "production-current-default",
+              "production-deployment-observation",
+              "production-lifecycle-checkpoint",
+              "qualification-admission",
+              "qualification-authority-state-receipt",
+              "qualification-campaign-permit",
+              "qualification-campaign-permit-policy",
+              "qualification-campaign-permit-receipt",
+              "qualification-campaign-permit-request",
+              "qualification-evidence-decision-receipt",
+              "qualification-release",
+              "qualification-revocation-state-receipt",
+              "support-release-admission"
+            ]
+          }
+        },
+        "allowed_workflows": {
+          "const": ["https://github.com/OpenAdaptAI/.github/.github/workflows/sign-production-evidence.yml@refs/heads/main"]
+        },
+        "allowed_ref_prefixes": {"const": ["refs/heads/main"]},
+        "allowed_environments": {"const": ["public-trust-signing"]},
         "status": {"enum": ["active", "revoked"]},
         "revoked_at": {
           "oneOf": [{"$ref": "#/$defs/timestamp"}, {"type": "null"}]

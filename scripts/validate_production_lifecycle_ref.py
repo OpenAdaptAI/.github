@@ -15,7 +15,6 @@ import production_trust as trust
 import validate_evidence_registry as evidence
 from verify_production_release_admission import verify_bytes, verify_sigstore
 
-
 ROOT = Path(__file__).resolve().parents[1]
 POLICY = json.loads(
     (ROOT / "production-evidence-policy.json").read_text(encoding="utf-8")
@@ -282,6 +281,8 @@ def resolve_release_chain(
         manifest=manifest,
         receipt=receipt,
         qualification_admission=admission,
+        receipt_signer_registry=active_signer_registry,
+        now=verification_time,
     )
     return summary, manifest, receipt, admission
 
@@ -317,7 +318,12 @@ def resolve_workflow_receipt(
         usage="qualification-evidence-decision-receipt",
         now=verification_time,
     )
-    trust._validate_receipt_admission_binding(receipt, admission)
+    trust._validate_receipt_admission_binding(
+        receipt,
+        admission,
+        signer_registry=active_signer_registry,
+        now=verification_time,
+    )
     return receipt
 
 

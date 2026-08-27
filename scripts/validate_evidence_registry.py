@@ -12,6 +12,7 @@ import argparse
 import base64
 import binascii
 import hashlib
+import itertools
 import json
 import re
 import sys
@@ -19,6 +20,8 @@ from collections.abc import Mapping
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any
+
+from public_trust_kms import PublicTrustKmsError, validate_public_signer
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY_PATH = ROOT / "evidence-registry.json"
@@ -281,6 +284,24 @@ def validate_signer_registry(value: Any) -> dict[str, Any]:
     seen_ids: set[str] = set()
     for index, signer_value in enumerate(signers):
         label = f"signer registry signer {index}"
+        if not isinstance(signer_value, dict):
+            raise EvidenceRegistryError(f"{label} must be an object")
+        if signer_value.get("algorithm") == "ecdsa-p256-sha256":
+            try:
+                signer = validate_public_signer(signer_value)
+            except PublicTrustKmsError as exc:
+                raise EvidenceRegistryError(f"{label}: {exc}") from exc
+            key_id = signer["key_id"]
+            if key_id in seen_ids:
+                raise EvidenceRegistryError("signer registry key ids must be unique")
+            seen_ids.add(key_id)
+            if signer["status"] == "revoked":
+                revoked_at = _timestamp(signer["revoked_at"], f"{label} revoked_at")
+                if not generated_at <= revoked_at <= expires_at:
+                    raise EvidenceRegistryError(
+                        f"{label} revocation time is outside the registry lifetime"
+                    )
+            continue
         signer = _closed(
             signer_value,
             {
@@ -565,7 +586,7 @@ def validate_registry(value: Any, *, root: Path | None = None) -> list[dict[str,
     revisions = [item["registry_revision"] for item in typed_history]
     if revisions != sorted(set(revisions)) or any(
         current != previous + 1
-        for previous, current in zip(revisions, revisions[1:])
+        for previous, current in itertools.pairwise(revisions)
     ):
         raise EvidenceRegistryError(
             "signer registry history must use unique consecutive revisions"

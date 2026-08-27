@@ -255,7 +255,9 @@ def verify_sigstore(
             sigstore["cert_oidc_issuer"], "--deny-self-hosted-runners",
             "--no-public-good", "--format", "json",
         ]
-        result = subprocess.run(command, capture_output=True, text=True)
+        result = subprocess.run(
+            command, capture_output=True, text=True, check=False
+        )
         if result.returncode:
             raise trust.TrustError(
                 "Sigstore bundle verification failed: " + result.stderr.strip()
@@ -435,6 +437,7 @@ def verify_message_signature(
             ],
             capture_output=True,
             text=True,
+            check=False,
         )
     if result.returncode:
         raise trust.TrustError(
@@ -471,7 +474,7 @@ def main(argv: list[str] | None = None) -> int:
             bundle_raw,
             admission_value,
             release_signer_registry,
-            current_signer_registry,
+            _current_signer_registry,
         ) = fetch_pair(
             reference, bundle_reference
         )
@@ -547,6 +550,7 @@ def main(argv: list[str] | None = None) -> int:
             manifest=manifest,
             receipt=receipt,
             qualification_admission=qualification_admission,
+            receipt_signer_registry=receipt_current_signer_registry,
             now=now,
         )
         release = admission["release"]
@@ -591,8 +595,9 @@ def main(argv: list[str] | None = None) -> int:
         }
         if args.github_output:
             with Path(args.github_output).open("a", encoding="utf-8") as handle:
-                for key, value in outputs.items():
-                    handle.write(f"{key}={value}\n")
+                handle.writelines(
+                    f"{key}={value}\n" for key, value in outputs.items()
+                )
         print(json.dumps(outputs, sort_keys=True))
     except (
         OSError,

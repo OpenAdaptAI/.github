@@ -2,19 +2,24 @@
 
 from __future__ import annotations
 
+import base64
 import copy
 import hashlib
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest import mock
+
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-import production_trust as trust  # noqa: E402
-import validate_evidence_registry as registry  # noqa: E402
+import production_trust as trust
+import validate_evidence_registry as registry
 
 
 def sha(character: str) -> str:
@@ -85,6 +90,124 @@ def campaign_summary() -> dict:
                 counts[field] = 3
         result[campaign_class] = counts
     return result
+
+
+RECEIPT_NOW = datetime(2026, 8, 27, 12, 30, tzinfo=timezone.utc)
+
+
+def _resign_receipt(value: dict, private_key: Ed25519PrivateKey) -> None:
+    value["signing_statement"] = trust.signing_statement(
+        value,
+        object_schema_version=(
+            "openadapt.qualification-evidence-decision-receipt/v1"
+        ),
+        signature_domain=trust.DECISION_RECEIPT_SIGNATURE_DOMAIN,
+    )
+    value["signature"] = base64.b64encode(
+        private_key.sign(trust.canonical(value["signing_statement"]) + b"\n")
+    ).decode("ascii")
+
+
+def decision_receipt_fixture(
+    private_key: Ed25519PrivateKey | None = None,
+) -> tuple[dict, dict, Ed25519PrivateKey]:
+    key = private_key or Ed25519PrivateKey.from_private_bytes(bytes(range(1, 33)))
+    public_key = key.public_key().public_bytes(
+        serialization.Encoding.Raw,
+        serialization.PublicFormat.Raw,
+    )
+    spki = bytes.fromhex("302a300506032b6570032100") + public_key
+    key_id = "qa-ed25519-" + hashlib.sha256(public_key).hexdigest()[:16]
+    signer = {
+        "algorithm": "ed25519",
+        "key_id": key_id,
+        "public_key": base64.urlsafe_b64encode(public_key).decode().rstrip("="),
+        "public_key_spki_der_base64": base64.b64encode(spki).decode(),
+        "public_key_sha256": "sha256:" + hashlib.sha256(spki).hexdigest(),
+        "statement_schema_versions": [
+            "openadapt.qualification-evidence-signing-statement/v1"
+        ],
+        "allowed_usages": ["qualification-evidence-decision-receipt"],
+        "allowed_workflows": [
+            (
+                "https://github.com/OpenAdaptAI/openadapt-internal/"
+                ".github/workflows/"
+                "issue-private-qualification-evidence-decision.yml"
+                "@refs/heads/main"
+            )
+        ],
+        "allowed_ref_prefixes": ["refs/heads/main"],
+        "status": "active",
+        "revoked_at": None,
+    }
+    signer_registry = {
+        "schema_version": "openadapt.qualification-signer-registry/v2",
+        "revision": 1,
+        "generated_at": "2026-08-27T12:00:00Z",
+        "expires_at": "2026-08-29T12:00:00Z",
+        "signers": [signer],
+    }
+    receipt = {
+        "schema_version": (
+            "openadapt.qualification-evidence-decision-receipt/v1"
+        ),
+        "decision_identity_sha256": sha("a"),
+        "decision_revision": 1,
+        "decision_commitment_sha256": sha("b"),
+        "evidence_manifest_sha256": sha("c"),
+        "evidence_manifest_readback_sha256": sha("d"),
+        "campaign_artifact_sha256": sha("e"),
+        "organization_id_sha256": sha("f"),
+        "workflow_id_sha256": sha("1"),
+        "workflow_version_id_sha256": sha("2"),
+        "bundle_version": "3.0.0-rc.1",
+        "bundle_sha256": sha("3"),
+        "admitted_runtime_sha256": sha("4"),
+        "application_contract_sha256": sha("5"),
+        "environment_contract_sha256": sha("6"),
+        "input_contract_sha256": sha("7"),
+        "action_contract_sha256": sha("8"),
+        "identity_contract_sha256": sha("9"),
+        "effect_contract_sha256": sha("a"),
+        "policy_contract_sha256": sha("b"),
+        "evidence_authority_contract_sha256": sha("c"),
+        "campaign_permit_sha256": sha("d"),
+        "signer_registry_sha256": registry.signer_registry_identity_digest(
+            signer_registry
+        ),
+        "revocation_state_sha256": sha("e"),
+        "entity_class": "record",
+        "campaign_summary": {
+            "schema_version": (
+                "openadapt.qualification-evidence-decision-campaign-summary/v1"
+            ),
+            "minimum_trials_per_task_condition": 3,
+            "task_count": 1,
+            "classes": campaign_summary(),
+        },
+        "verdict": "ADMIT",
+        "issued_at": "2026-08-27T12:00:00Z",
+        "not_before": "2026-08-27T12:00:00Z",
+        "expires_at": "2026-08-28T12:00:00Z",
+        "issuer_key_id": key_id,
+        "algorithm": "ed25519",
+        "signing_statement": None,
+        "signature": "",
+        "issuer": {
+            "repository": "OpenAdaptAI/openadapt-internal",
+            "repository_id": "1170060695",
+            "repository_owner_id": "132681217",
+            "workflow": (
+                ".github/workflows/"
+                "issue-private-qualification-evidence-decision.yml"
+            ),
+            "ref": "refs/heads/main",
+            "source_commit": "a" * 40,
+            "environment": "private-qualification-evidence-decision",
+        },
+    }
+    _resign_receipt(receipt, key)
+    return receipt, signer_registry, key
 
 
 def rulesets() -> list[dict]:
@@ -474,6 +597,69 @@ def rotation_fixture() -> tuple[dict, dict, dict, dict]:
 
 
 class ProductionTrustTests(unittest.TestCase):
+    def test_decision_receipt_requires_active_registered_signature(self) -> None:
+        receipt, signer_registry, key = decision_receipt_fixture()
+        self.assertEqual(
+            trust.validate_receipt(
+                receipt, signer_registry=signer_registry, now=RECEIPT_NOW
+            ),
+            receipt,
+        )
+
+        zero_signature = copy.deepcopy(receipt)
+        zero_signature["signature"] = base64.b64encode(bytes(64)).decode("ascii")
+        with self.assertRaisesRegex(trust.TrustError, "verification failed"):
+            trust.validate_receipt(
+                zero_signature,
+                signer_registry=signer_registry,
+                now=RECEIPT_NOW,
+            )
+
+        changed_payload = copy.deepcopy(receipt)
+        changed_payload["bundle_sha256"] = sha("f")
+        with self.assertRaisesRegex(trust.TrustError, "signing statement differs"):
+            trust.validate_receipt(
+                changed_payload,
+                signer_registry=signer_registry,
+                now=RECEIPT_NOW,
+            )
+
+        _, wrong_registry, _ = decision_receipt_fixture(
+            Ed25519PrivateKey.from_private_bytes(bytes(range(33, 65)))
+        )
+        wrong_key = copy.deepcopy(receipt)
+        wrong_key["issuer_key_id"] = wrong_registry["signers"][0]["key_id"]
+        wrong_key["signer_registry_sha256"] = (
+            registry.signer_registry_identity_digest(wrong_registry)
+        )
+        _resign_receipt(wrong_key, key)
+        with self.assertRaisesRegex(trust.TrustError, "verification failed"):
+            trust.validate_receipt(
+                wrong_key, signer_registry=wrong_registry, now=RECEIPT_NOW
+            )
+
+        with self.assertRaisesRegex(trust.TrustError, "not active"):
+            trust.validate_receipt(
+                receipt,
+                signer_registry=signer_registry,
+                now=datetime(2026, 8, 28, 12, 0, tzinfo=timezone.utc),
+            )
+
+        revoked_registry = copy.deepcopy(signer_registry)
+        revoked_registry["signers"][0]["status"] = "revoked"
+        revoked_registry["signers"][0]["revoked_at"] = (
+            "2026-08-27T12:15:00Z"
+        )
+        revoked = copy.deepcopy(receipt)
+        revoked["signer_registry_sha256"] = (
+            registry.signer_registry_identity_digest(revoked_registry)
+        )
+        _resign_receipt(revoked, key)
+        with self.assertRaisesRegex(trust.TrustError, "not an active registered"):
+            trust.validate_receipt(
+                revoked, signer_registry=revoked_registry, now=RECEIPT_NOW
+            )
+
     def test_feed_expiry_boundary_is_exclusive(self) -> None:
         checkpoint_reference, checkpoint_bundle_reference = pair(
             "production-lifecycle-checkpoint", "1", "2"
@@ -598,7 +784,7 @@ class ProductionTrustTests(unittest.TestCase):
             )
 
     def test_feed_transition_refuses_rollback_or_skipped_history(self) -> None:
-        previous, newer, older, _ = rotation_fixture()
+        previous, _newer, _older, _ = rotation_fixture()
         previous["checkpoints"] = [previous["checkpoints"][1]]
         previous["feed_revision"] = 11
         previous["generated_at"] = "2026-08-27T11:50:00Z"

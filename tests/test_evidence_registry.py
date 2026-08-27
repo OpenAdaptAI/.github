@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import copy
 import hashlib
 import json
@@ -10,11 +11,15 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-import validate_evidence_registry as registry  # noqa: E402
-import stage_production_evidence as stage  # noqa: E402
+import public_trust_kms as kms
+import stage_production_evidence as stage
+import validate_evidence_registry as registry
 
 
 def sha(character: str) -> str:
@@ -250,9 +255,12 @@ class EvidenceRegistryTests(unittest.TestCase):
                         "qualification-evidence-decision-receipt"
                     ],
                     "allowed_workflows": [
-                        "https://github.com/OpenAdaptAI/openadapt-internal/"
-                        ".github/workflows/issue-private-qualification-evidence-decision.yml"
-                        "@refs/heads/main"
+                        (
+                            "https://github.com/OpenAdaptAI/openadapt-internal/"
+                            ".github/workflows/"
+                            "issue-private-qualification-evidence-decision.yml"
+                            "@refs/heads/main"
+                        )
                     ],
                     "allowed_ref_prefixes": ["refs/heads/main"],
                     "status": "active",
@@ -264,6 +272,53 @@ class EvidenceRegistryTests(unittest.TestCase):
         value["signers"][0]["key_id"] = "qa-ed25519-" + "0" * 16
         with self.assertRaisesRegex(registry.EvidenceRegistryError, "bind"):
             registry.validate_signer_registry(value)
+
+    def test_signer_registry_accepts_only_exact_aws_kms_p256_profile(self) -> None:
+        public_key = ec.derive_private_key(7, ec.SECP256R1()).public_key()
+        point = public_key.public_bytes(
+            serialization.Encoding.X962,
+            serialization.PublicFormat.UncompressedPoint,
+        )
+        spki = public_key.public_bytes(
+            serialization.Encoding.DER,
+            serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        signer = {
+            "algorithm": "ecdsa-p256-sha256",
+            "key_id": kms.public_key_id(public_key),
+            "key_origin": "aws-kms",
+            "kms_key_arn": (
+                "arn:aws:kms:us-east-1:992382684924:key/"
+                "12345678-1234-4abc-8def-1234567890ab"
+            ),
+            "public_key": base64.urlsafe_b64encode(point).decode().rstrip("="),
+            "public_key_spki_der_base64": base64.b64encode(spki).decode(),
+            "public_key_sha256": "sha256:" + hashlib.sha256(spki).hexdigest(),
+            "signature_encoding": "asn1-der-low-s-base64-rfc4648-padded",
+            "statement_schema_versions": [kms.STATEMENT_SCHEMA],
+            "allowed_usages": ["production-public-evidence"],
+            "allowed_kinds": ["qualification-release"],
+            "allowed_workflows": [kms.PUBLIC_SIGNING_WORKFLOW],
+            "allowed_ref_prefixes": ["refs/heads/main"],
+            "allowed_environments": ["public-trust-signing"],
+            "status": "active",
+            "revoked_at": None,
+        }
+        value = {
+            "schema_version": registry.SIGNER_REGISTRY_SCHEMA,
+            "revision": 1,
+            "generated_at": "2026-08-27T00:00:00Z",
+            "expires_at": "2026-09-03T00:00:00Z",
+            "signers": [signer],
+        }
+        self.assertEqual(registry.validate_signer_registry(value), value)
+
+        alias = copy.deepcopy(value)
+        alias["signers"][0]["kms_key_arn"] = (
+            "arn:aws:kms:us-east-1:992382684924:alias/openadapt-public-trust"
+        )
+        with self.assertRaisesRegex(registry.EvidenceRegistryError, "ARN"):
+            registry.validate_signer_registry(alias)
 
     def test_signer_registry_install_is_canonical_consecutive_and_append_only(self) -> None:
         key = bytes(range(32))
@@ -299,10 +354,12 @@ class EvidenceRegistryTests(unittest.TestCase):
                             "qualification-evidence-decision-receipt"
                         ],
                         "allowed_workflows": [
-                            "https://github.com/OpenAdaptAI/openadapt-internal/"
-                            ".github/workflows/"
-                            "issue-private-qualification-evidence-decision.yml"
-                            "@refs/heads/main"
+                            (
+                                "https://github.com/OpenAdaptAI/"
+                                "openadapt-internal/.github/workflows/"
+                                "issue-private-qualification-evidence-decision.yml"
+                                "@refs/heads/main"
+                            )
                         ],
                         "allowed_ref_prefixes": ["refs/heads/main"],
                         "status": "active",
