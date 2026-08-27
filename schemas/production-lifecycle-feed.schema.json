@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "production-lifecycle-feed.schema.json",
+  "title": "OpenAdapt production lifecycle feed v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "repository",
+    "repository_id",
+    "repository_owner_id",
+    "ref",
+    "feed_revision",
+    "generated_at",
+    "expires_at",
+    "registry_source_commit",
+    "registry_revision",
+    "registry_head_sha256",
+    "signer_registry",
+    "checkpoints"
+  ],
+  "properties": {
+    "schema_version": {"const": "openadapt.production-lifecycle-feed/v1"},
+    "repository": {"const": "OpenAdaptAI/.github"},
+    "repository_id": {"const": "858454062"},
+    "repository_owner_id": {"const": "132681217"},
+    "ref": {"const": "refs/heads/production-lifecycle-feed"},
+    "feed_revision": {"type": "integer", "minimum": 1},
+    "generated_at": {"$ref": "#/$defs/timestamp"},
+    "expires_at": {"$ref": "#/$defs/timestamp"},
+    "registry_source_commit": {"$ref": "#/$defs/commit"},
+    "registry_revision": {"type": "integer", "minimum": 1},
+    "registry_head_sha256": {"$ref": "#/$defs/digest"},
+    "signer_registry": {"$ref": "#/$defs/signer_registry_pointer"},
+    "checkpoints": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 2,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/checkpoint_pair"}
+    }
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "timestamp": {"type": "string", "format": "date-time", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"},
+    "signer_registry_pointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "object_path", "object_sha256", "registry_identity_sha256", "registry_revision"],
+      "properties": {
+        "schema_version": {"const": "openadapt.qualification-signer-registry-pointer/v1"},
+        "object_path": {"type": "string", "pattern": "^production-evidence/signer-registries/sha256/[0-9a-f]{2}/[0-9a-f]{64}\\.qualification-signer-registry\\.json$"},
+        "object_sha256": {"$ref": "#/$defs/digest"},
+        "registry_identity_sha256": {"$ref": "#/$defs/digest"},
+        "registry_revision": {"type": "integer", "minimum": 1}
+      }
+    },
+    "checkpoint_reference": {
+      "allOf": [
+        {"$ref": "production-evidence-object-reference.schema.json"},
+        {"properties": {
+          "kind": {"const": "production-lifecycle-checkpoint"},
+          "object_schema_version": {"const": "openadapt.production-lifecycle-checkpoint/v1"},
+          "object_media_type": {"const": "application/vnd.openadapt.production-lifecycle-checkpoint+json;version=1"},
+          "subject_sha256": {"type": "null"}
+        }}
+      ]
+    },
+    "checkpoint_bundle_reference": {
+      "allOf": [
+        {"$ref": "production-evidence-object-reference.schema.json"},
+        {"properties": {
+          "kind": {"const": "production-lifecycle-checkpoint-sigstore-bundle"},
+          "object_schema_version": {"const": "application/vnd.dev.sigstore.bundle.v0.3+json"},
+          "object_media_type": {"const": "application/vnd.dev.sigstore.bundle.v0.3+json"},
+          "subject_sha256": {"$ref": "#/$defs/digest"}
+        }}
+      ]
+    },
+    "checkpoint_pair": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["checkpoint_reference", "checkpoint_bundle_reference"],
+      "properties": {
+        "checkpoint_reference": {"$ref": "#/$defs/checkpoint_reference"},
+        "checkpoint_bundle_reference": {"$ref": "#/$defs/checkpoint_bundle_reference"}
+      }
+    }
+  }
+}

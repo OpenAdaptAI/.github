@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "production-evidence-verification-policy.schema.json",
+  "title": "OpenAdapt production evidence verification policy v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "repository",
+    "repository_id",
+    "repository_owner_id",
+    "reference_schema_version",
+    "transport",
+    "signer_registry_schema_version",
+    "sigstore"
+  ],
+  "properties": {
+    "schema_version": {"const": "openadapt.production-evidence-verification-policy/v1"},
+    "repository": {"const": "OpenAdaptAI/.github"},
+    "repository_id": {"const": "858454062"},
+    "repository_owner_id": {"const": "132681217"},
+    "reference_schema_version": {"const": "openadapt.production-evidence-object-reference/v2"},
+    "transport": {"const": "exact-commit-raw-github"},
+    "signer_registry_schema_version": {"const": "openadapt.qualification-signer-registry/v2"},
+    "sigstore": {"$ref": "#/$defs/sigstore"}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "archive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["os", "arch", "url", "sha256"],
+      "properties": {
+        "os": {"enum": ["linux", "macos"]},
+        "arch": {"enum": ["amd64", "arm64"]},
+        "url": {"type": "string", "pattern": "^https://github\\.com/cli/cli/releases/download/v[0-9]+\\.[0-9]+\\.[0-9]+/gh_"},
+        "sha256": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "certificate_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "issuer_repository", "certificate_identity"],
+      "properties": {
+        "kind": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        "issuer_repository": {"type": "string", "pattern": "^OpenAdaptAI/[A-Za-z0-9._-]+$"},
+        "certificate_identity": {"type": "string", "pattern": "^https://github\\.com/OpenAdaptAI/[A-Za-z0-9._-]+/\\.github/workflows/[A-Za-z0-9._-]+\\.yml@refs/heads/main$"}
+      }
+    },
+    "sigstore": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tool",
+        "version",
+        "cert_oidc_issuer",
+        "deny_self_hosted_runners",
+        "allow_public_good",
+        "archives",
+        "certificate_identities"
+      ],
+      "properties": {
+        "tool": {"const": "gh"},
+        "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+        "cert_oidc_issuer": {"const": "https://token.actions.githubusercontent.com"},
+        "deny_self_hosted_runners": {"const": true},
+        "allow_public_good": {"const": false},
+        "archives": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/archive"}
+        },
+        "certificate_identities": {
+          "type": "array",
+          "minItems": 7,
+          "maxItems": 7,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/certificate_identity"}
+        }
+      }
+    }
+  }
+}

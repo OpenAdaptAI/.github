@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "production-lifecycle-feed-update.schema.json",
+  "title": "OpenAdapt production lifecycle feed update v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_type",
+    "source_repository",
+    "source_repository_id",
+    "source_ref",
+    "source_commit",
+    "target_repository",
+    "target_repository_id",
+    "target_ref",
+    "expected_old_commit",
+    "new_commit",
+    "feed_path",
+    "feed_sha256",
+    "checkpoint_sha256",
+    "registry_head_sha256",
+    "expires_at",
+    "idempotency_key"
+  ],
+  "properties": {
+    "schema_version": {"const": "openadapt.production-lifecycle-feed-update/v1"},
+    "event_type": {"const": "production_lifecycle_feed_updated"},
+    "source_repository": {"const": "OpenAdaptAI/openadapt-ops"},
+    "source_repository_id": {"const": "1172011294"},
+    "source_ref": {"const": "refs/heads/main"},
+    "source_commit": {"$ref": "#/$defs/commit"},
+    "target_repository": {"const": "OpenAdaptAI/.github"},
+    "target_repository_id": {"const": "858454062"},
+    "target_ref": {"const": "refs/heads/production-lifecycle-feed"},
+    "expected_old_commit": {"oneOf": [{"$ref": "#/$defs/commit"}, {"type": "null"}]},
+    "new_commit": {"$ref": "#/$defs/commit"},
+    "feed_path": {"const": "production-lifecycle-feed.json"},
+    "feed_sha256": {"$ref": "#/$defs/digest"},
+    "checkpoint_sha256": {"$ref": "#/$defs/digest"},
+    "registry_head_sha256": {"$ref": "#/$defs/digest"},
+    "expires_at": {"$ref": "#/$defs/timestamp"},
+    "idempotency_key": {"type": "string", "pattern": "^lifecycle-feed-update:[0-9a-f]{64}$"}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "timestamp": {"type": "string", "format": "date-time", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"}
+  }
+}
