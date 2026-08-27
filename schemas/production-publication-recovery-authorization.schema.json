@@ -106,7 +106,7 @@
         "workflow": {"const": ".github/workflows/issue-production-publication-recovery.yml"},
         "ref": {"const": "refs/heads/main"},
         "source_commit": {"$ref": "#/$defs/commit"},
-        "environment": {"const": "release-identity"}
+        "environment": {"enum": ["mcp-registry", "pypi", "release-identity"]}
       }
     }
   }

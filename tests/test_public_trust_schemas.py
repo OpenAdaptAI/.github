@@ -13,6 +13,104 @@ SCHEMA_ROOT = ROOT / "schemas"
 
 
 EXPECTED_TOP_LEVEL_FIELDS = {
+    "qualification-worker-admission.schema.json": {
+        "schema_version",
+        "admission_id_sha256",
+        "provider_identity_sha256",
+        "worker_identity_sha256",
+        "live_provider_observation_sha256",
+        "admitted_runtime_sha256",
+        "worker_image_sha256",
+        "baseline_sha256",
+        "host_identity_sha256",
+        "tls_identity_sha256",
+        "egress_policy_sha256",
+        "campaign_permit_sha256",
+        "capability_handle_sha256",
+        "authority_state_sha256",
+        "revocation_state_sha256",
+        "signer_registry_sha256",
+        "issued_at",
+        "not_before",
+        "expires_at",
+        "issuer",
+    },
+    "qualification-worker-admission-verifier-result.schema.json": {
+        "schema_version",
+        "verdict",
+        "admission_object_sha256",
+        "provider_identity_sha256",
+        "worker_identity_sha256",
+        "live_provider_observation_sha256",
+        "admitted_runtime_sha256",
+        "worker_image_sha256",
+        "baseline_sha256",
+        "host_identity_sha256",
+        "tls_identity_sha256",
+        "egress_policy_sha256",
+        "campaign_permit_sha256",
+        "capability_handle_sha256",
+        "authority_state_sha256",
+        "revocation_state_sha256",
+        "signer_registry_sha256",
+        "not_before",
+        "expires_at",
+        "verified_at",
+        "verifier",
+    },
+    "qualification-worker-dispatch.schema.json": {
+        "schema_version",
+        "dispatch_id_sha256",
+        "worker_admission_sha256",
+        "provider_identity_sha256",
+        "worker_identity_sha256",
+        "live_provider_observation_sha256",
+        "admitted_runtime_sha256",
+        "run_id",
+        "run_attempt",
+        "start_id_sha256",
+        "task_id_sha256",
+        "task_condition_sha256",
+        "campaign_artifact_sha256",
+        "process_lease_sha256",
+        "capability_handle_sha256",
+        "idempotency_key",
+        "issued_at",
+        "not_before",
+        "expires_at",
+        "issuer",
+    },
+    "qualification-worker-terminal-receipt.schema.json": {
+        "schema_version",
+        "receipt_id_sha256",
+        "worker_admission_sha256",
+        "dispatch_id_sha256",
+        "provider_identity_sha256",
+        "worker_identity_sha256",
+        "run_id",
+        "run_attempt",
+        "start_id_sha256",
+        "task_id_sha256",
+        "task_condition_sha256",
+        "capability_handle_sha256",
+        "process",
+        "oracle_sha256",
+        "result_sha256",
+        "log_sha256",
+        "burned_identities_sha256",
+        "burn_ledger_revision",
+        "burn_receipt_sha256",
+        "burned_at",
+        "ledger_readback_sha256",
+        "effect_started",
+        "delivery_state",
+        "terminal_state",
+        "exit_code",
+        "uncertainty_sha256",
+        "quarantine",
+        "completed_at",
+        "issuer",
+    },
     "support-release-policy.schema.json": {
         "$schema",
         "schema_version",
@@ -532,6 +630,35 @@ class PublicTrustSchemaTests(unittest.TestCase):
                 item["runner_labels"],
                 ["self-hosted", "evidence-authority", item["environment"]],
             )
+
+    def test_worker_contracts_pin_central_authority_and_terminal_uncertainty(self) -> None:
+        admission = json.loads(
+            (SCHEMA_ROOT / "qualification-worker-admission.schema.json").read_text()
+        )
+        dispatch = json.loads(
+            (SCHEMA_ROOT / "qualification-worker-dispatch.schema.json").read_text()
+        )
+        terminal = json.loads(
+            (SCHEMA_ROOT / "qualification-worker-terminal-receipt.schema.json").read_text()
+        )
+        self.assertEqual(
+            admission["$defs"]["issuer"]["properties"]["repository"]["const"],
+            "OpenAdaptAI/.github",
+        )
+        self.assertEqual(dispatch["properties"]["run_attempt"]["const"], "1")
+        self.assertEqual(
+            dispatch["$defs"]["issuer"]["properties"]["workflow"]["const"],
+            ".github/workflows/issue-qualification-worker-dispatch.yml",
+        )
+        uncertain = terminal["allOf"][0]["then"]["properties"]
+        self.assertIs(uncertain["effect_started"]["const"], True)
+        self.assertEqual(
+            uncertain["terminal_state"]["enum"],
+            ["RECONCILIATION_REQUIRED", "QUARANTINED"],
+        )
+        self.assertIs(
+            uncertain["quarantine"]["properties"]["active"]["const"], True
+        )
 
 
 if __name__ == "__main__":

@@ -911,6 +911,7 @@ class PublicationRecoveryAuthorizationTests(unittest.TestCase):
                 value = recovery_authorization()
                 value["requested_effect"] = effect
                 value["environment"] = environment
+                value["issuer"]["environment"] = environment
                 refresh_recovery_authorization(value)
                 trust.validate_publication_recovery_authorization(value, now=NOW)
 
@@ -920,6 +921,7 @@ class PublicationRecoveryAuthorizationTests(unittest.TestCase):
         agent["repository_id"] = "1136136670"
         agent["requested_effect"] = "publish-mcp-registry"
         agent["environment"] = "mcp-registry"
+        agent["issuer"]["environment"] = "mcp-registry"
         refresh_recovery_authorization(agent)
         trust.validate_publication_recovery_authorization(agent, now=NOW)
 
@@ -959,14 +961,16 @@ class PublicationRecoveryAuthorizationTests(unittest.TestCase):
     def test_replay_accepts_exact_bytes_and_refuses_one_use_conflict(self) -> None:
         first = recovery_authorization()
         self.assertEqual(
-            trust.validate_publication_recovery_replay(first, copy.deepcopy(first)),
+            trust.validate_publication_recovery_replay(
+                first, copy.deepcopy(first), now=NOW
+            ),
             first,
         )
         conflict = copy.deepcopy(first)
         conflict["draft_release_id"] = "21"
         refresh_recovery_authorization(conflict)
         with self.assertRaisesRegex(trust.TrustError, "one-use claim conflicts"):
-            trust.validate_publication_recovery_replay(first, conflict)
+            trust.validate_publication_recovery_replay(first, conflict, now=NOW)
 
         next_tag = copy.deepcopy(first)
         next_tag["tag"] = "v1.0.1"
@@ -977,8 +981,16 @@ class PublicationRecoveryAuthorizationTests(unittest.TestCase):
         next_tag["run_id"] = "101"
         refresh_recovery_authorization(next_tag)
         self.assertEqual(
-            trust.validate_publication_recovery_replay(first, next_tag), next_tag
+            trust.validate_publication_recovery_replay(first, next_tag, now=NOW),
+            next_tag,
         )
+
+        with self.assertRaisesRegex(trust.TrustError, "not active"):
+            trust.validate_publication_recovery_replay(
+                first,
+                copy.deepcopy(first),
+                now=datetime(2026, 8, 27, 12, 5, 0, tzinfo=timezone.utc),
+            )
 
 
 class EvidenceKindProfileTests(unittest.TestCase):

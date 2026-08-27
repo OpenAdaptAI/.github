@@ -1131,7 +1131,7 @@ def validate_publication_recovery_authorization(
         or issuer["workflow"]
         != ".github/workflows/issue-production-publication-recovery.yml"
         or issuer["ref"] != "refs/heads/main"
-        or issuer["environment"] != "release-identity"
+        or issuer["environment"] != authorization["environment"]
         or not isinstance(issuer["source_commit"], str)
         or HEX40.fullmatch(issuer["source_commit"]) is None
     ):
@@ -1147,14 +1147,19 @@ def validate_publication_recovery_authorization(
 
 
 def validate_publication_recovery_replay(
-    previous_value: Any, current_value: Any
+    previous_value: Any,
+    current_value: Any,
+    *,
+    now: datetime | None = None,
 ) -> dict[str, Any]:
-    """Accept one byte-identical replay and refuse a changed one-use claim."""
+    """Refuse expired effects and any changed one-use recovery claim."""
 
     previous = validate_publication_recovery_authorization(previous_value)
     current = validate_publication_recovery_authorization(current_value)
     if canonical(previous) == canonical(current):
-        return current
+        return validate_publication_recovery_authorization(
+            current, now=now or datetime.now(timezone.utc)
+        )
     previous_consumption = (
         previous["repository_id"],
         previous["tag_ref"],
@@ -1170,7 +1175,9 @@ def validate_publication_recovery_replay(
         or previous_consumption == current_consumption
     ):
         raise TrustError("publication recovery one-use claim conflicts")
-    return current
+    return validate_publication_recovery_authorization(
+        current, now=now or datetime.now(timezone.utc)
+    )
 
 
 def validate_receipt(value: Any, *, now: datetime | None = None) -> dict[str, Any]:
