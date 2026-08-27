@@ -49,6 +49,7 @@ def test_admission_issuers_use_only_the_central_kms_profile() -> None:
         assert "attestations: write" not in source
         assert "id-token: write" in source
         assert "AWS_ACCESS_KEY_ID=" in source
+        assert "git ls-remote --exit-code --heads origin refs/heads/main" in source
         assert "--draft" in source
         assert "gh pr merge" not in source
         assert "gh_2.98.0_linux_amd64.tar.gz" in source

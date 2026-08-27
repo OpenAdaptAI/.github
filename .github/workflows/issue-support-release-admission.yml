@@ -115,6 +115,8 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          current_main=$(git ls-remote --exit-code --heads origin refs/heads/main | cut -f1)
+          test "$current_main" = "$GITHUB_SHA"
           test "$AWS_ACCOUNT_OUTPUT" = '992382684924'
           python3 scripts/issue_production_trust_object.py issue-candidate \
             --kind support-release-admission \
