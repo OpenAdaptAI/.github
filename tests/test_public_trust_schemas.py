@@ -335,6 +335,7 @@ EXPECTED_TOP_LEVEL_FIELDS = {
         "embedded_signatures",
         "message_signature",
         "sigstore",
+        "public_trust_dsse",
     },
     "production-lifecycle-checkpoint.schema.json": {
         "schema_version",
@@ -612,7 +613,9 @@ class PublicTrustSchemaTests(unittest.TestCase):
         self.assertEqual(schema["$defs"]["publication_staging"]["properties"]["tag_rulesets"]["minItems"], 2)
         self.assertEqual(schema["$defs"]["publication_staging"]["properties"]["tag_rulesets"]["maxItems"], 2)
 
-    def test_verification_policy_freezes_both_sigstore_profiles(self) -> None:
+    def test_verification_policy_keeps_sigstore_and_freezes_future_kms_profile(
+        self,
+    ) -> None:
         policy = json.loads(
             (ROOT / "production-evidence-policy.json").read_text(encoding="utf-8")
         )
@@ -631,6 +634,16 @@ class PublicTrustSchemaTests(unittest.TestCase):
         self.assertEqual(message["version"], "3.1.3")
         self.assertEqual(message["runner"], "ubuntu-24.04")
         self.assertEqual(message["architecture"], "linux-amd64")
+        kms = policy["public_trust_dsse"]
+        self.assertEqual(kms["profile"], "aws-kms-p256-dsse-v1")
+        self.assertEqual(kms["aws_account_id"], "992382684924")
+        self.assertEqual(kms["kms_key_spec"], "ECC_NIST_P256")
+        self.assertEqual(kms["kms_signing_algorithm"], "ECDSA_SHA_256")
+        self.assertEqual(kms["kms_message_type"], "DIGEST")
+        self.assertIs(kms["offline_verification_required"], True)
+        self.assertIs(kms["alias_allowed"], False)
+        self.assertEqual(kms["allowed_kinds"], sorted(kms["allowed_kinds"]))
+        self.assertEqual(len(kms["allowed_kinds"]), 17)
 
     def test_support_policy_cannot_enter_the_production_projection(self) -> None:
         policy = json.loads((ROOT / "support-release-policy.json").read_text())

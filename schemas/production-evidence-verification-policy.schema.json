@@ -14,7 +14,8 @@
     "signer_registry_schema_version",
     "embedded_signatures",
     "message_signature",
-    "sigstore"
+    "sigstore",
+    "public_trust_dsse"
   ],
   "properties": {
     "schema_version": {"const": "openadapt.production-evidence-verification-policy/v1"},
@@ -32,7 +33,8 @@
       "items": {"$ref": "#/$defs/embedded_signature"}
     },
     "message_signature": {"$ref": "#/$defs/message_signature"},
-    "sigstore": {"$ref": "#/$defs/sigstore"}
+    "sigstore": {"$ref": "#/$defs/sigstore"},
+    "public_trust_dsse": {"$ref": "#/$defs/public_trust_dsse"}
   },
   "$defs": {
     "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
@@ -123,6 +125,66 @@
         "size_bytes": {"type": "integer", "minimum": 1},
         "trusted_root": {"$ref": "#/$defs/pinned_document"},
         "signing_config": {"$ref": "#/$defs/pinned_document"}
+      }
+    },
+    "public_trust_dsse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile", "bundle_media_type", "statement_schema_version",
+        "statement_media_type", "signature_encoding", "key_origin",
+        "aws_account_id", "aws_region", "kms_key_spec",
+        "kms_signing_algorithm", "kms_message_type", "role_arn",
+        "signing_workflow", "signing_environment", "key_source",
+        "offline_verification_required", "alias_allowed", "activation_state",
+        "allowed_kinds"
+      ],
+      "properties": {
+        "profile": {"const": "aws-kms-p256-dsse-v1"},
+        "bundle_media_type": {"const": "application/vnd.dev.sigstore.bundle.v0.3+json"},
+        "statement_schema_version": {"const": "openadapt.production-public-trust-signing-statement/v1"},
+        "statement_media_type": {"const": "application/vnd.openadapt.production-public-trust-signing-statement+json;version=1"},
+        "signature_encoding": {"const": "asn1-der-low-s-base64-rfc4648-padded"},
+        "key_origin": {"const": "aws-kms"},
+        "aws_account_id": {"const": "992382684924"},
+        "aws_region": {"const": "us-east-1"},
+        "kms_key_spec": {"const": "ECC_NIST_P256"},
+        "kms_signing_algorithm": {"const": "ECDSA_SHA_256"},
+        "kms_message_type": {"const": "DIGEST"},
+        "role_arn": {"const": "arn:aws:iam::992382684924:role/openadapt-public-trust-signer"},
+        "signing_workflow": {"const": "https://github.com/OpenAdaptAI/.github/.github/workflows/sign-production-evidence.yml@refs/heads/main"},
+        "signing_environment": {"const": "public-trust-signing"},
+        "key_source": {"const": "active-qualification-signer-registry-v2"},
+        "offline_verification_required": {"const": true},
+        "alias_allowed": {"const": false},
+        "activation_state": {"const": "inactive-until-all-consumers-pin-exact-verifier"},
+        "allowed_kinds": {
+          "type": "array",
+          "minItems": 17,
+          "maxItems": 17,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "production-acceptance-manifest",
+              "production-acceptance-summary",
+              "production-cloud-deploy-authorization",
+              "production-cloud-deployment-result",
+              "production-current-default",
+              "production-deployment-observation",
+              "production-lifecycle-checkpoint",
+              "qualification-admission",
+              "qualification-authority-state-receipt",
+              "qualification-campaign-permit",
+              "qualification-campaign-permit-policy",
+              "qualification-campaign-permit-receipt",
+              "qualification-campaign-permit-request",
+              "qualification-evidence-decision-receipt",
+              "qualification-release",
+              "qualification-revocation-state-receipt",
+              "support-release-admission"
+            ]
+          }
+        }
       }
     },
     "sigstore": {

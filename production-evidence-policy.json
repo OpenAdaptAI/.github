@@ -87,5 +87,44 @@
       {"kind":"qualification-revocation-state-receipt","bundle_profile":"github-attestation","issuer_repository":"OpenAdaptAI/openadapt-ops","certificate_identity":"https://github.com/OpenAdaptAI/openadapt-ops/.github/workflows/qualification-revocation-state.yml@refs/heads/main"},
       {"kind":"support-release-admission","bundle_profile":"github-attestation","issuer_repository":"OpenAdaptAI/.github","certificate_identity":"https://github.com/OpenAdaptAI/.github/.github/workflows/issue-support-release-admission.yml@refs/heads/main"}
     ]
+  },
+  "public_trust_dsse": {
+    "profile": "aws-kms-p256-dsse-v1",
+    "bundle_media_type": "application/vnd.dev.sigstore.bundle.v0.3+json",
+    "statement_schema_version": "openadapt.production-public-trust-signing-statement/v1",
+    "statement_media_type": "application/vnd.openadapt.production-public-trust-signing-statement+json;version=1",
+    "signature_encoding": "asn1-der-low-s-base64-rfc4648-padded",
+    "key_origin": "aws-kms",
+    "aws_account_id": "992382684924",
+    "aws_region": "us-east-1",
+    "kms_key_spec": "ECC_NIST_P256",
+    "kms_signing_algorithm": "ECDSA_SHA_256",
+    "kms_message_type": "DIGEST",
+    "role_arn": "arn:aws:iam::992382684924:role/openadapt-public-trust-signer",
+    "signing_workflow": "https://github.com/OpenAdaptAI/.github/.github/workflows/sign-production-evidence.yml@refs/heads/main",
+    "signing_environment": "public-trust-signing",
+    "key_source": "active-qualification-signer-registry-v2",
+    "offline_verification_required": true,
+    "alias_allowed": false,
+    "activation_state": "inactive-until-all-consumers-pin-exact-verifier",
+    "allowed_kinds": [
+      "production-acceptance-manifest",
+      "production-acceptance-summary",
+      "production-cloud-deploy-authorization",
+      "production-cloud-deployment-result",
+      "production-current-default",
+      "production-deployment-observation",
+      "production-lifecycle-checkpoint",
+      "qualification-admission",
+      "qualification-authority-state-receipt",
+      "qualification-campaign-permit",
+      "qualification-campaign-permit-policy",
+      "qualification-campaign-permit-receipt",
+      "qualification-campaign-permit-request",
+      "qualification-evidence-decision-receipt",
+      "qualification-release",
+      "qualification-revocation-state-receipt",
+      "support-release-admission"
+    ]
   }
 }
