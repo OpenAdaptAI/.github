@@ -513,6 +513,25 @@ class EvidenceRegistryTests(unittest.TestCase):
         with self.assertRaisesRegex(registry.EvidenceRegistryError, "previous head"):
             registry.validate_append_only_history(previous, current)
 
+    def test_only_exact_empty_v1_registry_can_create_the_empty_v2_genesis(self) -> None:
+        previous = {
+            "$schema": "schemas/evidence-registry.schema.json",
+            "schema_version": "openadapt.production-evidence-registry/v1",
+            "head_entry_sha256": None,
+            "entries": [],
+        }
+        current = document()
+        registry.validate_append_only_history(previous, current)
+
+        changed_previous = copy.deepcopy(previous)
+        changed_previous["head_entry_sha256"] = sha("1")
+        with self.assertRaisesRegex(registry.EvidenceRegistryError, "exact empty"):
+            registry.validate_append_only_history(changed_previous, current)
+
+        changed_current = document(revision=2)
+        with self.assertRaisesRegex(registry.EvidenceRegistryError, "empty v2 genesis"):
+            registry.validate_append_only_history(previous, changed_current)
+
     def test_decision_revision_semantic_identity_cannot_conflict(self) -> None:
         receipt_identity = {
             "decision_identity_sha256": sha("1"),

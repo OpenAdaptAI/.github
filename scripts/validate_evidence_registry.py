@@ -775,6 +775,32 @@ def require_registered(
 
 
 def validate_append_only_history(previous_value: object, current_value: object) -> None:
+    if isinstance(previous_value, dict) and previous_value.get("schema_version") == (
+        "openadapt.production-evidence-registry/v1"
+    ):
+        expected_empty_v1 = {
+            "$schema": "schemas/evidence-registry.schema.json",
+            "schema_version": "openadapt.production-evidence-registry/v1",
+            "head_entry_sha256": None,
+            "entries": [],
+        }
+        if previous_value != expected_empty_v1:
+            raise EvidenceRegistryError(
+                "only the exact empty v1 registry can migrate to v2"
+            )
+        current = validate_registry(current_value)
+        assert isinstance(current_value, dict)
+        if (
+            current_value["revision"] != 1
+            or current_value["previous_registry_head_sha256"] is not None
+            or current_value["signer_registry"] is not None
+            or current_value["signer_registry_history"] != []
+            or current != []
+        ):
+            raise EvidenceRegistryError(
+                "the v1-to-v2 migration must create the exact empty v2 genesis"
+            )
+        return
     previous = validate_registry(previous_value)
     current = validate_registry(current_value)
     previous_doc = previous_value
