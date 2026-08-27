@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "support-release-policy.schema.json",
+  "title": "OpenAdapt Support release policy v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema", "schema_version", "lifecycle_state", "production_projection",
+    "maximum_admission_days", "release_authority", "targets"
+  ],
+  "properties": {
+    "$schema": {"const": "schemas/support-release-policy.schema.json"},
+    "schema_version": {"const": "openadapt.support-release-policy/v1"},
+    "lifecycle_state": {"const": "Support"},
+    "production_projection": {"const": false},
+    "maximum_admission_days": {"const": 7},
+    "release_authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "app_id", "app_slug", "installation_id", "bot_user_id", "bot_login",
+        "admission_environment", "effect_environment",
+        "tag_creation_ruleset", "tag_immutability_ruleset"
+      ],
+      "properties": {
+        "app_id": {"const": "4730708"},
+        "app_slug": {"const": "openadapt-release"},
+        "installation_id": {"const": "156835568"},
+        "bot_user_id": {"const": "321543906"},
+        "bot_login": {"const": "openadapt-release[bot]"},
+        "admission_environment": {"const": "support-release-admission"},
+        "effect_environment": {"const": "release-identity"},
+        "tag_creation_ruleset": {"const": "OpenAdapt policy: release tag creation"},
+        "tag_immutability_ruleset": {"const": "OpenAdapt policy: immutable release tags"}
+      }
+    },
+    "targets": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id", "repository", "repository_id", "claim_scope", "release_kind",
+          "tag_pattern", "artifacts"
+        ],
+        "properties": {
+          "id": {"const": "openadapt-tray"},
+          "repository": {"const": "OpenAdaptAI/openadapt-tray"},
+          "repository_id": {"const": "1136122737"},
+          "claim_scope": {"const": "support_openadapt_tray"},
+          "release_kind": {"const": "package"},
+          "tag_pattern": {"const": "refs/tags/v*"},
+          "artifacts": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "prefixItems": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind", "media_type", "publish_destinations"],
+                "properties": {
+                  "kind": {"const": "python-sdist"},
+                  "media_type": {"const": "application/gzip"},
+                  "publish_destinations": {"const": ["github-release", "pypi"]}
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind", "media_type", "publish_destinations"],
+                "properties": {
+                  "kind": {"const": "python-wheel"},
+                  "media_type": {"const": "application/zip"},
+                  "publish_destinations": {"const": ["github-release", "pypi"]}
+                }
+              }
+            ],
+            "items": false
+          }
+        }
+      }
+    }
+  }
+}

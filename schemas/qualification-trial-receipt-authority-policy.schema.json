@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "qualification-trial-receipt-authority-policy.schema.json",
+  "title": "OpenAdapt qualification trial receipt authority policy v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema", "schema_version", "repository", "repository_id",
+    "repository_owner_id", "workflow", "ref", "trigger", "input", "signing",
+    "authorities"
+  ],
+  "properties": {
+    "$schema": {"const": "schemas/qualification-trial-receipt-authority-policy.schema.json"},
+    "schema_version": {"const": "openadapt.qualification-trial-receipt-authority-policy/v1"},
+    "repository": {"const": "OpenAdaptAI/openadapt-evals"},
+    "repository_id": {"const": "1135998197"},
+    "repository_owner_id": {"const": "132681217"},
+    "workflow": {"const": ".github/workflows/issue-qualification-trial-receipts.yml"},
+    "ref": {"const": "refs/heads/main"},
+    "trigger": {"const": "workflow_dispatch"},
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "schema_version", "pattern", "atomically_consumed"],
+      "properties": {
+        "name": {"const": "campaign_request_handle"},
+        "schema_version": {"const": "openadapt.opaque-one-use-campaign-request-handle/v1"},
+        "pattern": {"const": "^qcrh_[A-Za-z0-9_-]{43}$"},
+        "atomically_consumed": {"const": true}
+      }
+    },
+    "signing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm", "signer_registry_usage", "distinct_key_per_receipt_type",
+        "outer_sigstore_bundle"
+      ],
+      "properties": {
+        "algorithm": {"const": "ed25519"},
+        "signer_registry_usage": {"const": "qualification-trial-receipt"},
+        "distinct_key_per_receipt_type": {"const": true},
+        "outer_sigstore_bundle": {"const": false}
+      }
+    },
+    "authorities": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 8,
+      "prefixItems": [
+        {"$ref": "#/$defs/runner"},
+        {"$ref": "#/$defs/observer"},
+        {"$ref": "#/$defs/delivery"},
+        {"$ref": "#/$defs/decision"},
+        {"$ref": "#/$defs/policy"},
+        {"$ref": "#/$defs/repair"},
+        {"$ref": "#/$defs/cleanup"},
+        {"$ref": "#/$defs/cleanup_absence"}
+      ],
+      "items": false
+    }
+  },
+  "$defs": {
+    "base": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["receipt_type", "environment", "runner_labels"],
+      "properties": {
+        "receipt_type": {"enum": ["runner", "observer", "delivery", "decision", "policy", "repair", "cleanup", "cleanup_absence"]},
+        "environment": {"type": "string", "pattern": "^qualification-trial-[a-z-]+$"},
+        "runner_labels": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "prefixItems": [
+            {"const": "self-hosted"},
+            {"const": "evidence-authority"},
+            {"type": "string", "pattern": "^qualification-trial-[a-z-]+$"}
+          ],
+          "items": false
+        }
+      }
+    },
+    "runner": {"allOf": [{"$ref": "#/$defs/base"}, {"properties": {"receipt_type": {"const": "runner"}, "environment": {"const": "qualification-trial-runner"}, "runner_labels": {"const": ["self-hosted", "evidence-authority", "qualification-trial-runner"]}}}]},
+    "observer": {"allOf": [{"$ref": "#/$defs/base"}, {"properties": {"receipt_type": {"const": "observer"}, "environment": {"const": "qualification-trial-observer"}, "runner_labels": {"const": ["self-hosted", "evidence-authority", "qualification-trial-observer"]}}}]},
+    "delivery": {"allOf": [{"$ref": "#/$defs/base"}, {"properties": {"receipt_type": {"const": "delivery"}, "environment": {"const": "qualification-trial-delivery"}, "runner_labels": {"const": ["self-hosted", "evidence-authority", "qualification-trial-delivery"]}}}]},
+    "decision": {"allOf": [{"$ref": "#/$defs/base"}, {"properties": {"receipt_type": {"const": "decision"}, "environment": {"const": "qualification-trial-decision"}, "runner_labels": {"const": ["self-hosted", "evidence-authority", "qualification-trial-decision"]}}}]},
+    "policy": {"allOf": [{"$ref": "#/$defs/base"}, {"properties": {"receipt_type": {"const": "policy"}, "environment": {"const": "qualification-trial-policy"}, "runner_labels": {"const": ["self-hosted", "evidence-authority", "qualification-trial-policy"]}}}]},
+    "repair": {"allOf": [{"$ref": "#/$defs/base"}, {"properties": {"receipt_type": {"const": "repair"}, "environment": {"const": "qualification-trial-repair"}, "runner_labels": {"const": ["self-hosted", "evidence-authority", "qualification-trial-repair"]}}}]},
+    "cleanup": {"allOf": [{"$ref": "#/$defs/base"}, {"properties": {"receipt_type": {"const": "cleanup"}, "environment": {"const": "qualification-trial-cleanup"}, "runner_labels": {"const": ["self-hosted", "evidence-authority", "qualification-trial-cleanup"]}}}]},
+    "cleanup_absence": {"allOf": [{"$ref": "#/$defs/base"}, {"properties": {"receipt_type": {"const": "cleanup_absence"}, "environment": {"const": "qualification-trial-cleanup-absence"}, "runner_labels": {"const": ["self-hosted", "evidence-authority", "qualification-trial-cleanup-absence"]}}}]}
+  }
+}

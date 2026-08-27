@@ -13,6 +13,28 @@ SCHEMA_ROOT = ROOT / "schemas"
 
 
 EXPECTED_TOP_LEVEL_FIELDS = {
+    "support-release-policy.schema.json": {
+        "$schema",
+        "schema_version",
+        "lifecycle_state",
+        "production_projection",
+        "maximum_admission_days",
+        "release_authority",
+        "targets",
+    },
+    "qualification-trial-receipt-authority-policy.schema.json": {
+        "$schema",
+        "schema_version",
+        "repository",
+        "repository_id",
+        "repository_owner_id",
+        "workflow",
+        "ref",
+        "trigger",
+        "input",
+        "signing",
+        "authorities",
+    },
     "support-release-admission.schema.json": {
         "schema_version",
         "admission_id_sha256",
@@ -337,6 +359,7 @@ EXPECTED_TOP_LEVEL_FIELDS = {
         "decision_revision",
         "decision_commitment_sha256",
         "evidence_manifest_sha256",
+        "evidence_manifest_readback_sha256",
         "organization_id_sha256",
         "workflow_id_sha256",
         "workflow_version_id_sha256",
@@ -482,6 +505,33 @@ class PublicTrustSchemaTests(unittest.TestCase):
         self.assertEqual(message["version"], "3.1.3")
         self.assertEqual(message["runner"], "ubuntu-24.04")
         self.assertEqual(message["architecture"], "linux-amd64")
+
+    def test_support_policy_cannot_enter_the_production_projection(self) -> None:
+        policy = json.loads((ROOT / "support-release-policy.json").read_text())
+        self.assertEqual(policy["lifecycle_state"], "Support")
+        self.assertIs(policy["production_projection"], False)
+        self.assertEqual([item["id"] for item in policy["targets"]], ["openadapt-tray"])
+        production_targets = {
+            "openadapt", "flow", "cloud", "desktop", "capture", "agent", "docs"
+        }
+        self.assertTrue(production_targets.isdisjoint({"openadapt-tray"}))
+
+    def test_trial_receipt_authorities_are_fixed_per_receipt_type(self) -> None:
+        policy = json.loads(
+            (ROOT / "qualification-trial-receipt-authority-policy.json").read_text()
+        )
+        self.assertEqual(policy["repository"], "OpenAdaptAI/openadapt-evals")
+        self.assertEqual(policy["workflow"], ".github/workflows/issue-qualification-trial-receipts.yml")
+        self.assertEqual(policy["trigger"], "workflow_dispatch")
+        self.assertEqual(len(policy["authorities"]), 8)
+        self.assertEqual(
+            len({item["environment"] for item in policy["authorities"]}), 8
+        )
+        for item in policy["authorities"]:
+            self.assertEqual(
+                item["runner_labels"],
+                ["self-hosted", "evidence-authority", item["environment"]],
+            )
 
 
 if __name__ == "__main__":

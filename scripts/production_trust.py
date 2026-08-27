@@ -15,6 +15,9 @@ from typing import Any
 
 import validate_evidence_registry as evidence
 
+ROOT = Path(__file__).resolve().parents[1]
+SUPPORT_POLICY_PATH = ROOT / "support-release-policy.json"
+
 DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 RAW_DIGEST = re.compile(r"^[0-9a-f]{64}$")
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
@@ -25,6 +28,10 @@ DECIMAL_ID = re.compile(r"^[1-9][0-9]*$")
 ENTITY_CLASS = re.compile(r"^[a-z][a-z0-9 -]{0,63}$")
 BUNDLE_VERSION = re.compile(
     r"^(0|[1-9][0-9]{0,9})\.(0|[1-9][0-9]{0,9})\."
+    r"(0|[1-9][0-9]{0,9})(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$"
+)
+RELEASE_TAG = re.compile(
+    r"^v(0|[1-9][0-9]{0,9})\.(0|[1-9][0-9]{0,9})\."
     r"(0|[1-9][0-9]{0,9})(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$"
 )
 
@@ -216,6 +223,7 @@ SUPPORT_ARTIFACT_INVENTORY_DOMAIN = (
     b"OpenAdapt Support release artifact inventory v1\0"
 )
 SUPPORT_RELEASE_ADMISSION_DOMAIN = b"OpenAdapt Support release admission v1\0"
+SUPPORT_POLICY_DOMAIN = b"OpenAdapt Support release policy v1\0"
 CLOUD_AUTHORIZATION_DOMAIN = b"OpenAdapt production Cloud deploy authorization v1\0"
 CLOUD_HANDOFF_DOMAIN = b"OpenAdapt production Cloud deployment handoff v1\0"
 CLOUD_SOURCE_PROOF_REQUEST_DOMAIN = (
@@ -811,6 +819,54 @@ def validate_support_release(
     for field in fields:
         if field.endswith("_sha256"):
             require_digest(admission[field], field)
+    try:
+        support_policy = json.loads(SUPPORT_POLICY_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise TrustError("Support release policy is unavailable") from exc
+    expected_support_policy = {
+        "$schema": "schemas/support-release-policy.schema.json",
+        "schema_version": "openadapt.support-release-policy/v1",
+        "lifecycle_state": "Support",
+        "production_projection": False,
+        "maximum_admission_days": 7,
+        "release_authority": {
+            "app_id": "4730708",
+            "app_slug": "openadapt-release",
+            "installation_id": "156835568",
+            "bot_user_id": "321543906",
+            "bot_login": "openadapt-release[bot]",
+            "admission_environment": "support-release-admission",
+            "effect_environment": "release-identity",
+            "tag_creation_ruleset": "OpenAdapt policy: release tag creation",
+            "tag_immutability_ruleset": "OpenAdapt policy: immutable release tags",
+        },
+        "targets": [
+            {
+                "id": "openadapt-tray",
+                "repository": "OpenAdaptAI/openadapt-tray",
+                "repository_id": "1136122737",
+                "claim_scope": "support_openadapt_tray",
+                "release_kind": "package",
+                "tag_pattern": "refs/tags/v*",
+                "artifacts": [
+                    {
+                        "kind": "python-sdist",
+                        "media_type": "application/gzip",
+                        "publish_destinations": ["github-release", "pypi"],
+                    },
+                    {
+                        "kind": "python-wheel",
+                        "media_type": "application/zip",
+                        "publish_destinations": ["github-release", "pypi"],
+                    },
+                ],
+            }
+        ],
+    }
+    if support_policy != expected_support_policy or admission[
+        "support_policy_sha256"
+    ] != digest_bytes(SUPPORT_POLICY_DOMAIN, support_policy):
+        raise TrustError("Support release policy binding differs")
     identity = closed(
         admission["release_identity"],
         {"schema_version", "channel", "sequence", "previous_admission_sha256"},
@@ -996,7 +1052,7 @@ def validate_publication_recovery_authorization(
         raise TrustError("publication recovery release reference differs")
     if (
         not isinstance(authorization["tag"], str)
-        or not authorization["tag"].startswith("v")
+        or RELEASE_TAG.fullmatch(authorization["tag"]) is None
         or authorization["tag_ref"] != f"refs/tags/{authorization['tag']}"
         or not isinstance(authorization["tag_object_id"], str)
         or HEX40.fullmatch(authorization["tag_object_id"]) is None
@@ -1121,6 +1177,7 @@ def validate_receipt(value: Any, *, now: datetime | None = None) -> dict[str, An
     fields = {
         "schema_version", "decision_identity_sha256", "decision_revision",
         "decision_commitment_sha256", "evidence_manifest_sha256",
+        "evidence_manifest_readback_sha256",
         "campaign_artifact_sha256", "organization_id_sha256", "workflow_id_sha256",
         "workflow_version_id_sha256", "bundle_version", "bundle_sha256",
         "admitted_runtime_sha256", "application_contract_sha256",
@@ -1144,7 +1201,14 @@ def validate_receipt(value: Any, *, now: datetime | None = None) -> dict[str, An
     }
     for field in digest_fields:
         require_digest(receipt[field], field)
-    if len({receipt["decision_commitment_sha256"], receipt["evidence_manifest_sha256"], receipt["campaign_artifact_sha256"]}) != 3:
+    if len(
+        {
+            receipt["decision_commitment_sha256"],
+            receipt["evidence_manifest_sha256"],
+            receipt["evidence_manifest_readback_sha256"],
+            receipt["campaign_artifact_sha256"],
+        }
+    ) != 4:
         raise TrustError("decision, final manifest, and campaign commitments must be distinct")
     require_positive_int(receipt["decision_revision"], "decision revision")
     if (
@@ -1553,6 +1617,13 @@ def validate_admission_current_state(
         or reference["subject_sha256"] is not None
         or reference["object_sha256"]
         != "sha256:" + hashlib.sha256(canonical(admission) + b"\n").hexdigest()
+        or reference["semantic_identity_sha256"]
+        != evidence.semantic_identity_digest(
+            kind=expected_kind,
+            object_schema_version=reference["object_schema_version"],
+            object_value=admission,
+            object_sha256=reference["object_sha256"],
+        )
     ):
         raise TrustError("admission reference differs from the signed object")
     try:
