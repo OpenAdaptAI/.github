@@ -9,7 +9,7 @@
     "qualification_release_reference", "qualification_release_object_sha256",
     "release_sha256", "artifact_inventory_sha256", "publication_staging_sha256",
     "repository", "repository_id", "target", "tag", "tag_ref",
-    "tag_object_id", "target_commit", "draft_release_id", "requested_effects",
+    "tag_object_id", "target_commit", "draft_release_id", "requested_effect",
     "run_id", "run_attempt", "dispatcher_actor_id", "environment",
     "release_app", "idempotency_key", "issued_at", "not_before",
     "expires_at", "issuer"
@@ -30,17 +30,18 @@
     "tag_object_id": {"$ref": "#/$defs/commit"},
     "target_commit": {"$ref": "#/$defs/commit"},
     "draft_release_id": {"$ref": "#/$defs/decimal_id"},
-    "requested_effects": {
-      "type": "array",
-      "minItems": 1,
-      "maxItems": 3,
-      "uniqueItems": true,
-      "items": {"enum": ["github-release", "mcp-registry", "pypi"]}
+    "requested_effect": {
+      "enum": [
+        "stage-draft-assets",
+        "publish-pypi",
+        "publish-github-release",
+        "publish-mcp-registry"
+      ]
     },
     "run_id": {"$ref": "#/$defs/decimal_id"},
     "run_attempt": {"const": "1"},
     "dispatcher_actor_id": {"const": "774615"},
-    "environment": {"const": "release-identity"},
+    "environment": {"enum": ["release-identity", "pypi", "mcp-registry"]},
     "release_app": {"$ref": "#/$defs/release_app"},
     "idempotency_key": {"type": "string", "pattern": "^publication-recovery:[0-9a-f]{64}$"},
     "issued_at": {"$ref": "#/$defs/timestamp"},
@@ -48,6 +49,25 @@
     "expires_at": {"$ref": "#/$defs/timestamp"},
     "issuer": {"$ref": "#/$defs/issuer"}
   },
+  "allOf": [
+    {
+      "if": {"properties": {"requested_effect": {"enum": ["stage-draft-assets", "publish-github-release"]}}},
+      "then": {"properties": {"environment": {"const": "release-identity"}}}
+    },
+    {
+      "if": {"properties": {"requested_effect": {"const": "publish-pypi"}}},
+      "then": {"properties": {"environment": {"const": "pypi"}}}
+    },
+    {
+      "if": {"properties": {"requested_effect": {"const": "publish-mcp-registry"}}},
+      "then": {
+        "properties": {
+          "environment": {"const": "mcp-registry"},
+          "target": {"const": "agent"}
+        }
+      }
+    }
+  ],
   "$defs": {
     "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
     "decimal_id": {"type": "string", "pattern": "^[1-9][0-9]*$"},

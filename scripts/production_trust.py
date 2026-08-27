@@ -318,6 +318,15 @@ def validate_window(
         raise TrustError("object is not active at the requested time")
 
 
+def validate_staging_observation_age(
+    staging: Mapping[str, Any], admission: Mapping[str, Any]
+) -> None:
+    observed = require_timestamp(staging["observed_at"], "staging observed_at")
+    issued = require_timestamp(admission["issued_at"], "admission issued_at")
+    if not observed <= issued <= observed + timedelta(hours=1):
+        raise TrustError("publication staging observation is stale or postdates admission")
+
+
 def validate_reference_pair(
     regular: Any, bundle: Any, *, kind: str
 ) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -751,6 +760,7 @@ def validate_release(value: Any, *, now: datetime | None = None) -> dict[str, An
     } or not isinstance(issuer["source_commit"], str) or HEX40.fullmatch(issuer["source_commit"]) is None:
         raise TrustError("release issuer identity differs")
     validate_window(release_admission, maximum=timedelta(days=30), now=now)
+    validate_staging_observation_age(staging, release_admission)
     projection = dict(release_admission)
     admission_id = projection.pop("admission_id_sha256")
     if admission_id != digest_bytes(RELEASE_ADMISSION_DOMAIN, projection):
@@ -924,6 +934,7 @@ def validate_support_release(
     ):
         raise TrustError("Support release issuer differs")
     validate_window(admission, maximum=timedelta(days=7), now=now)
+    validate_staging_observation_age(staging, admission)
     projection = dict(admission)
     identity_digest = projection.pop("admission_id_sha256")
     if identity_digest != digest_bytes(SUPPORT_RELEASE_ADMISSION_DOMAIN, projection):
@@ -940,7 +951,7 @@ def validate_publication_recovery_authorization(
         "release_sha256", "artifact_inventory_sha256",
         "publication_staging_sha256", "repository", "repository_id", "target",
         "tag", "tag_ref", "tag_object_id", "target_commit", "draft_release_id",
-        "requested_effects", "run_id", "run_attempt", "dispatcher_actor_id",
+        "requested_effect", "run_id", "run_attempt", "dispatcher_actor_id",
         "environment", "release_app", "idempotency_key", "issued_at",
         "not_before", "expires_at", "issuer",
     }
@@ -952,7 +963,6 @@ def validate_publication_recovery_authorization(
         != "openadapt.production-publication-recovery-authorization/v1"
         or authorization["run_attempt"] != "1"
         or authorization["dispatcher_actor_id"] != "774615"
-        or authorization["environment"] != "release-identity"
     ):
         raise TrustError("publication recovery authorization identity differs")
     target = authorization["target"]
@@ -996,18 +1006,19 @@ def validate_publication_recovery_authorization(
         raise TrustError("publication recovery immutable tag binding differs")
     require_decimal_id(authorization["draft_release_id"], "draft release id")
     require_decimal_id(authorization["run_id"], "recovery run id")
-    effects = authorization["requested_effects"]
+    effect = authorization["requested_effect"]
+    effect_environments = {
+        "stage-draft-assets": "release-identity",
+        "publish-pypi": "pypi",
+        "publish-github-release": "release-identity",
+        "publish-mcp-registry": "mcp-registry",
+    }
     if (
-        not isinstance(effects, list)
-        or not effects
-        or effects != sorted(set(effects))
-        or any(
-            effect not in {"github-release", "mcp-registry", "pypi"}
-            for effect in effects
-        )
-        or ("mcp-registry" in effects and target != "agent")
+        effect not in effect_environments
+        or authorization["environment"] != effect_environments[effect]
+        or (effect == "publish-mcp-registry" and target != "agent")
     ):
-        raise TrustError("publication recovery effect set differs")
+        raise TrustError("publication recovery effect or environment differs")
     release_app = closed(
         authorization["release_app"],
         {"app_id", "installation_id", "bot_user_id", "bot_login"},
@@ -1021,15 +1032,27 @@ def validate_publication_recovery_authorization(
     }:
         raise TrustError("publication recovery release App differs")
     idempotency_projection = {
-        "qualification_release_object_sha256": authorization[
-            "qualification_release_object_sha256"
-        ],
-        "repository": authorization["repository"],
-        "tag_ref": authorization["tag_ref"],
-        "tag_object_id": authorization["tag_object_id"],
-        "run_id": authorization["run_id"],
-        "run_attempt": authorization["run_attempt"],
-        "requested_effects": effects,
+        field: authorization[field]
+        for field in (
+            "qualification_release_object_sha256",
+            "release_sha256",
+            "artifact_inventory_sha256",
+            "publication_staging_sha256",
+            "repository",
+            "repository_id",
+            "target",
+            "tag",
+            "tag_ref",
+            "tag_object_id",
+            "target_commit",
+            "draft_release_id",
+            "requested_effect",
+            "run_id",
+            "run_attempt",
+            "dispatcher_actor_id",
+            "environment",
+            "release_app",
+        )
     }
     expected_idempotency = "publication-recovery:" + hashlib.sha256(
         PUBLICATION_RECOVERY_IDEMPOTENCY_DOMAIN
@@ -1065,6 +1088,33 @@ def validate_publication_recovery_authorization(
     ):
         raise TrustError("publication recovery authorization id differs")
     return authorization
+
+
+def validate_publication_recovery_replay(
+    previous_value: Any, current_value: Any
+) -> dict[str, Any]:
+    """Accept one byte-identical replay and refuse a changed one-use claim."""
+
+    previous = validate_publication_recovery_authorization(previous_value)
+    current = validate_publication_recovery_authorization(current_value)
+    if canonical(previous) == canonical(current):
+        return current
+    previous_consumption = (
+        previous["repository_id"],
+        previous["tag_ref"],
+        previous["requested_effect"],
+    )
+    current_consumption = (
+        current["repository_id"],
+        current["tag_ref"],
+        current["requested_effect"],
+    )
+    if (
+        previous["idempotency_key"] == current["idempotency_key"]
+        or previous_consumption == current_consumption
+    ):
+        raise TrustError("publication recovery one-use claim conflicts")
+    return current
 
 
 def validate_receipt(value: Any, *, now: datetime | None = None) -> dict[str, Any]:
@@ -1469,6 +1519,96 @@ def validate_revocation_state(
         now=now,
     )
     return state
+
+
+def validate_admission_current_state(
+    admission_value: Any,
+    *,
+    admission_reference: Any,
+    authority_state: Any,
+    revocation_state: Any,
+    signer_registry: Any,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Bind one release/workflow admission to the exact active trust state."""
+
+    verification_time = now or datetime.now(timezone.utc)
+    schema = admission_value.get("schema_version") if isinstance(admission_value, dict) else None
+    if schema == "openadapt.qualification-release/v1":
+        admission = validate_release(admission_value, now=verification_time)
+        expected_kind = "qualification-release"
+    elif schema == "openadapt.support-release-admission/v1":
+        admission = validate_support_release(admission_value, now=verification_time)
+        expected_kind = "support-release-admission"
+    elif schema == "openadapt.qualification-admission/v3":
+        admission = validate_qualification_admission(
+            admission_value, now=verification_time
+        )
+        expected_kind = "qualification-admission"
+    else:
+        raise TrustError("admission schema is not current-state aware")
+    reference = evidence.validate_reference(admission_reference)
+    if (
+        reference["kind"] != expected_kind
+        or reference["subject_sha256"] is not None
+        or reference["object_sha256"]
+        != "sha256:" + hashlib.sha256(canonical(admission) + b"\n").hexdigest()
+    ):
+        raise TrustError("admission reference differs from the signed object")
+    try:
+        registry = evidence.validate_signer_registry(signer_registry)
+    except evidence.EvidenceRegistryError as exc:
+        raise TrustError(str(exc)) from exc
+    authority = validate_authority_state(authority_state, now=verification_time)
+    revocation = validate_revocation_state(revocation_state, now=verification_time)
+    registry_identity = evidence.signer_registry_identity_digest(registry)
+    registry_raw_sha = "sha256:" + hashlib.sha256(
+        evidence.canonical(registry) + b"\n"
+    ).hexdigest()
+    if (
+        authority["signer_registry_sha256"] != registry_raw_sha
+        or authority["signer_registry_identity_sha256"] != registry_identity
+        or authority["signer_registry_revision"] != registry["revision"]
+        or revocation["signer_registry_sha256"] != registry_identity
+        or revocation["authority_state_sha256"]
+        != authority["authority_state_sha256"]
+        or admission["signer_registry_sha256"] != registry_identity
+        or admission["revocation_state_sha256"]
+        != revocation["revocation_state_sha256"]
+    ):
+        raise TrustError("admission current trust state differs")
+    if "authority_state_sha256" in admission and (
+        admission["authority_state_sha256"] != authority["authority_state_sha256"]
+    ):
+        raise TrustError("admission current authority state differs")
+    verify_embedded_signature(
+        authority,
+        signer_registry=registry,
+        object_schema_version="openadapt.qualification-authority-state-receipt/v2",
+        signature_domain=AUTHORITY_STATE_SIGNATURE_DOMAIN,
+        usage="qualification-authority-state-receipt",
+        now=verification_time,
+    )
+    verify_embedded_signature(
+        revocation,
+        signer_registry=registry,
+        object_schema_version="openadapt.qualification-revocation-state-receipt/v1",
+        signature_domain=REVOCATION_STATE_SIGNATURE_DOMAIN,
+        usage="qualification-revocation-state-receipt",
+        now=verification_time,
+    )
+    revoked = {
+        (item["subject_kind"], item["subject_id"])
+        for item in revocation["revocations"]
+    }
+    if (reference["kind"], reference["semantic_identity_sha256"]) in revoked:
+        raise TrustError("admission is revoked")
+    for signer in registry["signers"]:
+        if signer["status"] == "active" and (
+            "qualification-signer-key", signer["public_key_sha256"]
+        ) in revoked:
+            raise TrustError("an active signer key is revoked")
+    return admission
 
 
 def validate_local_identity_opening(value: Any) -> dict[str, Any]:

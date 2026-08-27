@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import validate_evidence_registry as registry  # noqa: E402
+import stage_production_evidence as stage  # noqa: E402
 
 
 def sha(character: str) -> str:
@@ -263,6 +264,84 @@ class EvidenceRegistryTests(unittest.TestCase):
         value["signers"][0]["key_id"] = "qa-ed25519-" + "0" * 16
         with self.assertRaisesRegex(registry.EvidenceRegistryError, "bind"):
             registry.validate_signer_registry(value)
+
+    def test_signer_registry_install_is_canonical_consecutive_and_append_only(self) -> None:
+        key = bytes(range(32))
+        spki = bytes.fromhex("302a300506032b6570032100") + key
+
+        def signer_registry(revision: int) -> dict:
+            return {
+                "schema_version": registry.SIGNER_REGISTRY_SCHEMA,
+                "revision": revision,
+                "generated_at": f"2026-08-{26 + revision:02d}T00:00:00Z",
+                "expires_at": f"2026-09-{2 + revision:02d}T00:00:00Z",
+                "signers": [
+                    {
+                        "algorithm": "ed25519",
+                        "key_id": (
+                            "qa-ed25519-" + hashlib.sha256(key).hexdigest()[:16]
+                        ),
+                        "public_key": (
+                            registry.base64.urlsafe_b64encode(key)
+                            .decode()
+                            .rstrip("=")
+                        ),
+                        "public_key_spki_der_base64": (
+                            registry.base64.b64encode(spki).decode()
+                        ),
+                        "public_key_sha256": (
+                            "sha256:" + hashlib.sha256(spki).hexdigest()
+                        ),
+                        "statement_schema_versions": [
+                            "openadapt.qualification-evidence-signing-statement/v1"
+                        ],
+                        "allowed_usages": [
+                            "qualification-evidence-decision-receipt"
+                        ],
+                        "allowed_workflows": [
+                            "https://github.com/OpenAdaptAI/openadapt-internal/"
+                            ".github/workflows/"
+                            "issue-private-qualification-evidence-decision.yml"
+                            "@refs/heads/main"
+                        ],
+                        "allowed_ref_prefixes": ["refs/heads/main"],
+                        "status": "active",
+                        "revoked_at": None,
+                    }
+                ],
+            }
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            value = document()
+            first = signer_registry(1)
+            first_path = root / "signers-v1.json"
+            first_path.write_bytes(registry.canonical(first) + b"\n")
+            stage.install_signer_registry(value, first_path, root)
+            self.assertEqual(value["signer_registry_history"], [value["signer_registry"]])
+            stage.install_signer_registry(value, first_path, root)
+            self.assertEqual(len(value["signer_registry_history"]), 1)
+
+            third = signer_registry(3)
+            third_path = root / "signers-v3.json"
+            third_path.write_bytes(registry.canonical(third) + b"\n")
+            with self.assertRaisesRegex(registry.EvidenceRegistryError, "exactly one"):
+                stage.install_signer_registry(value, third_path, root)
+
+            second = signer_registry(2)
+            second_path = root / "signers-v2.json"
+            second_path.write_bytes(registry.canonical(second) + b"\n")
+            stage.install_signer_registry(value, second_path, root)
+            self.assertEqual(
+                [item["registry_revision"] for item in value["signer_registry_history"]],
+                [1, 2],
+            )
+            self.assertEqual(value["signer_registry"], value["signer_registry_history"][-1])
+
+            noncanonical = root / "noncanonical.json"
+            noncanonical.write_text(json.dumps(signer_registry(3), indent=2) + "\n")
+            with self.assertRaisesRegex(registry.EvidenceRegistryError, "canonical"):
+                stage.install_signer_registry(value, noncanonical, root)
 
     def test_append_only_revision_binds_previous_head(self) -> None:
         previous = document()

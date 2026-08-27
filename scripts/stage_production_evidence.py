@@ -53,6 +53,10 @@ def entry_for(raw: bytes, *, kind: str, subject: str | None) -> dict:
 def install_signer_registry(document: dict, source: Path, root: Path) -> None:
     raw = source.read_bytes()
     value = registry.validate_signer_registry(json.loads(raw))
+    if raw != registry.canonical(value) + b"\n":
+        raise registry.EvidenceRegistryError(
+            "signer registry bytes must be canonical JSON followed by one LF"
+        )
     object_sha = "sha256:" + hashlib.sha256(raw).hexdigest()
     digest_hex = object_sha.removeprefix("sha256:")
     relative = (
@@ -64,13 +68,33 @@ def install_signer_registry(document: dict, source: Path, root: Path) -> None:
     if target.exists() and target.read_bytes() != raw:
         raise registry.EvidenceRegistryError("signer registry content address collides")
     target.write_bytes(raw)
-    document["signer_registry"] = {
+    pointer = {
         "schema_version": registry.SIGNER_POINTER_SCHEMA,
         "object_path": relative,
         "object_sha256": object_sha,
         "registry_identity_sha256": registry.signer_registry_identity_digest(value),
         "registry_revision": value["revision"],
     }
+    current = document["signer_registry"]
+    history = document["signer_registry_history"]
+    if current == pointer:
+        return
+    if current is None:
+        if history or pointer["registry_revision"] != 1:
+            raise registry.EvidenceRegistryError(
+                "the first signer registry must be revision 1"
+            )
+    else:
+        if not history or history[-1] != current:
+            raise registry.EvidenceRegistryError(
+                "signer registry history does not end at the current pointer"
+            )
+        if pointer["registry_revision"] != current["registry_revision"] + 1:
+            raise registry.EvidenceRegistryError(
+                "signer registry revision must increase by exactly one"
+            )
+    history.append(pointer)
+    document["signer_registry"] = pointer
 
 
 def main(argv: list[str] | None = None) -> int:

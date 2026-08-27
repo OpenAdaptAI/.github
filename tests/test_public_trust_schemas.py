@@ -61,7 +61,7 @@ EXPECTED_TOP_LEVEL_FIELDS = {
         "tag_object_id",
         "target_commit",
         "draft_release_id",
-        "requested_effects",
+        "requested_effect",
         "run_id",
         "run_attempt",
         "dispatcher_actor_id",
