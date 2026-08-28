@@ -11,11 +11,22 @@ location.
 No network request occurs while the admissions list is empty.  A Production
 admission fails closed unless the referenced summary, attestation bundle, and
 evidence manifest can all be fetched, hashed, and verified.
+
+The lifecycle policy is a v2 document.  It declares the schema versions and the
+two admission windows that the signed checkpoint chain enforces, and it names
+the protected feed ref that carries live Production state.  It does not carry a
+summary authority.  For v2 objects the certificate identity that signs
+Production acceptance evidence lives in production-evidence-policy.json, keyed
+by evidence kind.  The admission ledger this module reads is the retained v1
+ledger, so its records keep the exact trust root, target map and policy
+revision they were issued under; those are pinned here as module constants
+rather than read from the v2 policy file.
 """
 
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import re
@@ -29,6 +40,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlsplit
 
+import production_trust
 import validate_evidence_registry as evidence_registry
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,10 +48,37 @@ POLICY_PATH = ROOT / "production-lifecycle-policy.json"
 ADMISSIONS_PATH = ROOT / "production-lifecycle-admissions.json"
 LIFECYCLE_PATH = ROOT / "repository-lifecycle.yml"
 
-POLICY_SCHEMA = "openadapt.production-lifecycle-policy/v1"
+POLICY_SCHEMA = "openadapt.production-lifecycle-policy/v2"
+POLICY_DOCUMENT_SCHEMA = "schemas/production-lifecycle-policy.schema.json"
+POLICY_REVISION_MINIMUM = 2
 ADMISSIONS_SCHEMA = "openadapt.production-lifecycle-admissions/v1"
 SUMMARY_SCHEMA = "openadapt.production-lifecycle-evidence-summary/v1"
 RELEASE_IDENTITY_SCHEMA = "openadapt.monotonic-production-release/v1"
+OBJECT_REFERENCE_SCHEMA = "openadapt.production-evidence-object-reference/v2"
+RELEASE_ADMISSION_SCHEMA = "openadapt.qualification-release/v1"
+WORKFLOW_ADMISSION_SCHEMA = "openadapt.qualification-admission/v3"
+LIFECYCLE_CHECKPOINT_SCHEMA = "openadapt.production-lifecycle-checkpoint/v1"
+LIFECYCLE_FEED_SCHEMA = "openadapt.production-lifecycle-feed/v1"
+LIFECYCLE_FEED_REF = "refs/heads/production-lifecycle-feed"
+# production_trust.validate_release enforces a 30 day window on every
+# openadapt.qualification-release/v1 object, and
+# production_trust.validate_qualification_admission enforces a 7 day window on
+# every openadapt.qualification-admission/v3 object.  The policy declares both
+# numbers; this module refuses a policy that declares a different one.
+RELEASE_ADMISSION_MAXIMUM_DAYS = 30
+WORKFLOW_ADMISSION_MAXIMUM_DAYS = 7
+# The retained v1 admission ledger holds release admissions on the production
+# channel only, so the release admission window governs its expiry, and every
+# retained record was issued under policy revision 1.  Its records and their
+# acceptance summaries carry the digest of the v1 policy document that issued
+# them, which is not the digest of the live v2 policy document.
+RETAINED_POLICY_REVISION = 1
+RETAINED_POLICY_SHA256 = (
+    "sha256:e1444a08ce6b16736168cce027ce9d48abb2e0e246fc0cd79c0772fa8e423e11"
+)
+TARGET_RELEASE_KINDS = frozenset({"package", "deployment", "hybrid"})
+CLAIM_SCOPE = re.compile(r"^production_[a-z]+$")
+DECIMAL_ID = re.compile(r"^[1-9][0-9]*$")
 SHA256 = re.compile(r"^sha256:[0-9a-f]{64}$")
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 SEMVER = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$")
@@ -340,36 +379,34 @@ def load_lifecycle(
     return _parse_group(text, "lifecycle"), _parse_group(text, "public_surfaces")
 
 
-def _validate_policy(value: object) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
-    policy = _closed(
-        value,
-        {
-            "$schema",
-            "schema_version",
-            "revision",
-            "maximum_admission_days",
-            "summary_authority",
-            "targets",
-        },
-        "production lifecycle policy",
-    )
-    if policy["schema_version"] != POLICY_SCHEMA:
-        raise LifecycleError("production lifecycle policy schema is not supported")
+def _admission_days(value: object, label: str, enforced: int) -> int:
+    """Validate one declared admission window against the enforced window."""
+
     if (
-        not isinstance(policy["revision"], int)
-        or isinstance(policy["revision"], bool)
-        or policy["revision"] < 1
+        not isinstance(value, int)
+        or isinstance(value, bool)
+        or not 1 <= value <= 30
     ):
-        raise LifecycleError("production lifecycle policy revision must be positive")
-    maximum_days = policy["maximum_admission_days"]
-    if (
-        not isinstance(maximum_days, int)
-        or isinstance(maximum_days, bool)
-        or not 1 <= maximum_days <= 30
-    ):
-        raise LifecycleError("maximum_admission_days must be between 1 and 30")
+        raise LifecycleError(f"{label} must be between 1 and 30")
+    if value != enforced:
+        raise LifecycleError(
+            f"{label} differs from the window the Production trust core enforces"
+        )
+    return value
+
+
+def _validate_summary_authority(value: object) -> dict[str, Any]:
+    """Validate the attestation authority that verifies acceptance evidence.
+
+    v1 carried this object in the policy document and checked it there.  v2
+    removed it: for v2 objects production-evidence-policy.json holds the
+    certificate identity per evidence kind, and the retained v1 ledger keeps the
+    authority that issued its records.  The checks are unchanged; only their
+    subject moved from policy data to the pinned trust root.
+    """
+
     authority = _closed(
-        policy["summary_authority"],
+        value,
         {
             "repository",
             "workflow",
@@ -405,112 +442,211 @@ def _validate_policy(value: object) -> tuple[dict[str, Any], dict[str, dict[str,
         "openadapt.production-acceptance/v1"
     ):
         raise LifecycleError("evidence manifest schema is not supported")
+    if authority["release_identity_schema_version"] != RELEASE_IDENTITY_SCHEMA:
+        raise LifecycleError("release identity schema is not supported")
+    if authority["production_channel"] != "production":
+        raise LifecycleError("summary authority channel is not production")
+    _digest(authority["acceptance_policy_sha256"], "acceptance policy digest")
     if authority["signer_provenance_digest_domain"] != (
         "OpenAdapt production certificate signer provenance v1\0"
     ):
         raise LifecycleError("signer provenance digest domain is not supported")
     if authority != EXPECTED_AUTHORITY:
         raise LifecycleError("summary authority differs from the pinned trust root")
+    return authority
+
+
+def _retained_admission_contract(maximum_admission_days: int) -> dict[str, Any]:
+    """Pin the contract that the retained v1 admission ledger was issued under.
+
+    v2 keeps live Production state in the signed checkpoint feed.  The v1 ledger
+    stays readable so a recovery can replay it, and a v1 record is only
+    verifiable against the attestation authority, target map and policy revision
+    that issued it.  The v2 policy carries none of those, so they are pinned
+    here.  The expiry window follows the release admission maximum, because
+    every record in this ledger is a release admission on the production
+    channel.
+    """
+
+    return {
+        "revision": RETAINED_POLICY_REVISION,
+        "policy_sha256": RETAINED_POLICY_SHA256,
+        "maximum_admission_days": maximum_admission_days,
+        "summary_authority": _validate_summary_authority(
+            copy.deepcopy(EXPECTED_AUTHORITY)
+        ),
+        "targets": {
+            target_id: {"id": target_id, **copy.deepcopy(contract)}
+            for target_id, contract in EXPECTED_TARGETS.items()
+        },
+    }
+
+
+def _validate_policy_target(
+    item: object, index: int, seen: Mapping[str, Any]
+) -> tuple[str, dict[str, Any]]:
+    target = _closed(
+        item,
+        {
+            "id",
+            "display_name",
+            "source_repository",
+            "source_repository_id",
+            "release_kind",
+            "claim_scope",
+            "required_artifact_kinds",
+            "package_index_project",
+        },
+        f"target {index}",
+    )
+    target_id = _nonempty(target["id"], f"target {index} id")
+    if TARGET_ID.fullmatch(target_id) is None or target_id in seen:
+        raise LifecycleError(f"target id is invalid or duplicate: {target_id!r}")
+    contract = production_trust.TARGET_CONTRACTS.get(target_id)
+    if contract is None:
+        raise LifecycleError(
+            f"target {target_id} has no Production trust contract"
+        )
+    _nonempty(target["display_name"], f"target {target_id} display name")
+    source_repository = _nonempty(
+        target["source_repository"], f"target {target_id} source repository"
+    )
+    if not source_repository.startswith("OpenAdaptAI/"):
+        raise LifecycleError(
+            f"target {target_id} source repository is not first-party"
+        )
+    repository_id = target["source_repository_id"]
+    if (
+        not isinstance(repository_id, str)
+        or DECIMAL_ID.fullmatch(repository_id) is None
+    ):
+        raise LifecycleError(
+            f"target {target_id} source repository id is invalid"
+        )
+    if target["release_kind"] not in TARGET_RELEASE_KINDS:
+        raise LifecycleError(f"target {target_id} release kind is invalid")
+    claim_scope = _nonempty(
+        target["claim_scope"], f"target {target_id} claim scope"
+    )
+    if CLAIM_SCOPE.fullmatch(claim_scope) is None:
+        raise LifecycleError(f"target {target_id} claim scope is invalid")
+    kinds = target["required_artifact_kinds"]
+    if (
+        not isinstance(kinds, list)
+        or not kinds
+        or not all(isinstance(kind, str) and kind for kind in kinds)
+    ):
+        raise LifecycleError(
+            f"target {target_id} required artifact kinds are invalid"
+        )
+    if kinds != sorted(set(kinds)):
+        raise LifecycleError(
+            f"target {target_id} required artifact kinds must be unique and sorted"
+        )
+    package_project = target["package_index_project"]
+    if package_project is not None and (
+        not isinstance(package_project, str)
+        or re.fullmatch(r"^[a-z0-9][a-z0-9._-]+$", package_project) is None
+    ):
+        raise LifecycleError(f"target {target_id} package project is invalid")
+    if (
+        claim_scope != contract["claim_scope"]
+        or source_repository != contract["repository"]
+        or repository_id != contract["repository_id"]
+    ):
+        raise LifecycleError(
+            f"target {target_id} differs from the Production trust contract"
+        )
+    undefined = sorted(set(kinds) - set(contract["artifacts"]))
+    if undefined:
+        raise LifecycleError(
+            f"target {target_id} requires artifact kinds the Production trust "
+            f"contract does not define: {undefined}"
+        )
+    return target_id, target
+
+
+def _validate_policy(value: object) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Validate the v2 policy and pin the retained v1 admission contract.
+
+    The v2 policy states which schema versions the signed checkpoint chain
+    accepts and how long each admission kind may live.  Every target it declares
+    must agree with the Production trust contract that
+    production_trust.validate_release applies to the matching
+    openadapt.qualification-release/v1 object.
+    """
+
+    policy = _closed(
+        value,
+        {
+            "$schema",
+            "schema_version",
+            "revision",
+            "maximum_release_admission_days",
+            "maximum_workflow_admission_days",
+            "object_reference_schema_version",
+            "release_admission_schema_version",
+            "workflow_admission_schema_version",
+            "lifecycle_checkpoint_schema_version",
+            "lifecycle_feed_schema_version",
+            "lifecycle_feed_ref",
+            "targets",
+        },
+        "production lifecycle policy",
+    )
+    if policy["schema_version"] != POLICY_SCHEMA:
+        raise LifecycleError("production lifecycle policy schema is not supported")
+    if policy["$schema"] != POLICY_DOCUMENT_SCHEMA:
+        raise LifecycleError("production lifecycle policy document schema differs")
+    if (
+        not isinstance(policy["revision"], int)
+        or isinstance(policy["revision"], bool)
+        or policy["revision"] < POLICY_REVISION_MINIMUM
+    ):
+        raise LifecycleError(
+            "production lifecycle policy revision must be at least "
+            f"{POLICY_REVISION_MINIMUM}"
+        )
+    release_days = _admission_days(
+        policy["maximum_release_admission_days"],
+        "maximum_release_admission_days",
+        RELEASE_ADMISSION_MAXIMUM_DAYS,
+    )
+    workflow_days = _admission_days(
+        policy["maximum_workflow_admission_days"],
+        "maximum_workflow_admission_days",
+        WORKFLOW_ADMISSION_MAXIMUM_DAYS,
+    )
+    if workflow_days > release_days:
+        raise LifecycleError(
+            "maximum_workflow_admission_days cannot exceed "
+            "maximum_release_admission_days"
+        )
+    for key, expected in (
+        ("object_reference_schema_version", OBJECT_REFERENCE_SCHEMA),
+        ("release_admission_schema_version", RELEASE_ADMISSION_SCHEMA),
+        ("workflow_admission_schema_version", WORKFLOW_ADMISSION_SCHEMA),
+        ("lifecycle_checkpoint_schema_version", LIFECYCLE_CHECKPOINT_SCHEMA),
+        ("lifecycle_feed_schema_version", LIFECYCLE_FEED_SCHEMA),
+        ("lifecycle_feed_ref", LIFECYCLE_FEED_REF),
+    ):
+        if policy[key] != expected:
+            raise LifecycleError(
+                f"production lifecycle policy {key} is not supported"
+            )
 
     targets_value = policy["targets"]
     if not isinstance(targets_value, list) or not targets_value:
         raise LifecycleError("production lifecycle policy must declare targets")
     targets: dict[str, dict[str, Any]] = {}
-    memberships: set[tuple[str, str]] = set()
     for index, item in enumerate(targets_value):
-        target = _closed(
-            item,
-            {
-                "id",
-                "display_name",
-                "lifecycle_scope",
-                "lifecycle_subject",
-                "source_repository",
-                "release_kind",
-                "required_claim_scope",
-                "required_artifact_kinds",
-                "package_index_project",
-                "artifact_authority_by_kind",
-            },
-            f"target {index}",
-        )
-        target_id = _nonempty(target["id"], f"target {index} id")
-        if TARGET_ID.fullmatch(target_id) is None or target_id in targets:
-            raise LifecycleError(f"target id is invalid or duplicate: {target_id!r}")
-        scope = target["lifecycle_scope"]
-        if scope not in {"repository", "public_surface"}:
-            raise LifecycleError(f"target {target_id} lifecycle_scope is invalid")
-        subject = _nonempty(target["lifecycle_subject"], f"target {target_id} subject")
-        membership = (scope, subject)
-        if membership in memberships:
-            raise LifecycleError(f"lifecycle subject is duplicate: {membership}")
-        memberships.add(membership)
-        _nonempty(target["display_name"], f"target {target_id} display name")
-        source_repository = _nonempty(
-            target["source_repository"], f"target {target_id} source repository"
-        )
-        if not source_repository.startswith("OpenAdaptAI/"):
-            raise LifecycleError(
-                f"target {target_id} source repository is not first-party"
-            )
-        release_kind = target["release_kind"]
-        if release_kind not in {
-            "public_package",
-            "private_deployment",
-            "public_deployment",
-        }:
-            raise LifecycleError(f"target {target_id} release kind is invalid")
-        claim_scope = _nonempty(
-            target["required_claim_scope"],
-            f"target {target_id} required claim scope",
-        )
-        if re.fullmatch(r"^[a-z][a-z0-9_]{2,127}$", claim_scope) is None:
-            raise LifecycleError(f"target {target_id} required claim scope is invalid")
-        kinds = target["required_artifact_kinds"]
-        if not isinstance(kinds, list) or not all(
-            isinstance(kind, str) and kind for kind in kinds
-        ):
-            raise LifecycleError(
-                f"target {target_id} required artifact kinds are invalid"
-            )
-        if kinds != sorted(set(kinds)):
-            raise LifecycleError(
-                f"target {target_id} required artifact kinds must be unique and sorted"
-            )
-        if release_kind == "private_deployment" and kinds:
-            raise LifecycleError(
-                f"private target {target_id} cannot require public artifacts"
-            )
-        if release_kind != "private_deployment" and not kinds:
-            raise LifecycleError(f"public target {target_id} must require artifacts")
-        package_project = target["package_index_project"]
-        if package_project is not None and (
-            not isinstance(package_project, str)
-            or re.fullmatch(r"^[a-z0-9][a-z0-9._-]+$", package_project) is None
-        ):
-            raise LifecycleError(f"target {target_id} package project is invalid")
-        authorities = target["artifact_authority_by_kind"]
-        if not isinstance(authorities, dict) or set(authorities) != set(kinds):
-            raise LifecycleError(
-                f"target {target_id} artifact authority map differs from artifact kinds"
-            )
-        if not all(
-            value in {"pypi", "github_release", "managed_evidence"}
-            for value in authorities.values()
-        ):
-            raise LifecycleError(f"target {target_id} artifact authority is invalid")
-        if ("pypi" in authorities.values()) != (package_project is not None):
-            raise LifecycleError(
-                f"target {target_id} package project does not match PyPI authority"
-            )
+        target_id, target = _validate_policy_target(item, index, targets)
         targets[target_id] = target
-    actual_targets = {
-        target_id: {key: value for key, value in target.items() if key != "id"}
-        for target_id, target in targets.items()
-    }
-    if actual_targets != EXPECTED_TARGETS:
-        raise LifecycleError("production target map differs from the pinned target map")
-    return policy, targets
+    if set(targets) != set(EXPECTED_TARGETS):
+        raise LifecycleError(
+            "production target map differs from the pinned target map"
+        )
+    return policy, _retained_admission_contract(release_days)
 
 
 def _clean_https_url(value: object, label: str) -> str:
@@ -1433,7 +1569,17 @@ def validate(
     """Validate the complete lifecycle state and return target to admission IDs."""
 
     now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
-    policy, targets = _validate_policy(policy_value)
+    policy, retained = _validate_policy(policy_value)
+    targets = retained["targets"]
+    if retained["revision"] >= policy["revision"]:
+        raise LifecycleError(
+            "the retained admission revision must precede the live policy revision"
+        )
+    _digest(policy_sha256, "production lifecycle policy digest")
+    if policy_sha256 == retained["policy_sha256"]:
+        raise LifecycleError(
+            "the live policy document cannot be the retained policy revision"
+        )
     admissions_doc = _closed(
         admissions_value,
         {"$schema", "schema_version", "policy_sha256", "admissions"},
@@ -1441,7 +1587,7 @@ def validate(
     )
     if admissions_doc["schema_version"] != ADMISSIONS_SCHEMA:
         raise LifecycleError("production lifecycle admissions schema is not supported")
-    if admissions_doc["policy_sha256"] != policy_sha256:
+    if admissions_doc["policy_sha256"] != retained["policy_sha256"]:
         raise LifecycleError("production lifecycle admissions policy digest differs")
     admissions_value_list = admissions_doc["admissions"]
     if not isinstance(admissions_value_list, list):
@@ -1494,7 +1640,7 @@ def validate(
             raise LifecycleError(
                 f"production admission target is not eligible: {target_id!r}"
             )
-        if admission["policy_revision"] != policy["revision"]:
+        if admission["policy_revision"] != retained["revision"]:
             raise LifecycleError(f"admission {target_id} policy revision differs")
         reference = admission["acceptance_evidence"]
         if not isinstance(reference, dict):
@@ -1533,7 +1679,7 @@ def validate(
             )
         _validate_release_identity(
             admission["release_identity"],
-            policy["summary_authority"],
+            retained["summary_authority"],
             f"admission {target_id} release identity",
         )
         issued_at = _timestamp(
@@ -1545,7 +1691,7 @@ def validate(
         if issued_at > now:
             raise LifecycleError(f"admission {target_id} is not valid yet")
         if expires_at <= issued_at or expires_at > issued_at + timedelta(
-            days=policy["maximum_admission_days"]
+            days=retained["maximum_admission_days"]
         ):
             raise LifecycleError(
                 f"admission {target_id} validity window is outside policy"
@@ -1598,8 +1744,8 @@ def validate(
         _validate_remote_summary(
             latest,
             latest_release,
-            policy["summary_authority"],
-            policy_sha256,
+            retained["summary_authority"],
+            retained["policy_sha256"],
             now,
             fetch=fetch,
             verify_attestation=verify_attestation,
