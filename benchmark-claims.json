@@ -1,0 +1,272 @@
+{
+  "$comment": "Binds every benchmark figure printed on an org front page to the upstream artifact that measured it. Every other claim guard in this org checks that a page contains an attribution string; none of them checks the number. openadapt-web published success_count 20 for the OpenEMR compiled arm for five weeks while the measured artifact said 19, and no guard noticed. scripts/check_benchmark_claims.py re-hashes the vendored snapshots under benchmark-claims/upstream/, renders each registered figure straight out of those bytes, and refuses any figure-shaped token on a registered surface that no entry here claims. So a new figure cannot land on the org profile without a deliberate edit to this file. profile/README.md currently publishes 20/20 for the OpenEMR compiled arm and the pinned artifact says 19 of 20; that one figure is recorded below as an open drift with an expiry date, and the checker fails once the date passes. This repository does not own that prose, so this guard reports the mismatch instead of editing it.",
+  "schema_version": "openadapt.benchmark-claim-binding/v1",
+  "upstream": {
+    "repository": "OpenAdaptAI/openadapt-flow",
+    "commit": "aee094193b232f472f991be6fa9b33c3c4b3f9be",
+    "sources": [
+      {
+        "id": "comparison",
+        "path": "benchmark/comparison_artifact/comparison.json",
+        "git_blob": "93e8f6ccb050f3b672432229334db9ac2ac3bfcf",
+        "sha256": "sha256:c5eb58d234ecbd5b03a687745fb6afeb53d0965459b0e42779942441b19dbbd6",
+        "size_bytes": 4977,
+        "snapshot": "benchmark-claims/upstream/openadapt-flow/aee094193b232f472f991be6fa9b33c3c4b3f9be/benchmark/comparison_artifact/comparison.json"
+      },
+      {
+        "id": "openemr",
+        "path": "benchmark/openemr/results.json",
+        "git_blob": "368c2857a0e9ffe8fdd82e2ee1903714d48971b0",
+        "sha256": "sha256:30de6dbb43ad0db4fd8b55737d765d06747b896ffae04522b6957d567dcfd89c",
+        "size_bytes": 21616,
+        "snapshot": "benchmark-claims/upstream/openadapt-flow/aee094193b232f472f991be6fa9b33c3c4b3f9be/benchmark/openemr/results.json"
+      },
+      {
+        "id": "mockmed",
+        "path": "benchmark/results.json",
+        "git_blob": "e80539233b1a96a0e96bd6e2704a9065c1a2b299",
+        "sha256": "sha256:daf6f840f441ad32c1c88716ed41e2c1dec766a2f03762adda00f30f7588d8cc",
+        "size_bytes": 50086,
+        "snapshot": "benchmark-claims/upstream/openadapt-flow/aee094193b232f472f991be6fa9b33c3c4b3f9be/benchmark/results.json"
+      },
+      {
+        "id": "effect-e2e",
+        "path": "benchmark/effect_e2e/results.json",
+        "git_blob": "3d01d92a96bbd82588d96a485c4fa6276bb21f69",
+        "sha256": "sha256:35b577939f63f02580df283e478d6a729fd86bc4a4bb200bdcb0778ed4b773d0",
+        "size_bytes": 231969,
+        "snapshot": "benchmark-claims/upstream/openadapt-flow/aee094193b232f472f991be6fa9b33c3c4b3f9be/benchmark/effect_e2e/results.json"
+      }
+    ]
+  },
+  "surfaces": [
+    "README.md",
+    "profile/README.md"
+  ],
+  "claims": [
+    {
+      "id": "openemr-compiled-success-ratio",
+      "surface": "profile/README.md",
+      "context": "compiled replay went **20/20 at 39.2s p50 with zero model calls**",
+      "text": "20/20",
+      "renderer": "ratio",
+      "decimals": null,
+      "source": "openemr",
+      "pointers": [
+        "/arms/compiled/success_count",
+        "/arms/compiled/n"
+      ],
+      "status": "drift_open",
+      "drift": {
+        "upstream_text": "19/20",
+        "recorded_on": "2026-08-28",
+        "expires_on": "2026-09-25",
+        "owner": "the agent that owns org front-page corrections",
+        "reason": "profile/README.md publishes 20/20 for the OpenEMR compiled arm. The pinned artifact records success_count 19 of n 20, because the saved-row oracle adjudication of 2026-07-28 rejected compiled run 20: the note stayed in the unsaved entry form. The published figure is wrong and must become 19/20. This guard adds the binding and does not edit the prose."
+      }
+    },
+    {
+      "id": "openemr-compiled-p50",
+      "surface": "profile/README.md",
+      "context": "compiled replay went **20/20 at 39.2s p50 with zero model calls**",
+      "text": "39.2s",
+      "renderer": "seconds",
+      "decimals": 1,
+      "source": "openemr",
+      "pointers": [
+        "/arms/compiled/wall_s_p50"
+      ],
+      "status": "bound",
+      "drift": null
+    },
+    {
+      "id": "openemr-agent-success-ratio",
+      "surface": "profile/README.md",
+      "context": "the agent went 10/10 at 70.4s p50 at about $0.55 of model charge per run.",
+      "text": "10/10",
+      "renderer": "ratio",
+      "decimals": null,
+      "source": "openemr",
+      "pointers": [
+        "/arms/agent/success_count",
+        "/arms/agent/n"
+      ],
+      "status": "bound",
+      "drift": null
+    },
+    {
+      "id": "openemr-agent-p50",
+      "surface": "profile/README.md",
+      "context": "the agent went 10/10 at 70.4s p50 at about $0.55 of model charge per run.",
+      "text": "70.4s",
+      "renderer": "seconds",
+      "decimals": 1,
+      "source": "openemr",
+      "pointers": [
+        "/arms/agent/wall_s_p50"
+      ],
+      "status": "bound",
+      "drift": null
+    },
+    {
+      "id": "openemr-agent-cost-per-run",
+      "surface": "profile/README.md",
+      "context": "the agent went 10/10 at 70.4s p50 at about $0.55 of model charge per run.",
+      "text": "$0.55",
+      "renderer": "usd",
+      "decimals": 2,
+      "source": "openemr",
+      "pointers": [
+        "/arms/agent/cost_usd_per_run"
+      ],
+      "status": "bound",
+      "drift": null
+    },
+    {
+      "id": "mockmed-compiled-success-ratio",
+      "surface": "profile/README.md",
+      "context": "run (100/100 compiled, 20/20 agent)",
+      "text": "100/100",
+      "renderer": "ratio",
+      "decimals": null,
+      "source": "mockmed",
+      "pointers": [
+        "/arms/compiled/success_count",
+        "/arms/compiled/n"
+      ],
+      "status": "bound",
+      "drift": null
+    },
+    {
+      "id": "mockmed-agent-success-ratio",
+      "surface": "profile/README.md",
+      "context": "run (100/100 compiled, 20/20 agent)",
+      "text": "20/20",
+      "renderer": "ratio",
+      "decimals": null,
+      "source": "mockmed",
+      "pointers": [
+        "/arms/agent/success_count",
+        "/arms/agent/n"
+      ],
+      "status": "bound",
+      "drift": null
+    },
+    {
+      "id": "mockmed-compiled-p50",
+      "surface": "profile/README.md",
+      "context": "success rate — 4.9s p50 with zero model calls versus 37.5s p50 for the agent.",
+      "text": "4.9s",
+      "renderer": "seconds",
+      "decimals": 1,
+      "source": "mockmed",
+      "pointers": [
+        "/arms/compiled/wall_s_p50"
+      ],
+      "status": "bound",
+      "drift": null
+    },
+    {
+      "id": "mockmed-agent-p50",
+      "surface": "profile/README.md",
+      "context": "success rate — 4.9s p50 with zero model calls versus 37.5s p50 for the agent.",
+      "text": "37.5s",
+      "renderer": "seconds",
+      "decimals": 1,
+      "source": "mockmed",
+      "pointers": [
+        "/arms/agent/wall_s_p50"
+      ],
+      "status": "bound",
+      "drift": null
+    },
+    {
+      "id": "effect-screen-undetected-rate",
+      "surface": "profile/README.md",
+      "context": "oracle silently accepted **75.0%** of the wrong effects that actually occurred (54 of 90 runs).",
+      "text": "75.0%",
+      "renderer": "percent",
+      "decimals": 1,
+      "source": "effect-e2e",
+      "pointers": [
+        "/metrics/per_arm/screen/undetected_wrong_rate"
+      ],
+      "status": "bound",
+      "drift": null
+    },
+    {
+      "id": "effect-screen-silent-wrong-count",
+      "surface": "profile/README.md",
+      "context": "oracle silently accepted **75.0%** of the wrong effects that actually occurred (54 of 90 runs).",
+      "text": "54 of 90",
+      "renderer": "count_of",
+      "decimals": null,
+      "source": "effect-e2e",
+      "pointers": [
+        "/metrics/per_arm/screen/silent_wrong_count",
+        "/metrics/per_arm/screen/n_runs"
+      ],
+      "status": "bound",
+      "drift": null
+    },
+    {
+      "id": "effect-rest-undetected-rate",
+      "surface": "profile/README.md",
+      "context": "cut that to **12.5%** (9 of 90).",
+      "text": "12.5%",
+      "renderer": "percent",
+      "decimals": 1,
+      "source": "effect-e2e",
+      "pointers": [
+        "/metrics/per_arm/effect_rest/undetected_wrong_rate"
+      ],
+      "status": "bound",
+      "drift": null
+    },
+    {
+      "id": "effect-rest-silent-wrong-count",
+      "surface": "profile/README.md",
+      "context": "cut that to **12.5%** (9 of 90).",
+      "text": "9 of 90",
+      "renderer": "count_of",
+      "decimals": null,
+      "source": "effect-e2e",
+      "pointers": [
+        "/metrics/per_arm/effect_rest/silent_wrong_count",
+        "/metrics/per_arm/effect_rest/n_runs"
+      ],
+      "status": "bound",
+      "drift": null
+    },
+    {
+      "id": "effect-full-silent-wrong-count",
+      "surface": "profile/README.md",
+      "context": "A complete read path over every mutable surface reaches 0 of 90,",
+      "text": "0 of 90",
+      "renderer": "count_of",
+      "decimals": null,
+      "source": "effect-e2e",
+      "pointers": [
+        "/metrics/per_arm/effect_full/silent_wrong_count",
+        "/metrics/per_arm/effect_full/n_runs"
+      ],
+      "status": "bound",
+      "drift": null
+    },
+    {
+      "id": "effect-full-undetected-rate",
+      "surface": "profile/README.md",
+      "context": "one out-of-band oracle — not the 0%. All nine",
+      "text": "0%",
+      "renderer": "percent",
+      "decimals": 0,
+      "source": "effect-e2e",
+      "pointers": [
+        "/metrics/per_arm/effect_full/undetected_wrong_rate"
+      ],
+      "status": "bound",
+      "drift": null
+    }
+  ],
+  "non_benchmark_figures": []
+}
