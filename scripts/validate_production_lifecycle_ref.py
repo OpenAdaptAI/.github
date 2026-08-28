@@ -262,7 +262,7 @@ def resolve_release_chain(
     trust.verify_embedded_signature(
         receipt,
         signer_registry=receipt_signer_registry,
-        object_schema_version="openadapt.qualification-evidence-decision-receipt/v1",
+        object_schema_version="openadapt.qualification-evidence-decision-receipt/v2",
         signature_domain=trust.DECISION_RECEIPT_SIGNATURE_DOMAIN,
         usage="qualification-evidence-decision-receipt",
         now=trust.require_timestamp(receipt["issued_at"], "receipt issued_at"),
@@ -270,7 +270,7 @@ def resolve_release_chain(
     trust.verify_embedded_signature(
         receipt,
         signer_registry=active_signer_registry,
-        object_schema_version="openadapt.qualification-evidence-decision-receipt/v1",
+        object_schema_version="openadapt.qualification-evidence-decision-receipt/v2",
         signature_domain=trust.DECISION_RECEIPT_SIGNATURE_DOMAIN,
         usage="qualification-evidence-decision-receipt",
         now=verification_time,
@@ -305,7 +305,7 @@ def resolve_workflow_receipt(
     trust.verify_embedded_signature(
         receipt,
         signer_registry=receipt_signer_registry,
-        object_schema_version="openadapt.qualification-evidence-decision-receipt/v1",
+        object_schema_version="openadapt.qualification-evidence-decision-receipt/v2",
         signature_domain=trust.DECISION_RECEIPT_SIGNATURE_DOMAIN,
         usage="qualification-evidence-decision-receipt",
         now=trust.require_timestamp(receipt["issued_at"], "receipt issued_at"),
@@ -313,7 +313,7 @@ def resolve_workflow_receipt(
     trust.verify_embedded_signature(
         receipt,
         signer_registry=active_signer_registry,
-        object_schema_version="openadapt.qualification-evidence-decision-receipt/v1",
+        object_schema_version="openadapt.qualification-evidence-decision-receipt/v2",
         signature_domain=trust.DECISION_RECEIPT_SIGNATURE_DOMAIN,
         usage="qualification-evidence-decision-receipt",
         now=verification_time,

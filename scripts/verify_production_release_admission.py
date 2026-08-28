@@ -216,12 +216,22 @@ def verify_sigstore(
     policy: dict[str, Any],
 ) -> None:
     sigstore = policy["sigstore"]
-    identities = {
-        item["kind"]: item for item in sigstore["certificate_identities"]
-    }
-    identity = identities.get(kind)
-    if identity is None:
-        raise trust.TrustError(f"no keyless identity is registered for {kind}")
+    evidence_class = (
+        object_value.get("evidence_class", "private-customer")
+        if kind == "qualification-evidence-decision-receipt"
+        else "not-applicable"
+    )
+    identities = [
+        item
+        for item in sigstore["certificate_identities"]
+        if item["kind"] == kind
+        and item.get("evidence_class") == evidence_class
+    ]
+    if len(identities) != 1:
+        raise trust.TrustError(
+            f"exactly one keyless identity must be registered for {kind}"
+        )
+    identity = identities[0]
     profile = identity.get("bundle_profile")
     if profile == "sigstore-message-signature":
         verify_message_signature(
@@ -528,7 +538,7 @@ def main(argv: list[str] | None = None) -> int:
             receipt,
             signer_registry=receipt_signer_registry,
             object_schema_version=(
-                "openadapt.qualification-evidence-decision-receipt/v1"
+                "openadapt.qualification-evidence-decision-receipt/v2"
             ),
             signature_domain=trust.DECISION_RECEIPT_SIGNATURE_DOMAIN,
             usage="qualification-evidence-decision-receipt",
@@ -538,7 +548,7 @@ def main(argv: list[str] | None = None) -> int:
             receipt,
             signer_registry=receipt_current_signer_registry,
             object_schema_version=(
-                "openadapt.qualification-evidence-decision-receipt/v1"
+                "openadapt.qualification-evidence-decision-receipt/v2"
             ),
             signature_domain=trust.DECISION_RECEIPT_SIGNATURE_DOMAIN,
             usage="qualification-evidence-decision-receipt",

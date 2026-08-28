@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "qualification-issuer-request.schema.json",
+  "title": "OpenAdapt canonical qualification issuer request",
+  "oneOf": [
+    {"$ref": "#/$defs/workflow_request"},
+    {"$ref": "#/$defs/release_request"}
+  ],
+  "$defs": {
+    "request_handle": {
+      "type": "string",
+      "pattern": "^qair_[A-Za-z0-9_-]{43}$"
+    },
+    "reference": {
+      "$ref": "production-evidence-object-reference.schema.json"
+    },
+    "workflow_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "request_handle", "evidence_class",
+        "decision_receipt_reference"
+      ],
+      "properties": {
+        "schema_version": {"const": "openadapt.qualification-admission-issue-request/v1"},
+        "request_handle": {"$ref": "#/$defs/request_handle"},
+        "evidence_class": {"const": "remote-safe-synthetic"},
+        "decision_receipt_reference": {"$ref": "#/$defs/reference"}
+      }
+    },
+    "release_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "request_handle", "evidence_class",
+        "production_acceptance_summary_reference"
+      ],
+      "properties": {
+        "schema_version": {"const": "openadapt.qualification-release-issue-request/v1"},
+        "request_handle": {"$ref": "#/$defs/request_handle"},
+        "evidence_class": {"const": "remote-safe-synthetic"},
+        "production_acceptance_summary_reference": {"$ref": "#/$defs/reference"}
+      }
+    }
+  }
+}

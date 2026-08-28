@@ -99,7 +99,7 @@ def _resign_receipt(value: dict, private_key: Ed25519PrivateKey) -> None:
     value["signing_statement"] = trust.signing_statement(
         value,
         object_schema_version=(
-            "openadapt.qualification-evidence-decision-receipt/v1"
+            "openadapt.qualification-evidence-decision-receipt/v2"
         ),
         signature_domain=trust.DECISION_RECEIPT_SIGNATURE_DOMAIN,
     )
@@ -149,8 +149,9 @@ def decision_receipt_fixture(
     }
     receipt = {
         "schema_version": (
-            "openadapt.qualification-evidence-decision-receipt/v1"
+            "openadapt.qualification-evidence-decision-receipt/v2"
         ),
+        "evidence_class": "private-customer",
         "decision_identity_sha256": sha("a"),
         "decision_revision": 1,
         "decision_commitment_sha256": sha("b"),
@@ -347,6 +348,7 @@ def release_admission() -> dict:
     value = {
         "schema_version": "openadapt.qualification-release/v1",
         "admission_id_sha256": sha("0"),
+        "evidence_class": "remote-safe-synthetic",
         "target": "capture",
         "verdict": "accepted",
         "claim_scope": "production_capture",

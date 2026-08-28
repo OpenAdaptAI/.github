@@ -7,6 +7,7 @@
   "required": [
     "schema_version",
     "admission_id_sha256",
+    "evidence_class",
     "target",
     "verdict",
     "claim_scope",
@@ -30,6 +31,7 @@
   "properties": {
     "schema_version": {"const": "openadapt.qualification-release/v1"},
     "admission_id_sha256": {"$ref": "#/$defs/digest"},
+    "evidence_class": {"enum": ["private-customer", "remote-safe-synthetic"]},
     "target": {"$ref": "#/$defs/target"},
     "verdict": {"const": "accepted"},
     "claim_scope": {"type": "string", "pattern": "^production_[a-z]+$"},

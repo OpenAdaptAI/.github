@@ -210,7 +210,7 @@ PRODUCTION_EVIDENCE_IDENTITY_DOMAIN = (
     b"OpenAdapt production acceptance evidence identity v2\0"
 )
 DECISION_RECEIPT_SIGNATURE_DOMAIN = (
-    b"OpenAdapt qualification evidence decision receipt v1\0"
+    b"OpenAdapt qualification evidence decision receipt v2\0"
 )
 AUTHORITY_STATE_SIGNATURE_DOMAIN = (
     b"OpenAdapt qualification authority state receipt v2\0"
@@ -650,7 +650,7 @@ def validate_release(value: Any, *, now: datetime | None = None) -> dict[str, An
     release_admission = closed(
         value,
         {
-            "schema_version", "admission_id_sha256", "target", "verdict", "claim_scope",
+            "schema_version", "admission_id_sha256", "evidence_class", "target", "verdict", "claim_scope",
             "release_identity", "release", "release_sha256", "artifact_inventory_sha256",
             "publication_staging", "publication_staging_sha256",
             "production_acceptance_summary_reference",
@@ -662,6 +662,11 @@ def validate_release(value: Any, *, now: datetime | None = None) -> dict[str, An
     )
     if release_admission["schema_version"] != "openadapt.qualification-release/v1" or release_admission["verdict"] != "accepted":
         raise TrustError("qualification release schema or verdict is invalid")
+    if release_admission["evidence_class"] not in {
+        "private-customer",
+        "remote-safe-synthetic",
+    }:
+        raise TrustError("qualification release evidence class is invalid")
     if release_admission["target"] not in TARGETS:
         raise TrustError("qualification release target is invalid")
     target_contract = TARGET_CONTRACTS[release_admission["target"]]
@@ -1184,7 +1189,7 @@ def _validate_receipt_structure(
     value: Any, *, now: datetime | None = None
 ) -> dict[str, Any]:
     fields = {
-        "schema_version", "decision_identity_sha256", "decision_revision",
+        "schema_version", "evidence_class", "decision_identity_sha256", "decision_revision",
         "decision_commitment_sha256", "evidence_manifest_sha256",
         "evidence_manifest_readback_sha256",
         "campaign_artifact_sha256", "organization_id_sha256", "workflow_id_sha256",
@@ -1199,10 +1204,16 @@ def _validate_receipt_structure(
         "issuer",
     }
     receipt = closed(value, fields, "qualification evidence decision receipt")
-    if receipt["schema_version"] != "openadapt.qualification-evidence-decision-receipt/v1" or receipt["verdict"] != "ADMIT":
+    if receipt["schema_version"] != "openadapt.qualification-evidence-decision-receipt/v2" or receipt["verdict"] != "ADMIT":
         raise TrustError("decision receipt schema or verdict is invalid")
+    evidence_class = receipt["evidence_class"]
+    if evidence_class not in {
+        "private-customer",
+        "remote-safe-synthetic",
+    }:
+        raise TrustError("decision receipt evidence class is invalid")
     digest_fields = fields - {
-        "schema_version", "decision_revision", "bundle_version", "entity_class",
+        "schema_version", "evidence_class", "decision_revision", "bundle_version", "entity_class",
         "campaign_summary", "verdict",
         "issued_at", "not_before", "expires_at", "issuer_key_id", "algorithm",
         "signing_statement", "signature",
@@ -1262,7 +1273,7 @@ def _validate_receipt_structure(
         raise TrustError("decision receipt signature must contain 64 bytes")
     validate_signing_statement(
         receipt,
-        object_schema_version="openadapt.qualification-evidence-decision-receipt/v1",
+        object_schema_version="openadapt.qualification-evidence-decision-receipt/v2",
         signature_domain=DECISION_RECEIPT_SIGNATURE_DOMAIN,
     )
     issuer = closed(
@@ -1270,16 +1281,37 @@ def _validate_receipt_structure(
         {"repository", "repository_id", "repository_owner_id", "workflow", "ref", "source_commit", "environment"},
         "decision receipt issuer",
     )
+    expected_issuer = (
+        {
+            "repository": "OpenAdaptAI/openadapt-internal",
+            "repository_id": "1170060695",
+            "repository_owner_id": "132681217",
+            "workflow": (
+                ".github/workflows/"
+                "issue-private-qualification-evidence-decision.yml"
+            ),
+            "ref": "refs/heads/main",
+            "environment": "private-qualification-evidence-decision",
+        }
+        if evidence_class == "private-customer"
+        else {
+            "repository": "OpenAdaptAI/.github",
+            "repository_id": "858454062",
+            "repository_owner_id": "132681217",
+            "workflow": (
+                ".github/workflows/"
+                "issue-synthetic-qualification-evidence-decision.yml"
+            ),
+            "ref": "refs/heads/main",
+            "environment": "synthetic-qualification-evidence-decision",
+        }
+    )
+    actual_issuer = dict(issuer)
+    source_commit = actual_issuer.pop("source_commit")
     if (
-        issuer["repository"] != "OpenAdaptAI/openadapt-internal"
-        or issuer["repository_id"] != "1170060695"
-        or issuer["repository_owner_id"] != "132681217"
-        or issuer["workflow"]
-        != ".github/workflows/issue-private-qualification-evidence-decision.yml"
-        or issuer["ref"] != "refs/heads/main"
-        or issuer["environment"] != "private-qualification-evidence-decision"
-        or not isinstance(issuer["source_commit"], str)
-        or HEX40.fullmatch(issuer["source_commit"]) is None
+        actual_issuer != expected_issuer
+        or not isinstance(source_commit, str)
+        or HEX40.fullmatch(source_commit) is None
     ):
         raise TrustError("decision receipt issuer differs")
     validate_window(receipt, maximum=timedelta(days=7), now=now)
@@ -1307,7 +1339,7 @@ def validate_receipt(
         receipt,
         signer_registry=registry,
         object_schema_version=(
-            "openadapt.qualification-evidence-decision-receipt/v1"
+            "openadapt.qualification-evidence-decision-receipt/v2"
         ),
         signature_domain=DECISION_RECEIPT_SIGNATURE_DOMAIN,
         usage="qualification-evidence-decision-receipt",
@@ -1396,6 +1428,11 @@ def verify_embedded_signature(
     )
     if workflow_identity not in signer["allowed_workflows"]:
         raise TrustError("embedded signature workflow is not allowed for the key")
+    if (
+        "allowed_environments" in signer
+        and issuer.get("environment") not in signer["allowed_environments"]
+    ):
+        raise TrustError("embedded signature environment is not allowed for the key")
     ref = issuer["ref"]
     if not any(
         ref == prefix or ref.startswith(prefix.rstrip("/") + "/")
@@ -1749,7 +1786,7 @@ def validate_qualification_admission(
     value: Any, *, now: datetime | None = None
 ) -> dict[str, Any]:
     fields = {
-        "schema_version", "admission_id_sha256", "organization_id_sha256",
+        "schema_version", "admission_id_sha256", "evidence_class", "organization_id_sha256",
         "workflow_id_sha256", "workflow_version_id_sha256", "bundle_version",
         "bundle_sha256", "admitted_runtime_sha256", "application_contract_sha256",
         "environment_contract_sha256", "input_contract_sha256", "action_contract_sha256",
@@ -1763,6 +1800,11 @@ def validate_qualification_admission(
     admission = closed(value, fields, "qualification admission")
     if admission["schema_version"] != "openadapt.qualification-admission/v3" or admission["verdict"] != "accepted":
         raise TrustError("qualification admission schema or verdict is invalid")
+    if admission["evidence_class"] not in {
+        "private-customer",
+        "remote-safe-synthetic",
+    }:
+        raise TrustError("qualification admission evidence class is invalid")
     for field in fields:
         if field.endswith("_sha256"):
             require_digest(admission[field], field)
@@ -1873,6 +1915,7 @@ def _validate_receipt_admission_binding(
         kind="qualification-evidence-decision-receipt",
     )
     bindings = {
+        "evidence_class": "evidence_class",
         "organization_id_sha256": "organization_id_sha256",
         "workflow_id_sha256": "workflow_id_sha256",
         "workflow_version_id_sha256": "workflow_version_id_sha256",
@@ -2197,6 +2240,9 @@ def validate_release_evidence_chain(
         now=now,
     )
     bound_manifest = dict(manifest)
+    receipt_class = receipt.get("evidence_class") if isinstance(receipt, dict) else None
+    if release["evidence_class"] != receipt_class:
+        raise TrustError("release admission evidence class differs from its receipt")
     for field in (
         "target", "claim_scope", "release_identity", "release_sha256",
         "artifact_inventory_sha256", "publication_staging",

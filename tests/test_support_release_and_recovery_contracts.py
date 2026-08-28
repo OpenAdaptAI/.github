@@ -389,6 +389,7 @@ class SupportReleaseAdmissionTests(unittest.TestCase):
         value.pop("lifecycle_state")
         value.pop("support_target")
         value["schema_version"] = "openadapt.qualification-release/v1"
+        value["evidence_class"] = "remote-safe-synthetic"
         value["target"] = "openadapt-tray"
         value["production_acceptance_summary_reference"] = evidence_reference(
             "production-acceptance-summary"

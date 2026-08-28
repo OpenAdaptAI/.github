@@ -451,6 +451,7 @@ EXPECTED_TOP_LEVEL_FIELDS = {
     "qualification-admission.schema.json": {
         "schema_version",
         "admission_id_sha256",
+        "evidence_class",
         "organization_id_sha256",
         "workflow_id_sha256",
         "workflow_version_id_sha256",
@@ -482,6 +483,7 @@ EXPECTED_TOP_LEVEL_FIELDS = {
     },
     "qualification-evidence-decision-receipt.schema.json": {
         "schema_version",
+        "evidence_class",
         "decision_identity_sha256",
         "decision_revision",
         "decision_commitment_sha256",
@@ -520,6 +522,7 @@ EXPECTED_TOP_LEVEL_FIELDS = {
     "qualification-release.schema.json": {
         "schema_version",
         "admission_id_sha256",
+        "evidence_class",
         "target",
         "verdict",
         "claim_scope",
@@ -659,12 +662,29 @@ class PublicTrustSchemaTests(unittest.TestCase):
             [item["kind"] for item in identities],
             sorted(item["kind"] for item in identities),
         )
-        profiles = {item["kind"]: item["bundle_profile"] for item in identities}
+        profiles = {
+            (item["kind"], item["evidence_class"]): item["bundle_profile"]
+            for item in identities
+        }
         self.assertEqual(
-            profiles["qualification-evidence-decision-receipt"],
+            profiles[
+                ("qualification-evidence-decision-receipt", "private-customer")
+            ],
             "sigstore-message-signature",
         )
-        self.assertEqual(profiles["qualification-release"], "github-attestation")
+        self.assertEqual(
+            profiles[
+                (
+                    "qualification-evidence-decision-receipt",
+                    "remote-safe-synthetic",
+                )
+            ],
+            "github-attestation",
+        )
+        self.assertEqual(
+            profiles[("qualification-release", "not-applicable")],
+            "github-attestation",
+        )
         message = policy["message_signature"]
         self.assertEqual(message["version"], "3.1.3")
         self.assertEqual(message["runner"], "ubuntu-24.04")

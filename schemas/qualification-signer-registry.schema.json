@@ -26,6 +26,7 @@
     "signer": {
       "oneOf": [
         {"$ref": "#/$defs/ed25519_signer"},
+        {"$ref": "#/$defs/kms_ed25519_signer"},
         {"$ref": "#/$defs/public_trust_p256_signer"}
       ]
     },
@@ -90,6 +91,33 @@
         "revoked_at": {
           "oneOf": [{"$ref": "#/$defs/timestamp"}, {"type": "null"}]
         }
+      }
+    },
+    "kms_ed25519_signer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm", "key_id", "key_origin", "kms_key_arn", "public_key",
+        "public_key_spki_der_base64", "public_key_sha256", "signature_encoding",
+        "statement_schema_versions", "allowed_usages", "allowed_workflows",
+        "allowed_ref_prefixes", "allowed_environments", "status", "revoked_at"
+      ],
+      "properties": {
+        "algorithm": {"const": "ed25519"},
+        "key_id": {"type": "string", "pattern": "^qa-ed25519-[0-9a-f]{16}$"},
+        "key_origin": {"const": "aws-kms"},
+        "kms_key_arn": {"type": "string", "pattern": "^arn:aws:kms:us-east-1:992382684924:key/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
+        "public_key": {"type": "string", "pattern": "^[A-Za-z0-9_-]{43}$"},
+        "public_key_spki_der_base64": {"type": "string", "pattern": "^[A-Za-z0-9+/]{59}=$"},
+        "public_key_sha256": {"$ref": "#/$defs/digest"},
+        "signature_encoding": {"const": "raw-64-base64-rfc4648-padded"},
+        "statement_schema_versions": {"const": ["openadapt.qualification-evidence-signing-statement/v1"]},
+        "allowed_usages": {"const": ["qualification-evidence-decision-receipt"]},
+        "allowed_workflows": {"const": ["https://github.com/OpenAdaptAI/.github/.github/workflows/issue-synthetic-qualification-evidence-decision.yml@refs/heads/main"]},
+        "allowed_ref_prefixes": {"const": ["refs/heads/main"]},
+        "allowed_environments": {"const": ["synthetic-qualification-evidence-decision"]},
+        "status": {"enum": ["active", "revoked"]},
+        "revoked_at": {"oneOf": [{"$ref": "#/$defs/timestamp"}, {"type": "null"}]}
       }
     },
     "public_trust_p256_signer": {

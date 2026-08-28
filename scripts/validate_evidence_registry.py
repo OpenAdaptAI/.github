@@ -65,6 +65,10 @@ TIMESTAMP = re.compile(
     r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
 )
 KEY_ID = re.compile(r"^qa-ed25519-[0-9a-f]{16}$")
+KMS_ED25519_ARN = re.compile(
+    r"^arn:aws:kms:us-east-1:992382684924:key/"
+    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+)
 WORKFLOW_IDENTITY = re.compile(
     r"^https://github\.com/OpenAdaptAI/[A-Za-z0-9_.-]+/\.github/workflows/"
     r"[A-Za-z0-9_.-]+\.ya?ml@refs/heads/[A-Za-z0-9._/-]+$"
@@ -125,8 +129,8 @@ REGULAR_KIND_CONTRACTS: dict[str, tuple[str, str]] = {
         "application/vnd.openadapt.qualification-campaign-permit-request+json;version=3",
     ),
     "qualification-evidence-decision-receipt": (
-        "openadapt.qualification-evidence-decision-receipt/v1",
-        "application/vnd.openadapt.qualification-evidence-decision-receipt+json;version=1",
+        "openadapt.qualification-evidence-decision-receipt/v2",
+        "application/vnd.openadapt.qualification-evidence-decision-receipt+json;version=2",
     ),
     "qualification-release": (
         "openadapt.qualification-release/v1",
@@ -228,12 +232,19 @@ def semantic_identity_digest(
             raise EvidenceRegistryError("decision receipt identity object is invalid")
         decision_identity = object_value.get("decision_identity_sha256")
         decision_revision = object_value.get("decision_revision")
+        evidence_class = object_value.get("evidence_class")
         _digest(decision_identity, "decision identity")
         _positive_integer(decision_revision, "decision revision")
+        if evidence_class not in {
+            "private-customer",
+            "remote-safe-synthetic",
+        }:
+            raise EvidenceRegistryError("decision evidence class is invalid")
         payload = {
             "decision_identity_sha256": decision_identity,
             "decision_revision": decision_revision,
         }
+        payload["evidence_class"] = evidence_class
         domain = DECISION_RECEIPT_IDENTITY_DOMAIN
     elif kind in {
         "qualification-authority-state-receipt",
@@ -304,23 +315,33 @@ def validate_signer_registry(value: Any) -> dict[str, Any]:
                         f"{label} revocation time is outside the registry lifetime"
                     )
             continue
-        signer = _closed(
-            signer_value,
-            {
-                "algorithm",
-                "key_id",
-                "public_key",
-                "public_key_spki_der_base64",
-                "public_key_sha256",
-                "statement_schema_versions",
-                "allowed_usages",
-                "allowed_workflows",
-                "allowed_ref_prefixes",
-                "status",
-                "revoked_at",
-            },
-            label,
+        kms_ed25519 = (
+            signer_value.get("algorithm") == "ed25519"
+            and signer_value.get("key_origin") == "aws-kms"
         )
+        signer_fields = {
+            "algorithm",
+            "key_id",
+            "public_key",
+            "public_key_spki_der_base64",
+            "public_key_sha256",
+            "statement_schema_versions",
+            "allowed_usages",
+            "allowed_workflows",
+            "allowed_ref_prefixes",
+            "status",
+            "revoked_at",
+        }
+        if kms_ed25519:
+            signer_fields.update(
+                {
+                    "key_origin",
+                    "kms_key_arn",
+                    "signature_encoding",
+                    "allowed_environments",
+                }
+            )
+        signer = _closed(signer_value, signer_fields, label)
         if signer["algorithm"] != "ed25519":
             raise EvidenceRegistryError(f"{label} algorithm must be ed25519")
         key_id = signer["key_id"]
@@ -380,6 +401,15 @@ def validate_signer_registry(value: Any) -> dict[str, Any]:
             raise EvidenceRegistryError(
                 f"{label} recovery usage must use a distinct signer"
             )
+        if kms_ed25519 and (
+            signer["kms_key_arn"] is None
+            or not isinstance(signer["kms_key_arn"], str)
+            or KMS_ED25519_ARN.fullmatch(signer["kms_key_arn"]) is None
+            or signer["signature_encoding"]
+            != "raw-64-base64-rfc4648-padded"
+            or usages != ["qualification-evidence-decision-receipt"]
+        ):
+            raise EvidenceRegistryError(f"{label} AWS KMS Ed25519 profile differs")
         workflows = signer["allowed_workflows"]
         if (
             not isinstance(workflows, list)
@@ -405,6 +435,21 @@ def validate_signer_registry(value: Any) -> dict[str, Any]:
             )
         ):
             raise EvidenceRegistryError(f"{label} ref-prefix allowlist is invalid")
+        if kms_ed25519:
+            expected_workflow = (
+                "https://github.com/OpenAdaptAI/.github/.github/workflows/"
+                "issue-synthetic-qualification-evidence-decision.yml"
+                "@refs/heads/main"
+            )
+            if (
+                workflows != [expected_workflow]
+                or prefixes != ["refs/heads/main"]
+                or signer["allowed_environments"]
+                != ["synthetic-qualification-evidence-decision"]
+            ):
+                raise EvidenceRegistryError(
+                    f"{label} AWS KMS Ed25519 authority differs"
+                )
         if signer["status"] == "active":
             if signer["revoked_at"] is not None:
                 raise EvidenceRegistryError(

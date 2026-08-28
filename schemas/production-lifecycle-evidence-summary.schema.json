@@ -99,8 +99,8 @@
         {"$ref": "#/$defs/regular_reference"},
         {"properties": {
           "kind": {"const": "qualification-evidence-decision-receipt"},
-          "object_schema_version": {"const": "openadapt.qualification-evidence-decision-receipt/v1"},
-          "object_media_type": {"const": "application/vnd.openadapt.qualification-evidence-decision-receipt+json;version=1"}
+          "object_schema_version": {"const": "openadapt.qualification-evidence-decision-receipt/v2"},
+          "object_media_type": {"const": "application/vnd.openadapt.qualification-evidence-decision-receipt+json;version=2"}
         }}
       ]
     },

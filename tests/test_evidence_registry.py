@@ -553,13 +553,14 @@ class EvidenceRegistryTests(unittest.TestCase):
 
     def test_decision_revision_semantic_identity_cannot_conflict(self) -> None:
         receipt_identity = {
+            "evidence_class": "private-customer",
             "decision_identity_sha256": sha("1"),
             "decision_revision": 7,
         }
         semantic = registry.semantic_identity_digest(
             kind="qualification-evidence-decision-receipt",
             object_schema_version=(
-                "openadapt.qualification-evidence-decision-receipt/v1"
+                "openadapt.qualification-evidence-decision-receipt/v2"
             ),
             object_value=receipt_identity,
             object_sha256=sha("2"),
