@@ -436,6 +436,233 @@ def revocation_ancestry(
         state = previous_state
 
 
+def validate_resolved_feed(
+    feed: dict[str, object], *, verification_time: datetime
+) -> dict[str, object]:
+    """Resolve the complete v2 chain and return its active signed projection."""
+
+    active_signer_registry = signer_registry(feed)
+    checkpoints = [
+        registered_pair(
+            pair,
+            kind="production-lifecycle-checkpoint",
+            prefix=f"lifecycle checkpoint {index}",
+        )
+        for index, pair in enumerate(feed["checkpoints"])
+    ]
+    decision_series: dict[tuple[str, int], str] = {}
+    for checkpoint in checkpoints:
+        current, releases, workflows, authority, revocation = checkpoint_children(
+            checkpoint
+        )
+        registry_identity = evidence.signer_registry_identity_digest(
+            active_signer_registry
+        )
+        signer_pointer = evidence._validate_signer_pointer(
+            checkpoint["signer_registry"]
+        )
+        assert signer_pointer is not None
+        if (
+            signer_pointer["registry_identity_sha256"] != registry_identity
+            or authority["signer_registry_identity_sha256"] != registry_identity
+            or authority["signer_registry_sha256"] != signer_pointer["object_sha256"]
+            or authority["signer_registry_revision"]
+            != active_signer_registry["revision"]
+            or revocation["signer_registry_sha256"] != registry_identity
+            or revocation["authority_state_sha256"]
+            != authority["authority_state_sha256"]
+        ):
+            raise trust.TrustError(
+                "checkpoint authority, revocation, or signer registry binding differs"
+            )
+        trust.verify_embedded_signature(
+            authority,
+            signer_registry=active_signer_registry,
+            object_schema_version=(
+                "openadapt.qualification-authority-state-receipt/v2"
+            ),
+            signature_domain=trust.AUTHORITY_STATE_SIGNATURE_DOMAIN,
+            usage="qualification-authority-state-receipt",
+            now=verification_time,
+        )
+        trust.verify_embedded_signature(
+            revocation,
+            signer_registry=active_signer_registry,
+            object_schema_version=(
+                "openadapt.qualification-revocation-state-receipt/v1"
+            ),
+            signature_domain=trust.REVOCATION_STATE_SIGNATURE_DOMAIN,
+            usage="qualification-revocation-state-receipt",
+            now=verification_time,
+        )
+        for signer in active_signer_registry["signers"]:
+            if signer["status"] == "active":
+                refuse_revoked(
+                    revocation,
+                    subject_kind="qualification-signer-key",
+                    subject_id=signer["public_key_sha256"],
+                )
+
+        summaries: list[dict[str, object]] = []
+        manifests: list[dict[str, object]] = []
+        receipts: list[dict[str, object]] = []
+        for release, pair_value in zip(
+            releases, checkpoint["release_admissions"], strict=True
+        ):
+            summary, manifest, receipt, admission = resolve_release_chain(
+                release,
+                active_signer_registry=active_signer_registry,
+                verification_time=verification_time,
+            )
+            summaries.append(summary)
+            manifests.append(manifest)
+            receipts.append(receipt)
+            for item_reference in (
+                pair_value["admission_reference"],
+                summary["qualification_admission_reference"],
+                summary["qualification_evidence_decision_receipt_reference"],
+            ):
+                refuse_revoked(
+                    revocation,
+                    subject_kind=item_reference["kind"],
+                    subject_id=item_reference["semantic_identity_sha256"],
+                )
+            if (
+                release["authority_state_sha256"]
+                != authority["authority_state_sha256"]
+                or release["revocation_state_sha256"]
+                != revocation["revocation_state_sha256"]
+                or release["signer_registry_sha256"] != registry_identity
+            ):
+                raise trust.TrustError("release chain current authority state differs")
+
+        for admission, pair_value in zip(
+            workflows, checkpoint["workflow_admissions"], strict=True
+        ):
+            receipt = resolve_workflow_receipt(
+                admission,
+                active_signer_registry=active_signer_registry,
+                verification_time=verification_time,
+            )
+            receipts.append(receipt)
+            for item_reference in (
+                pair_value["admission_reference"],
+                admission["decision_receipt_reference"],
+            ):
+                refuse_revoked(
+                    revocation,
+                    subject_kind=item_reference["kind"],
+                    subject_id=item_reference["semantic_identity_sha256"],
+                )
+            if (
+                admission["revocation_state_sha256"]
+                != revocation["revocation_state_sha256"]
+                or admission["signer_registry_sha256"] != registry_identity
+            ):
+                raise trust.TrustError("workflow admission current trust state differs")
+
+        for receipt in receipts:
+            series = (
+                receipt["decision_identity_sha256"],
+                receipt["decision_revision"],
+            )
+            object_sha = "sha256:" + hashlib.sha256(
+                evidence.canonical(receipt) + b"\n"
+            ).hexdigest()
+            previous_sha = decision_series.setdefault(series, object_sha)
+            if previous_sha != object_sha:
+                raise trust.TrustError(
+                    "one qualification decision series has conflicting receipts"
+                )
+            if (
+                receipt["revocation_state_sha256"]
+                != revocation["revocation_state_sha256"]
+                or receipt["signer_registry_sha256"] != registry_identity
+            ):
+                raise trust.TrustError(
+                    "qualification decision receipt current trust state differs"
+                )
+
+        for default_target, release in zip(current["targets"], releases, strict=True):
+            if (
+                default_target["target"] != release["target"]
+                or default_target["release_sha256"] != release["release_sha256"]
+                or default_target["artifact_inventory_sha256"]
+                != release["artifact_inventory_sha256"]
+                or default_target["qualification_release_sha256"]
+                != checkpoint["release_admissions"][
+                    trust.TARGETS.index(release["target"])
+                ]["admission_reference"]["object_sha256"]
+            ):
+                raise trust.TrustError(
+                    "current default differs from its release admission"
+                )
+        trust.validate_checkpoint_expiry_containment(
+            checkpoint,
+            signer_registry=active_signer_registry,
+            current_default=current,
+            release_admissions=releases,
+            workflow_admissions=workflows,
+            authority_state=authority,
+            revocation_state=revocation,
+            acceptance_summaries=summaries,
+            acceptance_manifests=manifests,
+            decision_receipts=receipts,
+        )
+    trust.validate_feed_expiry_containment(
+        feed,
+        checkpoints=checkpoints,
+        signer_registry=active_signer_registry,
+        now=verification_time,
+    )
+    active = [
+        checkpoint
+        for checkpoint in checkpoints
+        if trust.require_timestamp(checkpoint["not_before"], "checkpoint not_before")
+        <= verification_time
+        < trust.require_timestamp(checkpoint["expires_at"], "checkpoint expires_at")
+    ]
+    if len(active) != 1:
+        raise trust.TrustError("lifecycle feed does not select one active checkpoint")
+    return active[0]["lifecycle_projection"]
+
+
+def validate_feed_commit(
+    feed_commit: str,
+    *,
+    trusted_main: str,
+    verification_time: datetime | None = None,
+) -> tuple[dict[str, object], dict[str, object], bytes]:
+    """Validate an exact protected feed commit and its complete v2 chain."""
+
+    if trust.HEX40.fullmatch(feed_commit) is None:
+        raise trust.TrustError("lifecycle feed commit must be exact")
+    if trust.HEX40.fullmatch(trusted_main) is None:
+        raise trust.TrustError("trusted main commit must be exact")
+    ensure_commit(feed_commit)
+    ensure_commit(trusted_main)
+    commit = git("rev-parse", f"{feed_commit}^{{commit}}").decode().strip()
+    if commit != feed_commit:
+        raise trust.TrustError("lifecycle feed commit is not exact")
+    parent = git("rev-parse", f"{feed_commit}^").decode().strip()
+    if parent != trusted_main:
+        raise trust.TrustError("lifecycle feed commit is not based on current main")
+    changed = git(
+        "diff", "--name-only", "--diff-filter=ACMR", trusted_main, feed_commit
+    ).decode().splitlines()
+    if changed != ["production-lifecycle-feed.json"]:
+        raise trust.TrustError("lifecycle commit changes files outside the feed")
+    feed_raw = git_file(feed_commit, "production-lifecycle-feed.json")
+    now = verification_time or datetime.now(timezone.utc)
+    feed = trust.validate_feed(json.loads(feed_raw), now=now)
+    if feed_raw != evidence.canonical(feed) + b"\n":
+        raise trust.TrustError("feed is not canonical JSON followed by one LF")
+    if feed["registry_source_commit"] != trusted_main:
+        raise trust.TrustError("feed registry commit is not current protected main")
+    projection = validate_resolved_feed(feed, verification_time=now)
+    return feed, projection, feed_raw
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--update-json", required=True)
