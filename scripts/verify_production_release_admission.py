@@ -26,6 +26,9 @@ POLICY_PATH = ROOT / "production-evidence-policy.json"
 VERIFICATION_RECEIPT_DOMAIN = (
     b"OpenAdapt qualification release verification receipt v1\0"
 )
+VERIFICATION_RECEIPT_V2_DOMAIN = (
+    b"OpenAdapt qualification release verification receipt v2\0"
+)
 
 
 def load_json_argument(value: str) -> Any:
@@ -209,10 +212,21 @@ def verification_receipt(
         "registry_head_sha256": admission_reference["registry_head_sha256"],
         "trust_state_source_commit": trust_state_source_commit,
     }
+    receipt_domain = VERIFICATION_RECEIPT_DOMAIN
+    if admission["target"] != "flow":
+        receipt.update(
+            schema_version=(
+                "openadapt.qualification-release-verification-receipt/v2"
+            ),
+            release_kind=admission["release"]["kind"],
+            deployment_id=admission["release"]["deployment_id"],
+            deployment_sha256=admission["release"]["deployment_sha256"],
+        )
+        receipt_domain = VERIFICATION_RECEIPT_V2_DOMAIN
     projection = dict(receipt)
     projection.pop("verification_id_sha256")
     receipt["verification_id_sha256"] = trust.digest_bytes(
-        VERIFICATION_RECEIPT_DOMAIN, projection
+        receipt_domain, projection
     )
     return receipt
 

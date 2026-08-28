@@ -927,6 +927,23 @@ class ProductionTrustTests(unittest.TestCase):
         with self.assertRaisesRegex(trust.TrustError, "bypass"):
             trust.validate_release(invalid)
 
+    def test_release_refuses_noncanonical_or_output_injecting_package_identity(
+        self,
+    ) -> None:
+        for version, tag in (
+            ("1.0.0\ntarget=cloud", "v1.0.0"),
+            ("1.0.0", "v1.0.1"),
+            ("01.0.0", "v01.0.0"),
+        ):
+            with self.subTest(version=version, tag=tag):
+                invalid = release_admission()
+                invalid["release"]["version"] = version
+                invalid["release"]["tag"] = tag
+                with self.assertRaisesRegex(
+                    trust.TrustError, "package version or tag"
+                ):
+                    trust.validate_release(invalid)
+
     def test_local_artifact_inventory_refuses_extra_file(self) -> None:
         value = release_admission()
         artifacts = value["release"]["artifacts"]

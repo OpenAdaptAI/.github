@@ -840,13 +840,17 @@ def validate_release(value: Any, *, now: datetime | None = None) -> dict[str, An
         or HEX40.fullmatch(release["source_commit"]) is None
     ):
         raise TrustError("release source commit must be exact")
+    if release["kind"] != "deployment" and (
+        not isinstance(release["version"], str)
+        or BUNDLE_VERSION.fullmatch(release["version"]) is None
+        or not isinstance(release["tag"], str)
+        or RELEASE_TAG.fullmatch(release["tag"]) is None
+        or release["tag"] != f"v{release['version']}"
+    ):
+        raise TrustError("release package version or tag is invalid")
     if release["kind"] == "package":
         if (
-            not isinstance(release["version"], str)
-            or not release["version"]
-            or not isinstance(release["tag"], str)
-            or not release["tag"]
-            or release["deployment_id"] is not None
+            release["deployment_id"] is not None
             or release["deployment_sha256"] is not None
         ):
             raise TrustError("package release identity fields are invalid")
@@ -859,13 +863,6 @@ def validate_release(value: Any, *, now: datetime | None = None) -> dict[str, An
             raise TrustError("deployment release identity fields are invalid")
         require_digest(release["deployment_sha256"], "deployment digest")
     else:
-        if (
-            not isinstance(release["version"], str)
-            or not release["version"]
-            or not isinstance(release["tag"], str)
-            or not release["tag"]
-        ):
-            raise TrustError("hybrid package identity fields are invalid")
         require_decimal_id(release["deployment_id"], "deployment id")
         require_digest(release["deployment_sha256"], "deployment digest")
     artifacts = validate_artifacts(

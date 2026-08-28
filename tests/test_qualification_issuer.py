@@ -1357,6 +1357,37 @@ class QualificationIssuerTests(unittest.TestCase):
                     verification["workflow_bundle_sha256"],
                     workflow_admission["bundle_sha256"],
                 )
+                if target == "flow":
+                    self.assertEqual(
+                        verification["schema_version"],
+                        "openadapt.qualification-release-verification-receipt/v1",
+                    )
+                    self.assertNotIn("deployment_id", verification)
+                else:
+                    self.assertEqual(
+                        verification["schema_version"],
+                        "openadapt.qualification-release-verification-receipt/v2",
+                    )
+                    self.assertEqual(
+                        verification["release_kind"], release["release"]["kind"]
+                    )
+                    self.assertEqual(
+                        verification["deployment_id"],
+                        release["release"]["deployment_id"],
+                    )
+                    self.assertEqual(
+                        verification["deployment_sha256"],
+                        release["release"]["deployment_sha256"],
+                    )
+                    projection = dict(verification)
+                    verification_id = projection.pop("verification_id_sha256")
+                    self.assertEqual(
+                        verification_id,
+                        trust.digest_bytes(
+                            release_verifier.VERIFICATION_RECEIPT_V2_DOMAIN,
+                            projection,
+                        ),
+                    )
 
     def test_verifier_closes_package_deployment_and_hybrid_caller_identity(
         self,
