@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "qualification-release.schema.json",
-  "title": "OpenAdapt qualification release v1",
+  "title": "OpenAdapt qualification release v2",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -29,7 +29,7 @@
     "issuer"
   ],
   "properties": {
-    "schema_version": {"const": "openadapt.qualification-release/v1"},
+    "schema_version": {"const": "openadapt.qualification-release/v2"},
     "admission_id_sha256": {"$ref": "#/$defs/digest"},
     "evidence_class": {"enum": ["private-customer", "remote-safe-synthetic"]},
     "target": {"$ref": "#/$defs/target"},
@@ -294,8 +294,8 @@
         {"$ref": "production-evidence-object-reference.schema.json"},
         {"properties": {
           "kind": {"const": "production-acceptance-summary"},
-          "object_schema_version": {"const": "openadapt.production-lifecycle-evidence-summary/v2"},
-          "object_media_type": {"const": "application/vnd.openadapt.production-lifecycle-evidence-summary+json;version=2"},
+          "object_schema_version": {"const": "openadapt.production-lifecycle-evidence-summary/v3"},
+          "object_media_type": {"const": "application/vnd.openadapt.production-lifecycle-evidence-summary+json;version=3"},
           "subject_sha256": {"type": "null"}
         }}
       ]

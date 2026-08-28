@@ -77,12 +77,12 @@ BUNDLE_MEDIA_TYPE = "application/vnd.dev.sigstore.bundle.v0.3+json"
 
 REGULAR_KIND_CONTRACTS: dict[str, tuple[str, str]] = {
     "production-acceptance-manifest": (
-        "openadapt.production-acceptance/v2",
-        "application/vnd.openadapt.production-acceptance+json;version=2",
+        "openadapt.production-acceptance/v3",
+        "application/vnd.openadapt.production-acceptance+json;version=3",
     ),
     "production-acceptance-summary": (
-        "openadapt.production-lifecycle-evidence-summary/v2",
-        "application/vnd.openadapt.production-lifecycle-evidence-summary+json;version=2",
+        "openadapt.production-lifecycle-evidence-summary/v3",
+        "application/vnd.openadapt.production-lifecycle-evidence-summary+json;version=3",
     ),
     "production-cloud-deploy-authorization": (
         "openadapt.production-cloud-deploy-authorization/v1",
@@ -101,12 +101,12 @@ REGULAR_KIND_CONTRACTS: dict[str, tuple[str, str]] = {
         "application/vnd.openadapt.production-deployment-observation+json;version=1",
     ),
     "production-lifecycle-checkpoint": (
-        "openadapt.production-lifecycle-checkpoint/v1",
-        "application/vnd.openadapt.production-lifecycle-checkpoint+json;version=1",
+        "openadapt.production-lifecycle-checkpoint/v2",
+        "application/vnd.openadapt.production-lifecycle-checkpoint+json;version=2",
     ),
     "qualification-admission": (
-        "openadapt.qualification-admission/v3",
-        "application/vnd.openadapt.qualification-admission+json;version=3",
+        "openadapt.qualification-admission/v4",
+        "application/vnd.openadapt.qualification-admission+json;version=4",
     ),
     "qualification-authority-state-receipt": (
         "openadapt.qualification-authority-state-receipt/v2",
@@ -133,8 +133,8 @@ REGULAR_KIND_CONTRACTS: dict[str, tuple[str, str]] = {
         "application/vnd.openadapt.qualification-evidence-decision-receipt+json;version=2",
     ),
     "qualification-release": (
-        "openadapt.qualification-release/v1",
-        "application/vnd.openadapt.qualification-release+json;version=1",
+        "openadapt.qualification-release/v2",
+        "application/vnd.openadapt.qualification-release+json;version=2",
     ),
     "qualification-revocation-state-receipt": (
         "openadapt.qualification-revocation-state-receipt/v1",

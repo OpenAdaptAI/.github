@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "production-publication-recovery-authorization.schema.json",
-  "title": "OpenAdapt production publication recovery authorization v1",
+  "title": "OpenAdapt production publication recovery authorization v2",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -15,7 +15,7 @@
     "expires_at", "issuer"
   ],
   "properties": {
-    "schema_version": {"const": "openadapt.production-publication-recovery-authorization/v1"},
+    "schema_version": {"const": "openadapt.production-publication-recovery-authorization/v2"},
     "authorization_id_sha256": {"$ref": "#/$defs/digest"},
     "qualification_release_reference": {"$ref": "#/$defs/release_reference"},
     "qualification_release_object_sha256": {"$ref": "#/$defs/digest"},
@@ -78,8 +78,8 @@
         {"$ref": "production-evidence-object-reference.schema.json"},
         {"properties": {
           "kind": {"const": "qualification-release"},
-          "object_schema_version": {"const": "openadapt.qualification-release/v1"},
-          "object_media_type": {"const": "application/vnd.openadapt.qualification-release+json;version=1"},
+          "object_schema_version": {"const": "openadapt.qualification-release/v2"},
+          "object_media_type": {"const": "application/vnd.openadapt.qualification-release+json;version=2"},
           "subject_sha256": {"type": "null"}
         }}
       ]

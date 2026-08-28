@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "production-lifecycle-evidence-manifest.schema.json",
-  "title": "OpenAdapt production acceptance manifest v2",
+  "title": "OpenAdapt production acceptance manifest v3",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -32,7 +32,7 @@
     "issuer"
   ],
   "properties": {
-    "schema_version": {"const": "openadapt.production-acceptance/v2"},
+    "schema_version": {"const": "openadapt.production-acceptance/v3"},
     "target": {"enum": ["agent", "capture", "cloud", "desktop", "docs", "flow", "openadapt"]},
     "verdict": {"const": "accepted"},
     "claim_scope": {"type": "string", "pattern": "^production_[a-z]+$"},
@@ -113,8 +113,8 @@
         {"$ref": "#/$defs/regular_reference"},
         {"properties": {
           "kind": {"const": "qualification-admission"},
-          "object_schema_version": {"const": "openadapt.qualification-admission/v3"},
-          "object_media_type": {"const": "application/vnd.openadapt.qualification-admission+json;version=3"}
+          "object_schema_version": {"const": "openadapt.qualification-admission/v4"},
+          "object_media_type": {"const": "application/vnd.openadapt.qualification-admission+json;version=4"}
         }}
       ]
     },

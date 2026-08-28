@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "production-lifecycle-feed.schema.json",
-  "title": "OpenAdapt production lifecycle feed v1",
+  "title": "OpenAdapt production lifecycle feed v2",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -20,7 +20,7 @@
     "checkpoints"
   ],
   "properties": {
-    "schema_version": {"const": "openadapt.production-lifecycle-feed/v1"},
+    "schema_version": {"const": "openadapt.production-lifecycle-feed/v2"},
     "repository": {"const": "OpenAdaptAI/.github"},
     "repository_id": {"const": "858454062"},
     "repository_owner_id": {"const": "132681217"},
@@ -61,8 +61,8 @@
         {"$ref": "production-evidence-object-reference.schema.json"},
         {"properties": {
           "kind": {"const": "production-lifecycle-checkpoint"},
-          "object_schema_version": {"const": "openadapt.production-lifecycle-checkpoint/v1"},
-          "object_media_type": {"const": "application/vnd.openadapt.production-lifecycle-checkpoint+json;version=1"},
+          "object_schema_version": {"const": "openadapt.production-lifecycle-checkpoint/v2"},
+          "object_media_type": {"const": "application/vnd.openadapt.production-lifecycle-checkpoint+json;version=2"},
           "subject_sha256": {"type": "null"}
         }}
       ]

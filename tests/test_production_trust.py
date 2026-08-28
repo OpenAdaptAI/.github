@@ -98,9 +98,7 @@ RECEIPT_NOW = datetime(2026, 8, 27, 12, 30, tzinfo=timezone.utc)
 def _resign_receipt(value: dict, private_key: Ed25519PrivateKey) -> None:
     value["signing_statement"] = trust.signing_statement(
         value,
-        object_schema_version=(
-            "openadapt.qualification-evidence-decision-receipt/v2"
-        ),
+        object_schema_version=("openadapt.qualification-evidence-decision-receipt/v2"),
         signature_domain=trust.DECISION_RECEIPT_SIGNATURE_DOMAIN,
     )
     value["signature"] = base64.b64encode(
@@ -148,9 +146,7 @@ def decision_receipt_fixture(
         "signers": [signer],
     }
     receipt = {
-        "schema_version": (
-            "openadapt.qualification-evidence-decision-receipt/v2"
-        ),
+        "schema_version": ("openadapt.qualification-evidence-decision-receipt/v2"),
         "evidence_class": "private-customer",
         "decision_identity_sha256": sha("a"),
         "decision_revision": 1,
@@ -199,8 +195,7 @@ def decision_receipt_fixture(
             "repository_id": "1170060695",
             "repository_owner_id": "132681217",
             "workflow": (
-                ".github/workflows/"
-                "issue-private-qualification-evidence-decision.yml"
+                ".github/workflows/issue-private-qualification-evidence-decision.yml"
             ),
             "ref": "refs/heads/main",
             "source_commit": "a" * 40,
@@ -314,7 +309,9 @@ def release_admission() -> dict:
                 "uploader_id": "321543906",
                 "uploader_login": "openadapt-release[bot]",
             }
-            for index, artifact in enumerate(sorted(artifacts, key=lambda item: item["name"]))
+            for index, artifact in enumerate(
+                sorted(artifacts, key=lambda item: item["name"])
+            )
         ],
         "immutable_releases": {"enabled": True, "enforced_by_owner": False},
         "immutable_releases_sha256": trust.digest_bytes(
@@ -346,7 +343,7 @@ def release_admission() -> dict:
     }
     summary, summary_bundle = pair("production-acceptance-summary", "2", "3")
     value = {
-        "schema_version": "openadapt.qualification-release/v1",
+        "schema_version": "openadapt.qualification-release/v2",
         "admission_id_sha256": sha("0"),
         "evidence_class": "remote-safe-synthetic",
         "target": "capture",
@@ -409,9 +406,12 @@ def cloud_handoff() -> dict:
         "production-cloud-deploy-authorization", "a", "b"
     )
     source_commit = "d" * 40
-    source_commitment = "sha256:" + hashlib.sha256(
-        trust.CLOUD_SOURCE_COMMIT_DOMAIN + source_commit.encode("ascii")
-    ).hexdigest()
+    source_commitment = (
+        "sha256:"
+        + hashlib.sha256(
+            trust.CLOUD_SOURCE_COMMIT_DOMAIN + source_commit.encode("ascii")
+        ).hexdigest()
+    )
     request = {
         "schema_version": "openadapt.production-secret-source-proof-request/v2",
         "authorization_sha256": "1" * 64,
@@ -456,17 +456,20 @@ def cloud_handoff() -> dict:
         "public_values": public_values,
         "site_id": request["site_id"],
     }
-    provider_idempotency_key = "cloud-deploy:" + hashlib.sha256(
-        trust.CLOUD_PROVIDER_IDEMPOTENCY_DOMAIN
-        + trust.canonical(
-            {
-                "authorization_sha256": "sha256:" + request["authorization_sha256"],
-                "source_proof_request_sha256": request_sha,
-                "profile_run_id": request["run_id"],
-                "profile_run_attempt": request["run_attempt"],
-            }
-        )
-    ).hexdigest()
+    provider_idempotency_key = (
+        "cloud-deploy:"
+        + hashlib.sha256(
+            trust.CLOUD_PROVIDER_IDEMPOTENCY_DOMAIN
+            + trust.canonical(
+                {
+                    "authorization_sha256": "sha256:" + request["authorization_sha256"],
+                    "source_proof_request_sha256": request_sha,
+                    "profile_run_id": request["run_id"],
+                    "profile_run_attempt": request["run_attempt"],
+                }
+            )
+        ).hexdigest()
+    )
     value = {
         "schema_version": "openadapt.production-cloud-deployment-result/v1",
         "handoff_id_sha256": sha("0"),
@@ -487,8 +490,7 @@ def cloud_handoff() -> dict:
         ),
         "expected_live_attestation_sha256": "sha256:"
         + request["expected_live_attestation_sha256"],
-        "live_attestation_sha256": "sha256:"
-        + response["live_attestation_sha256"],
+        "live_attestation_sha256": "sha256:" + response["live_attestation_sha256"],
         "provider_idempotency_key": provider_idempotency_key,
         "audience": "openadapt-private-cloud-production-deploy",
         "signer_registry_sha256": sha("8"),
@@ -554,9 +556,7 @@ def rotation_fixture() -> tuple[dict, dict, dict, dict]:
         "expires_at": "2026-08-27T12:30:00Z",
         "signature": "older-wrapper",
     }
-    older_sha = "sha256:" + hashlib.sha256(
-        trust.canonical(older) + b"\n"
-    ).hexdigest()
+    older_sha = "sha256:" + hashlib.sha256(trust.canonical(older) + b"\n").hexdigest()
     newer = {
         **common,
         "checkpoint_id_sha256": sha("5"),
@@ -570,9 +570,8 @@ def rotation_fixture() -> tuple[dict, dict, dict, dict]:
 
     def checkpoint_reference(checkpoint: dict) -> dict:
         return {
-            "object_sha256": "sha256:" + hashlib.sha256(
-                trust.canonical(checkpoint) + b"\n"
-            ).hexdigest(),
+            "object_sha256": "sha256:"
+            + hashlib.sha256(trust.canonical(checkpoint) + b"\n").hexdigest(),
             "semantic_identity_sha256": checkpoint["checkpoint_id_sha256"],
             "registry_source_commit": checkpoint["registry_source_commit"],
             "registry_revision": checkpoint["registry_revision"],
@@ -631,8 +630,8 @@ class ProductionTrustTests(unittest.TestCase):
         )
         wrong_key = copy.deepcopy(receipt)
         wrong_key["issuer_key_id"] = wrong_registry["signers"][0]["key_id"]
-        wrong_key["signer_registry_sha256"] = (
-            registry.signer_registry_identity_digest(wrong_registry)
+        wrong_key["signer_registry_sha256"] = registry.signer_registry_identity_digest(
+            wrong_registry
         )
         _resign_receipt(wrong_key, key)
         with self.assertRaisesRegex(trust.TrustError, "verification failed"):
@@ -649,12 +648,10 @@ class ProductionTrustTests(unittest.TestCase):
 
         revoked_registry = copy.deepcopy(signer_registry)
         revoked_registry["signers"][0]["status"] = "revoked"
-        revoked_registry["signers"][0]["revoked_at"] = (
-            "2026-08-27T12:15:00Z"
-        )
+        revoked_registry["signers"][0]["revoked_at"] = "2026-08-27T12:15:00Z"
         revoked = copy.deepcopy(receipt)
-        revoked["signer_registry_sha256"] = (
-            registry.signer_registry_identity_digest(revoked_registry)
+        revoked["signer_registry_sha256"] = registry.signer_registry_identity_digest(
+            revoked_registry
         )
         _resign_receipt(revoked, key)
         with self.assertRaisesRegex(trust.TrustError, "not an active registered"):
@@ -667,7 +664,7 @@ class ProductionTrustTests(unittest.TestCase):
             "production-lifecycle-checkpoint", "1", "2"
         )
         feed = {
-            "schema_version": "openadapt.production-lifecycle-feed/v1",
+            "schema_version": "openadapt.production-lifecycle-feed/v2",
             "repository": "OpenAdaptAI/.github",
             "repository_id": "858454062",
             "repository_owner_id": "132681217",
@@ -693,16 +690,16 @@ class ProductionTrustTests(unittest.TestCase):
         with self.assertRaisesRegex(trust.TrustError, "not current"):
             trust.validate_feed(
                 feed,
-                now=trust.require_timestamp(
-                    "2026-08-27T13:00:00Z", "test time"
-                ),
+                now=trust.require_timestamp("2026-08-27T13:00:00Z", "test time"),
             )
 
     def test_future_checkpoint_rotation_has_one_exact_boundary(self) -> None:
         feed, newer, older, signer_registry = rotation_fixture()
         with (
             mock.patch.object(trust, "validate_feed", return_value=feed),
-            mock.patch.object(trust, "validate_checkpoint", side_effect=lambda item, **_: item),
+            mock.patch.object(
+                trust, "validate_checkpoint", side_effect=lambda item, **_: item
+            ),
             mock.patch.object(
                 registry, "validate_signer_registry", return_value=signer_registry
             ),
@@ -711,17 +708,13 @@ class ProductionTrustTests(unittest.TestCase):
                 feed,
                 checkpoints=[newer, older],
                 signer_registry=signer_registry,
-                now=trust.require_timestamp(
-                    "2026-08-27T12:29:59Z", "test time"
-                ),
+                now=trust.require_timestamp("2026-08-27T12:29:59Z", "test time"),
             )
             trust.validate_feed_expiry_containment(
                 feed,
                 checkpoints=[newer, older],
                 signer_registry=signer_registry,
-                now=trust.require_timestamp(
-                    "2026-08-27T12:30:00Z", "test time"
-                ),
+                now=trust.require_timestamp("2026-08-27T12:30:00Z", "test time"),
             )
 
     def test_checkpoint_rotation_refuses_overlap_gap_fork_and_reorder(self) -> None:
@@ -744,7 +737,8 @@ class ProductionTrustTests(unittest.TestCase):
                     feed["checkpoints"], checkpoints, strict=True
                 ):
                     pair_value["checkpoint_reference"]["object_sha256"] = (
-                        "sha256:" + hashlib.sha256(
+                        "sha256:"
+                        + hashlib.sha256(
                             trust.canonical(checkpoint) + b"\n"
                         ).hexdigest()
                     )
@@ -773,7 +767,9 @@ class ProductionTrustTests(unittest.TestCase):
         newer["signature"] = "alternate-wrapper"
         with (
             mock.patch.object(trust, "validate_feed", return_value=feed),
-            mock.patch.object(trust, "validate_checkpoint", side_effect=lambda item, **_: item),
+            mock.patch.object(
+                trust, "validate_checkpoint", side_effect=lambda item, **_: item
+            ),
             mock.patch.object(
                 registry, "validate_signer_registry", return_value=signer_registry
             ),
@@ -839,9 +835,9 @@ class ProductionTrustTests(unittest.TestCase):
             "not_before": "2026-08-27T11:30:00Z",
             "expires_at": "2026-08-27T12:30:00Z",
         }
-        checkpoint_sha = "sha256:" + hashlib.sha256(
-            trust.canonical(checkpoint) + b"\n"
-        ).hexdigest()
+        checkpoint_sha = (
+            "sha256:" + hashlib.sha256(trust.canonical(checkpoint) + b"\n").hexdigest()
+        )
         feed = {
             "generated_at": "2026-08-27T12:00:00Z",
             "expires_at": "2026-08-27T12:30:00Z",
@@ -853,13 +849,9 @@ class ProductionTrustTests(unittest.TestCase):
                 {
                     "checkpoint_reference": {
                         "object_sha256": checkpoint_sha,
-                        "registry_source_commit": checkpoint[
-                            "registry_source_commit"
-                        ],
+                        "registry_source_commit": checkpoint["registry_source_commit"],
                         "registry_revision": checkpoint["registry_revision"],
-                        "registry_head_sha256": checkpoint[
-                            "registry_head_sha256"
-                        ],
+                        "registry_head_sha256": checkpoint["registry_head_sha256"],
                     },
                     "checkpoint_bundle_reference": {},
                 }
@@ -867,9 +859,7 @@ class ProductionTrustTests(unittest.TestCase):
         }
         with (
             mock.patch.object(trust, "validate_feed", return_value=feed),
-            mock.patch.object(
-                trust, "validate_checkpoint", return_value=checkpoint
-            ),
+            mock.patch.object(trust, "validate_checkpoint", return_value=checkpoint),
             mock.patch.object(
                 registry, "validate_signer_registry", return_value=signer_registry
             ),
@@ -924,9 +914,7 @@ class ProductionTrustTests(unittest.TestCase):
             for artifact in artifacts:
                 path = root / artifact["name"]
                 path.write_bytes(b"test")
-                artifact["sha256"] = (
-                    "sha256:" + hashlib.sha256(b"test").hexdigest()
-                )
+                artifact["sha256"] = "sha256:" + hashlib.sha256(b"test").hexdigest()
             trust.verify_local_artifacts(root, artifacts)
             (root / "SHA256SUMS").write_text("not admitted")
             with self.assertRaisesRegex(trust.TrustError, "extra"):

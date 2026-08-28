@@ -573,7 +573,7 @@ def issue_workflow_admission(
     if expiry <= issue_time:
         raise IssuerError("workflow admission has no positive active window")
     admission = {
-        "schema_version": "openadapt.qualification-admission/v3",
+        "schema_version": "openadapt.qualification-admission/v4",
         "admission_id_sha256": "sha256:" + "0" * 64,
         "evidence_class": "remote-safe-synthetic",
         "organization_id_sha256": receipt["organization_id_sha256"],
@@ -668,6 +668,11 @@ def issue_release_admission(
     if summary_evidence["reference"]["registry_source_commit"] != source_commit:
         raise IssuerError("acceptance summary is not in the issuer source registry")
     summary = summary_evidence["value"]
+    if (
+        summary.get("target") != "flow"
+        or summary.get("claim_scope") != "production_flow"
+    ):
+        raise IssuerError("release issuer accepts only the Flow production target")
     manifest_evidence = resolver.resolve(
         summary["production_acceptance_manifest_reference"],
         kind="production-acceptance-manifest",
@@ -801,7 +806,7 @@ def issue_release_admission(
     if expiry <= issue_time:
         raise IssuerError("release admission has no positive active window")
     release = {
-        "schema_version": "openadapt.qualification-release/v1",
+        "schema_version": "openadapt.qualification-release/v2",
         "admission_id_sha256": "sha256:" + "0" * 64,
         "evidence_class": "remote-safe-synthetic",
         "target": summary["target"],
@@ -873,8 +878,8 @@ def interface_contract() -> dict[str, Any]:
             "openadapt.qualification-admission-issue-request/v1"
         ),
         "release_request_schema": "openadapt.qualification-release-issue-request/v1",
-        "workflow_output_schema": "openadapt.qualification-admission/v3",
-        "release_output_schema": "openadapt.qualification-release/v1",
+        "workflow_output_schema": "openadapt.qualification-admission/v4",
+        "release_output_schema": "openadapt.qualification-release/v2",
         "workflow_maximum_lifetime_seconds": 7 * 24 * 60 * 60,
         "release_maximum_lifetime_seconds": 30 * 24 * 60 * 60,
         "registry_resolution": "exact-commit-registered-adjacent-bundle-verified",

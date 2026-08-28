@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "production-lifecycle-policy.schema.json",
-  "title": "OpenAdapt production lifecycle policy v2",
+  "title": "OpenAdapt production lifecycle policy v3",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -20,15 +20,15 @@
   ],
   "properties": {
     "$schema": {"const": "schemas/production-lifecycle-policy.schema.json"},
-    "schema_version": {"const": "openadapt.production-lifecycle-policy/v2"},
-    "revision": {"type": "integer", "minimum": 2},
+    "schema_version": {"const": "openadapt.production-lifecycle-policy/v3"},
+    "revision": {"type": "integer", "minimum": 3},
     "maximum_release_admission_days": {"const": 30},
     "maximum_workflow_admission_days": {"const": 7},
     "object_reference_schema_version": {"const": "openadapt.production-evidence-object-reference/v2"},
-    "release_admission_schema_version": {"const": "openadapt.qualification-release/v1"},
-    "workflow_admission_schema_version": {"const": "openadapt.qualification-admission/v3"},
-    "lifecycle_checkpoint_schema_version": {"const": "openadapt.production-lifecycle-checkpoint/v1"},
-    "lifecycle_feed_schema_version": {"const": "openadapt.production-lifecycle-feed/v1"},
+    "release_admission_schema_version": {"const": "openadapt.qualification-release/v2"},
+    "workflow_admission_schema_version": {"const": "openadapt.qualification-admission/v4"},
+    "lifecycle_checkpoint_schema_version": {"const": "openadapt.production-lifecycle-checkpoint/v2"},
+    "lifecycle_feed_schema_version": {"const": "openadapt.production-lifecycle-feed/v2"},
     "lifecycle_feed_ref": {"const": "refs/heads/production-lifecycle-feed"},
     "targets": {
       "type": "array",

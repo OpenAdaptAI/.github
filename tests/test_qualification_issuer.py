@@ -27,6 +27,7 @@ import production_trust as trust  # noqa: E402
 import qualification_issuer as issuer  # noqa: E402
 import qualification_kms_ed25519 as kms  # noqa: E402
 import validate_evidence_registry as evidence  # noqa: E402
+import verify_production_release_admission as release_verifier  # noqa: E402
 
 
 NOW = datetime(2026, 8, 27, 12, 0, 0, tzinfo=timezone.utc)
@@ -657,7 +658,7 @@ def flow_release_inputs(
         },
     }
     manifest = {
-        "schema_version": "openadapt.production-acceptance/v2",
+        "schema_version": "openadapt.production-acceptance/v3",
         **common,
         "release": candidate,
         "artifact_inventory": inventory,
@@ -666,7 +667,7 @@ def flow_release_inputs(
         "production-acceptance-manifest", manifest
     )
     summary = {
-        "schema_version": "openadapt.production-lifecycle-evidence-summary/v2",
+        "schema_version": "openadapt.production-lifecycle-evidence-summary/v3",
         **common,
         "evidence_identity_sha256": sha("placeholder-evidence-identity"),
         "production_acceptance_manifest_reference": manifest_ref,
@@ -834,6 +835,82 @@ class QualificationIssuerTests(unittest.TestCase):
             policy=policy,
         )
         self.assertEqual(resolved["value"], fixture["receipt"])
+
+    def test_release_verifier_uses_current_protected_main_state(self) -> None:
+        fixture = trust_fixture()
+        resolver = RecordingResolver(fixture)
+        admission = issuer.issue_workflow_admission(
+            workflow_request(fixture),
+            resolver=resolver,
+            issuer_source_commit=WORKFLOW_REGISTRY_COMMIT,
+            now=NOW,
+            consumer=RecordingConsumer(),
+        )
+        request = flow_release_inputs(fixture, admission, resolver)
+        release = issuer.issue_release_admission(
+            request,
+            resolver=resolver,
+            issuer_source_commit=RELEASE_REGISTRY_COMMIT,
+            now=NOW,
+            consumer=RecordingConsumer(),
+        )
+        release_reference, _ = reference_pair(
+            "qualification-release",
+            release,
+            registry_source_commit=RELEASE_REGISTRY_COMMIT,
+        )
+        authority_reference = {"kind": "qualification-authority-state-receipt"}
+        revocation_reference = {"kind": "qualification-revocation-state-receipt"}
+        with (
+            mock.patch.object(
+                release_verifier,
+                "protected_main_commit",
+                return_value=RELEASE_REGISTRY_COMMIT,
+            ),
+            mock.patch.object(
+                release_verifier,
+                "current_registered_reference",
+                side_effect=[authority_reference, revocation_reference],
+            ),
+            mock.patch.object(
+                release_verifier,
+                "derive_bundle_reference",
+                side_effect=[
+                    {"kind": "authority-bundle"},
+                    {"kind": "revocation-bundle"},
+                ],
+            ),
+            mock.patch.object(
+                release_verifier,
+                "resolve_pair",
+                side_effect=[
+                    (fixture["authority"], fixture["registry"], fixture["registry"]),
+                    (
+                        fixture["revocation"],
+                        fixture["registry"],
+                        fixture["registry"],
+                    ),
+                ],
+            ),
+            mock.patch.object(
+                release_verifier.trust,
+                "validate_admission_current_state",
+                wraps=release_verifier.trust.validate_admission_current_state,
+            ) as validate_current,
+        ):
+            commit, authority, revocation, registry = (
+                release_verifier.current_admission_state(
+                    release,
+                    admission_reference=release_reference,
+                    policy={},
+                    now=NOW,
+                )
+            )
+        self.assertEqual(commit, RELEASE_REGISTRY_COMMIT)
+        self.assertEqual(authority, fixture["authority"])
+        self.assertEqual(revocation, fixture["revocation"])
+        self.assertEqual(registry, fixture["registry"])
+        validate_current.assert_called_once()
 
     def test_oidc_contract_is_exact_and_inactive(self) -> None:
         contract = kms.interface_contract()
@@ -1099,6 +1176,62 @@ class QualificationIssuerTests(unittest.TestCase):
                 now=NOW,
                 consumer=RecordingConsumer(),
             )
+
+    def test_closed_flow_release_verification_receipt_matches_fixture(self) -> None:
+        fixture = trust_fixture()
+        resolver = RecordingResolver(fixture)
+        admission = issuer.issue_workflow_admission(
+            workflow_request(fixture),
+            resolver=resolver,
+            issuer_source_commit=WORKFLOW_REGISTRY_COMMIT,
+            now=NOW,
+            consumer=RecordingConsumer(),
+        )
+        request = flow_release_inputs(fixture, admission, resolver)
+        release = issuer.issue_release_admission(
+            request,
+            resolver=resolver,
+            issuer_source_commit=RELEASE_REGISTRY_COMMIT,
+            now=NOW,
+            consumer=RecordingConsumer(),
+        )
+        release_reference, release_bundle_reference = reference_pair(
+            "qualification-release",
+            release,
+            registry_source_commit=RELEASE_REGISTRY_COMMIT,
+        )
+        summary = resolver.objects[
+            request["production_acceptance_summary_reference"]["object_sha256"]
+        ]["value"]
+        verification = release_verifier.verification_receipt(
+            admission=release,
+            admission_reference=release_reference,
+            admission_bundle_reference=release_bundle_reference,
+            summary=summary,
+            qualification_admission=admission,
+            verified_at=NOW,
+            trust_state_source_commit=RELEASE_REGISTRY_COMMIT,
+        )
+        expected = json.loads(
+            (
+                ROOT
+                / "tests"
+                / "fixtures"
+                / "remote-safe-synthetic-flow-release-verification.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(verification, expected)
+        projection = dict(verification)
+        verification_id = projection.pop("verification_id_sha256")
+        self.assertEqual(
+            verification_id,
+            trust.digest_bytes(
+                release_verifier.VERIFICATION_RECEIPT_DOMAIN, projection
+            ),
+        )
+        self.assertEqual(verification["evidence_class"], "remote-safe-synthetic")
+        self.assertEqual(verification["target"], "flow")
+        self.assertEqual(verification["claim_scope"], "production_flow")
 
     def test_release_refuses_signed_nested_bundle_other_than_verified_pair(
         self,

@@ -26,10 +26,7 @@ import public_trust_resolver as resolver  # noqa: E402
 import validate_evidence_registry as evidence  # noqa: E402
 
 NOW = datetime(2026, 8, 27, 12, 0, 30, tzinfo=timezone.utc)
-KMS_ARN = (
-    "arn:aws:kms:us-east-1:992382684924:key/"
-    "12345678-1234-4abc-8def-1234567890ab"
-)
+KMS_ARN = "arn:aws:kms:us-east-1:992382684924:key/12345678-1234-4abc-8def-1234567890ab"
 
 
 def sha(label: str) -> str:
@@ -107,8 +104,8 @@ def statement(registry_sha256: str = sha("registry")) -> dict:
     return {
         "schema_version": kms.STATEMENT_SCHEMA,
         "object_kind": "qualification-release",
-        "object_schema_version": "openadapt.qualification-release/v1",
-        "object_media_type": "application/vnd.openadapt.qualification-release+json;version=1",
+        "object_schema_version": "openadapt.qualification-release/v2",
+        "object_media_type": "application/vnd.openadapt.qualification-release+json;version=2",
         "object_sha256": "sha256:" + hashlib.sha256(raw).hexdigest(),
         "object_size_bytes": len(raw),
         "semantic_identity_sha256": sha("release-identity"),
@@ -218,7 +215,7 @@ class PublicTrustKmsTests(unittest.TestCase):
         )
         self.assertEqual(
             kms.kms_message_digest(statement()).hex(),
-            "272b5a49125aac7591703c97fc50bc42cc31c678f762e557830279ba09772aa1",
+            "f903b1f45b4f6f24e97c95309299e93587ee0489f76aacf23f144e6edada59fb",
         )
 
     def test_exact_statement_signer_and_bundle_verify_offline(self) -> None:
@@ -251,8 +248,8 @@ class PublicTrustKmsTests(unittest.TestCase):
                 object_raw=raw,
                 object_value=value,
                 object_kind="qualification-release",
-                object_schema_version="openadapt.qualification-release/v1",
-                object_media_type="application/vnd.openadapt.qualification-release+json;version=1",
+                object_schema_version="openadapt.qualification-release/v2",
+                object_media_type="application/vnd.openadapt.qualification-release+json;version=2",
                 semantic_identity_sha256=sha("release-identity"),
                 expected_signer_registry_sha256=sha("registry"),
                 expected_authority_state_sha256=sha("authority"),
@@ -266,8 +263,8 @@ class PublicTrustKmsTests(unittest.TestCase):
                 object_raw=json.dumps(value, indent=2).encode() + b"\n",
                 object_value=value,
                 object_kind="qualification-release",
-                object_schema_version="openadapt.qualification-release/v1",
-                object_media_type="application/vnd.openadapt.qualification-release+json;version=1",
+                object_schema_version="openadapt.qualification-release/v2",
+                object_media_type="application/vnd.openadapt.qualification-release+json;version=2",
                 semantic_identity_sha256=sha("release-identity"),
                 expected_signer_registry_sha256=sha("registry"),
                 expected_authority_state_sha256=sha("authority"),
@@ -302,7 +299,9 @@ class PublicTrustKmsTests(unittest.TestCase):
             kms.validate_signing_statement(wrong_profile)
 
         wrong_workflow = copy.deepcopy(signed_statement)
-        wrong_workflow["signing_authority"]["workflow"] = ".github/workflows/release.yml"
+        wrong_workflow["signing_authority"]["workflow"] = (
+            ".github/workflows/release.yml"
+        )
         with self.assertRaisesRegex(kms.PublicTrustKmsError, "workflow"):
             kms.validate_signing_statement(wrong_workflow)
 
@@ -369,12 +368,14 @@ class PublicTrustKmsTests(unittest.TestCase):
         object_raw = kms.canonical_lf(signed_object)
         semantic = evidence.semantic_identity_digest(
             kind="qualification-release",
-            object_schema_version="openadapt.qualification-release/v1",
+            object_schema_version="openadapt.qualification-release/v2",
             object_value=signed_object,
             object_sha256="sha256:" + hashlib.sha256(object_raw).hexdigest(),
         )
         signed_statement = statement(registry_identity)
-        signed_statement["object_sha256"] = "sha256:" + hashlib.sha256(object_raw).hexdigest()
+        signed_statement["object_sha256"] = (
+            "sha256:" + hashlib.sha256(object_raw).hexdigest()
+        )
         signed_statement["object_size_bytes"] = len(object_raw)
         signed_statement["semantic_identity_sha256"] = semantic
         signed_bundle = bundle(signed_statement)
@@ -420,12 +421,14 @@ class PublicTrustKmsTests(unittest.TestCase):
         object_raw = kms.canonical_lf(signed_object)
         semantic = evidence.semantic_identity_digest(
             kind="qualification-release",
-            object_schema_version="openadapt.qualification-release/v1",
+            object_schema_version="openadapt.qualification-release/v2",
             object_value=signed_object,
             object_sha256="sha256:" + hashlib.sha256(object_raw).hexdigest(),
         )
         signed_statement = statement(registry_identity)
-        signed_statement["object_sha256"] = "sha256:" + hashlib.sha256(object_raw).hexdigest()
+        signed_statement["object_sha256"] = (
+            "sha256:" + hashlib.sha256(object_raw).hexdigest()
+        )
         signed_statement["object_size_bytes"] = len(object_raw)
         signed_statement["semantic_identity_sha256"] = semantic
         signed_bundle = bundle(signed_statement)

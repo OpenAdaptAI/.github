@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "qualification-admission.schema.json",
-  "title": "OpenAdapt qualification admission v3",
+  "title": "OpenAdapt qualification admission v4",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -38,7 +38,7 @@
     "issuer"
   ],
   "properties": {
-    "schema_version": {"const": "openadapt.qualification-admission/v3"},
+    "schema_version": {"const": "openadapt.qualification-admission/v4"},
     "admission_id_sha256": {"$ref": "#/$defs/digest"},
     "evidence_class": {"enum": ["private-customer", "remote-safe-synthetic"]},
     "organization_id_sha256": {"$ref": "#/$defs/digest"},
