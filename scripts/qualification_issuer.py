@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build canonical release-v1 and workflow-v3 admission candidates.
+"""Build canonical release-v2 and workflow-v4 admission candidates.
 
 The command consumes both a caller-supplied opaque request handle and the exact
 semantic evidence reference before it emits an admission. A failed output step
