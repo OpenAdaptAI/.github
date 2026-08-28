@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "production-release-authority-policy.schema.json",
+  "title": "OpenAdapt production release authority policy v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema", "schema_version", "release_app", "repository_selection",
+    "permissions", "repositories", "tag_rulesets", "support_release_authorities"
+  ],
+  "properties": {
+    "$schema": {"const": "schemas/production-release-authority-policy.schema.json"},
+    "schema_version": {"const": "openadapt.production-release-authority-policy/v1"},
+    "release_app": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["app_id", "app_slug", "installation_id", "bot_user_id", "bot_login"],
+      "properties": {
+        "app_id": {"const": "4730708"},
+        "app_slug": {"const": "openadapt-release"},
+        "installation_id": {"const": "156835568"},
+        "bot_user_id": {"const": "321543906"},
+        "bot_login": {"const": "openadapt-release[bot]"}
+      }
+    },
+    "repository_selection": {"const": "selected"},
+    "permissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["administration", "contents", "metadata"],
+      "properties": {
+        "administration": {"const": "read"},
+        "contents": {"const": "write"},
+        "metadata": {"const": "read"}
+      }
+    },
+    "repositories": {
+      "const": [
+        {"target":"agent","repository":"OpenAdaptAI/openadapt-agent","repository_id":"1136136670"},
+        {"target":"capture","repository":"OpenAdaptAI/openadapt-capture","repository_id":"1115283835"},
+        {"target":"cloud","repository":"OpenAdaptAI/openadapt-cloud","repository_id":"1300570990"},
+        {"target":"desktop","repository":"OpenAdaptAI/openadapt-desktop","repository_id":"1171291730"},
+        {"target":"docs","repository":"OpenAdaptAI/openadapt-ops","repository_id":"1172011294"},
+        {"target":"flow","repository":"OpenAdaptAI/openadapt-flow","repository_id":"1291376938"},
+        {"target":"openadapt","repository":"OpenAdaptAI/OpenAdapt","repository_id":"627024850"}
+      ]
+    },
+    "tag_rulesets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["creation_authority", "immutability"],
+      "properties": {
+        "creation_authority": {"const": "OpenAdapt policy: release tag creation"},
+        "immutability": {"const": "OpenAdapt policy: immutable release tags"}
+      }
+    },
+    "support_release_authorities": {
+      "const": [
+        {
+          "id": "desktop-managed-ffmpeg-runtime",
+          "lifecycle": "Support",
+          "repository": "OpenAdaptAI/openadapt-desktop",
+          "repository_id": "1171291730",
+          "tag_pattern": "refs/tags/ffmpeg-runtime-v*",
+          "creation_ruleset": "OpenAdapt policy: FFmpeg runtime tag creation",
+          "immutability_ruleset": "OpenAdapt policy: immutable FFmpeg runtime tags"
+        }
+      ]
+    }
+  }
+}

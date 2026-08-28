@@ -4,31 +4,125 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import inspect
 import json
+import subprocess
 import sys
+import types
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import production_trust as trust  # noqa: E402
 import validate_production_lifecycle as lifecycle  # noqa: E402
-import validate_evidence_registry as evidence_registry  # noqa: E402
 
 NOW = datetime(2026, 8, 18, 12, 0, 0, tzinfo=timezone.utc)
 SOURCE_COMMIT = "1" * 40
+# The digest of the live v2 policy document.  The value is opaque to these
+# tests; the validator only requires that it is a digest and that it is not the
+# retained v1 policy revision.
 POLICY_DIGEST = "sha256:" + "a" * 64
+# The digest of the v1 policy document that issued the retained admission
+# ledger.  Every retained record and every acceptance summary carries it.
+LEDGER_DIGEST = lifecycle.RETAINED_POLICY_SHA256
 
 
 def digest_bytes(value: bytes) -> str:
     return "sha256:" + hashlib.sha256(value).hexdigest()
 
 
+class LegacyRegistryError(ValueError):
+    pass
+
+
+def legacy_entry_digest(entry: dict) -> str:
+    projection = {
+        field: entry[field]
+        for field in (
+            "kind", "prior_entry_sha256", "recorded_at", "sequence",
+            "sha256", "size_bytes", "url",
+        )
+    }
+    return digest_bytes(
+        b"OpenAdapt production evidence registry entry v1\0"
+        + json.dumps(
+            projection, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode()
+    )
+
+
+def legacy_build_entry(**fields: object) -> dict:
+    entry = dict(fields)
+    entry["entry_sha256"] = legacy_entry_digest(entry)
+    return entry
+
+
+def legacy_registry_adapter() -> types.SimpleNamespace:
+    def validate_registry(value: object) -> list[dict]:
+        if not isinstance(value, dict) or set(value) != {
+            "$schema", "schema_version", "head_entry_sha256", "entries"
+        }:
+            raise LegacyRegistryError("evidence registry object is not closed")
+        if value["schema_version"] != "openadapt.production-evidence-registry/v1":
+            raise LegacyRegistryError("evidence registry schema is not supported")
+        entries = value["entries"]
+        if not isinstance(entries, list):
+            raise LegacyRegistryError("evidence registry entries must be a list")
+        prior = None
+        for index, entry in enumerate(entries):
+            if (
+                entry["sequence"] != index + 1
+                or entry["prior_entry_sha256"] != prior
+                or entry["entry_sha256"] != legacy_entry_digest(entry)
+            ):
+                raise LegacyRegistryError("evidence registry chain is invalid")
+            prior = entry["entry_sha256"]
+        if value["head_entry_sha256"] != prior:
+            raise LegacyRegistryError("evidence registry head digest is stale")
+        return entries
+
+    def require_registered(
+        entries: list[dict], *, url: str, sha256: str, kind: str, label: str
+    ) -> None:
+        matches = [
+            entry for entry in entries
+            if entry["url"] == url and entry["sha256"] == sha256
+        ]
+        if len(matches) != 1:
+            raise LegacyRegistryError(
+                f"{label} is not registered in the central evidence registry"
+            )
+        if matches[0]["kind"] != kind:
+            raise LegacyRegistryError(f"{label} is registered with the wrong kind")
+
+    return types.SimpleNamespace(
+        EvidenceRegistryError=LegacyRegistryError,
+        validate_registry=validate_registry,
+        require_registered=require_registered,
+    )
+
+
 def load_policy() -> dict:
+    """Return the live v2 policy document the repository actually publishes.
+
+    The validator reads this file in production, so the tests read it too.  A
+    fixture that mirrors the validator's own constants cannot catch the case
+    where the data and the validator disagree.
+    """
+
     return json.loads(
         (ROOT / "production-lifecycle-policy.json").read_text(encoding="utf-8")
     )
+
+
+def retained_target(target: str) -> dict:
+    """Return the retained v1 contract a retained admission is verified against."""
+
+    return copy.deepcopy(lifecycle.EXPECTED_TARGETS[target])
 
 
 def flow_release() -> dict:
@@ -133,13 +227,8 @@ def build_case(
     expires_at: str = "2026-08-20T11:00:00Z",
 ) -> tuple[dict, dict, dict[str, bytes]]:
     release = copy.deepcopy(release or flow_release())
-    policy = load_policy()
-    claim_scope = next(
-        item["required_claim_scope"]
-        for item in policy["targets"]
-        if item["id"] == target
-    )
-    acceptance_policy_digest = policy["summary_authority"]["acceptance_policy_sha256"]
+    claim_scope = retained_target(target)["required_claim_scope"]
+    acceptance_policy_digest = lifecycle.EXPECTED_AUTHORITY["acceptance_policy_sha256"]
     release_digest = lifecycle._target_release_digest(target, claim_scope, release)
     artifact_digest = lifecycle._artifact_inventory_digest(
         target, claim_scope, release.get("artifacts", [])
@@ -158,7 +247,7 @@ def build_case(
             "claim_scope": claim_scope,
             "verdict": "accepted",
             "acceptance_policy_sha256": acceptance_policy_digest,
-            "lifecycle_policy_sha256": POLICY_DIGEST,
+            "lifecycle_policy_sha256": LEDGER_DIGEST,
             "target_release_sha256": release_digest,
             "target_artifact_inventory_sha256": artifact_digest,
             "evidence_identity_sha256": evidence_identity,
@@ -242,7 +331,7 @@ def build_case(
         "verdict": "accepted",
         "claim_scope": claim_scope,
         "acceptance_policy_sha256": acceptance_policy_digest,
-        "lifecycle_policy_sha256": POLICY_DIGEST,
+        "lifecycle_policy_sha256": LEDGER_DIGEST,
         "release_identity": release_identity,
         "release_sha256": release_digest,
         "artifact_inventory_sha256": artifact_digest,
@@ -304,7 +393,7 @@ def build_case(
     admissions = {
         "$schema": "schemas/production-lifecycle-admissions.schema.json",
         "schema_version": lifecycle.ADMISSIONS_SCHEMA,
-        "policy_sha256": POLICY_DIGEST,
+        "policy_sha256": LEDGER_DIGEST,
         "admissions": [admission],
     }
     remote = {
@@ -316,11 +405,7 @@ def build_case(
         item for item in release.get("artifacts", []) if item["authority"] == "pypi"
     ]
     if pypi_artifacts:
-        project = next(
-            item["package_index_project"]
-            for item in policy["targets"]
-            if item["id"] == target
-        )
+        project = retained_target(target)["package_index_project"]
         metadata_url = f"https://pypi.org/pypi/{project}/{release['version']}/json"
         remote[metadata_url] = json.dumps(
             {
@@ -362,7 +447,7 @@ def empty_admissions() -> dict:
     return {
         "$schema": "schemas/production-lifecycle-admissions.schema.json",
         "schema_version": lifecycle.ADMISSIONS_SCHEMA,
-        "policy_sha256": POLICY_DIGEST,
+        "policy_sha256": LEDGER_DIGEST,
         "admissions": [],
     }
 
@@ -407,6 +492,7 @@ def build_registry(admissions: dict, remote: dict[str, bytes]) -> dict | None:
     """Build a valid central evidence registry for the given admissions."""
 
     entries = []
+    seen_references: set[tuple[str, str, str]] = set()
     prior: str | None = None
     sequence = 0
     for admission in admissions.get("admissions", []):
@@ -415,8 +501,12 @@ def build_registry(admissions: dict, remote: dict[str, bytes]) -> dict | None:
             ("evidence-summary", "summary_url", "summary_sha256"),
             ("attestation-bundle", "attestation_bundle_url", "attestation_bundle_sha256"),
         ):
+            identity = (kind, reference[url_key], reference[digest_key])
+            if identity in seen_references:
+                continue
+            seen_references.add(identity)
             sequence += 1
-            entry = evidence_registry.build_entry(
+            entry = legacy_build_entry(
                 sequence=sequence,
                 kind=kind,
                 url=reference[url_key],
@@ -433,7 +523,7 @@ def build_registry(admissions: dict, remote: dict[str, bytes]) -> dict | None:
         return None
     return {
         "$schema": "schemas/evidence-registry.schema.json",
-        "schema_version": evidence_registry.REGISTRY_SCHEMA,
+        "schema_version": "openadapt.production-evidence-registry/v1",
         "head_entry_sha256": prior,
         "entries": entries,
     }
@@ -446,6 +536,7 @@ def validate_case(
     surfaces: list[str] | None = None,
     attestation_valid: bool = True,
     registry: dict | None = None,
+    authority_sink: list[dict] | None = None,
 ) -> dict[str, str]:
     attestation_calls: list[tuple[bytes, bytes]] = []
 
@@ -457,8 +548,10 @@ def validate_case(
             raise OSError(f"synthetic URL is absent: {url}") from exc
 
     def verify(
-        summary: bytes, bundle: bytes, _authority: dict, _source_commit: str
+        summary: bytes, bundle: bytes, authority: dict, _source_commit: str
     ) -> None:
+        if authority_sink is not None:
+            authority_sink.append(copy.deepcopy(authority))
         if not attestation_valid:
             raise lifecycle.LifecycleError("synthetic attestation failure")
         attestation_calls.append((summary, bundle))
@@ -477,19 +570,24 @@ def validate_case(
             if group != "production" and subject in subjects:
                 subjects.remove(subject)
 
-    result = lifecycle.validate(
-        load_policy(),
-        admissions,
-        repository_lifecycle,
-        surface_lifecycle,
-        policy_sha256=POLICY_DIGEST,
-        now=NOW,
-        fetch=fetch,
-        verify_attestation=verify,
-        registry_value=(
-            registry if registry is not None else build_registry(admissions, remote or {})
-        ),
-    )
+    with mock.patch.object(
+        lifecycle, "evidence_registry", legacy_registry_adapter()
+    ):
+        result = lifecycle.validate(
+            load_policy(),
+            admissions,
+            repository_lifecycle,
+            surface_lifecycle,
+            policy_sha256=POLICY_DIGEST,
+            now=NOW,
+            fetch=fetch,
+            verify_attestation=verify,
+            registry_value=(
+                registry
+                if registry is not None
+                else build_registry(admissions, remote or {})
+            ),
+        )
     return result
 
 
@@ -799,13 +897,14 @@ class ProductionLifecycleTests(unittest.TestCase):
         ):
             validate_case(admissions, remote, repositories=["openadapt-flow"])
 
-    def test_signer_provenance_domain_mismatch_is_refused(self) -> None:
+    def test_policy_cannot_carry_a_substitute_summary_authority(self) -> None:
         policy = load_policy()
+        policy["summary_authority"] = copy.deepcopy(lifecycle.EXPECTED_AUTHORITY)
         policy["summary_authority"]["signer_provenance_digest_domain"] = (
             "OpenAdapt production certificate signer provenance v2\0"
         )
         with self.assertRaisesRegex(
-            lifecycle.LifecycleError, "signer provenance digest domain"
+            lifecycle.LifecycleError, "must contain exactly"
         ):
             lifecycle.validate(
                 policy,
@@ -923,11 +1022,45 @@ class ProductionLifecycleTests(unittest.TestCase):
         with self.assertRaisesRegex(lifecycle.LifecycleError, "only append"):
             lifecycle.validate_append_only_history(previous, current)
 
-    def test_pinned_target_map_refuses_subject_substitution(self) -> None:
+    def test_history_gate_refuses_nonclosed_legacy_document(self) -> None:
+        previous, _summary, _remote = build_case()
+        current = copy.deepcopy(previous)
+        current["unexpected"] = True
+        with self.assertRaisesRegex(lifecycle.LifecycleError, "must contain exactly"):
+            lifecycle.validate_history_document(
+                current, "current Production admission history"
+            )
+
+    def test_history_gate_refuses_non_v1_document(self) -> None:
+        previous, _summary, _remote = build_case()
+        current = copy.deepcopy(previous)
+        current["schema_version"] = "openadapt.production-lifecycle-admissions/v2"
+        with self.assertRaisesRegex(lifecycle.LifecycleError, "not supported"):
+            lifecycle.validate_history_document(
+                current, "current Production admission history"
+            )
+
+    def test_policy_target_cannot_substitute_its_source_repository(self) -> None:
         policy = load_policy()
         next(item for item in policy["targets"] if item["id"] == "flow")[
-            "lifecycle_subject"
-        ] = "openadapt-evals"
+            "source_repository"
+        ] = "OpenAdaptAI/openadapt-evals"
+        with self.assertRaisesRegex(
+            lifecycle.LifecycleError, "differs from the Production trust contract"
+        ):
+            lifecycle.validate(
+                policy,
+                empty_admissions(),
+                *lifecycle.load_lifecycle(),
+                policy_sha256=POLICY_DIGEST,
+                now=NOW,
+            )
+
+    def test_policy_target_cannot_drop_a_target(self) -> None:
+        policy = load_policy()
+        policy["targets"] = [
+            item for item in policy["targets"] if item["id"] != "flow"
+        ]
         with self.assertRaisesRegex(lifecycle.LifecycleError, "pinned target map"):
             lifecycle.validate(
                 policy,
@@ -937,16 +1070,14 @@ class ProductionLifecycleTests(unittest.TestCase):
                 now=NOW,
             )
 
-    def test_pinned_attestation_authority_refuses_substitution(self) -> None:
+    def test_policy_target_cannot_require_an_undefined_artifact_kind(self) -> None:
         policy = load_policy()
-        authority = policy["summary_authority"]
-        authority["repository"] = "OpenAdaptAI/attacker"
-        authority["certificate_identity"] = (
-            "https://github.com/OpenAdaptAI/attacker/"
-            + authority["workflow"]
-            + "@refs/heads/main"
-        )
-        with self.assertRaisesRegex(lifecycle.LifecycleError, "pinned trust root"):
+        next(item for item in policy["targets"] if item["id"] == "flow")[
+            "required_artifact_kinds"
+        ] = ["python-sdist", "python-wheel", "unregistered-kind"]
+        with self.assertRaisesRegex(
+            lifecycle.LifecycleError, "does not define"
+        ):
             lifecycle.validate(
                 policy,
                 empty_admissions(),
@@ -958,6 +1089,306 @@ class ProductionLifecycleTests(unittest.TestCase):
     def test_schema_files_are_valid_json(self) -> None:
         for path in sorted((ROOT / "schemas").glob("production-lifecycle-*.json")):
             self.assertIsInstance(json.loads(path.read_text(encoding="utf-8")), dict)
+
+
+class PublishedPolicyTests(unittest.TestCase):
+    """Bind the validator to the policy document the repository publishes."""
+
+    def test_published_policy_is_accepted(self) -> None:
+        self.assertEqual(lifecycle.validate_files(ROOT, now=NOW), {})
+
+    def test_check_profile_accepts_the_published_repository(self) -> None:
+        completed = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "check_profile.py")],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+
+    def test_published_policy_declares_the_v2_contract(self) -> None:
+        policy = load_policy()
+        self.assertEqual(
+            policy["schema_version"], "openadapt.production-lifecycle-policy/v2"
+        )
+        self.assertEqual(
+            lifecycle.POLICY_SCHEMA, "openadapt.production-lifecycle-policy/v2"
+        )
+        self.assertGreaterEqual(policy["revision"], 2)
+        self.assertNotIn("summary_authority", policy)
+        self.assertNotIn("maximum_admission_days", policy)
+        self.assertEqual(
+            policy["lifecycle_feed_ref"], "refs/heads/production-lifecycle-feed"
+        )
+
+    def test_published_policy_matches_its_own_schema_key_set(self) -> None:
+        schema = json.loads(
+            (
+                ROOT / "schemas" / "production-lifecycle-policy.schema.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(set(load_policy()), set(schema["required"]))
+
+    def test_retained_ledger_carries_the_v1_policy_digest(self) -> None:
+        ledger = json.loads(
+            (ROOT / "production-lifecycle-admissions.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(ledger["policy_sha256"], lifecycle.RETAINED_POLICY_SHA256)
+        self.assertNotEqual(
+            lifecycle.RETAINED_POLICY_SHA256,
+            "sha256:"
+            + hashlib.sha256(
+                (ROOT / "production-lifecycle-policy.json").read_bytes()
+            ).hexdigest(),
+        )
+
+
+class AdmissionWindowTests(unittest.TestCase):
+    """The two v2 maximums must be the windows the trust core enforces."""
+
+    def test_release_maximum_governs_the_retained_expiry(self) -> None:
+        policy = load_policy()
+        self.assertEqual(policy["maximum_release_admission_days"], 30)
+        self.assertEqual(lifecycle.RELEASE_ADMISSION_MAXIMUM_DAYS, 30)
+        admissions, _summary, remote = build_case(
+            issued_at="2026-08-18T11:00:00Z",
+            expires_at="2026-09-17T11:00:00Z",
+        )
+        self.assertEqual(
+            validate_case(admissions, remote), {"flow": "production:flow:1"}
+        )
+        admissions, _summary, remote = build_case(
+            issued_at="2026-08-18T11:00:00Z",
+            expires_at="2026-09-17T11:00:01Z",
+        )
+        with self.assertRaisesRegex(
+            lifecycle.LifecycleError, "validity window is outside policy"
+        ):
+            validate_case(admissions, remote)
+
+    def test_policy_maximums_stay_within_the_historical_bound(self) -> None:
+        policy = load_policy()
+        for key in (
+            "maximum_release_admission_days",
+            "maximum_workflow_admission_days",
+        ):
+            with self.subTest(key=key):
+                self.assertIsInstance(policy[key], int)
+                self.assertGreaterEqual(policy[key], 1)
+                self.assertLessEqual(policy[key], 30)
+        self.assertLessEqual(
+            policy["maximum_workflow_admission_days"],
+            policy["maximum_release_admission_days"],
+        )
+
+    def test_declared_maximums_match_the_enforced_windows(self) -> None:
+        # production_trust is the v2 trust core.  validate_release applies the
+        # release window to openadapt.qualification-release/v1 and
+        # validate_qualification_admission applies the workflow window to
+        # openadapt.qualification-admission/v3.  A drift between the declared
+        # policy numbers and those call sites must fail here.
+        policy = load_policy()
+        for function, days in (
+            (trust.validate_release, policy["maximum_release_admission_days"]),
+            (
+                trust.validate_qualification_admission,
+                policy["maximum_workflow_admission_days"],
+            ),
+        ):
+            with self.subTest(function=function.__name__):
+                source = inspect.getsource(function)
+                self.assertIn("validate_window(", source)
+                self.assertIn(f"maximum=timedelta(days={days})", source)
+
+    def test_policy_that_declares_another_maximum_is_refused(self) -> None:
+        for key in (
+            "maximum_release_admission_days",
+            "maximum_workflow_admission_days",
+        ):
+            with self.subTest(key=key):
+                policy = load_policy()
+                policy[key] = 3
+                with self.assertRaisesRegex(
+                    lifecycle.LifecycleError, "the Production trust core enforces"
+                ):
+                    lifecycle.validate(
+                        policy,
+                        empty_admissions(),
+                        *lifecycle.load_lifecycle(),
+                        policy_sha256=POLICY_DIGEST,
+                        now=NOW,
+                    )
+
+    def test_policy_maximum_outside_the_historical_bound_is_refused(self) -> None:
+        policy = load_policy()
+        policy["maximum_release_admission_days"] = 31
+        with self.assertRaisesRegex(
+            lifecycle.LifecycleError, "must be between 1 and 30"
+        ):
+            lifecycle.validate(
+                policy,
+                empty_admissions(),
+                *lifecycle.load_lifecycle(),
+                policy_sha256=POLICY_DIGEST,
+                now=NOW,
+            )
+
+
+class CertificateIdentityBindingTests(unittest.TestCase):
+    """The v2 policy dropped the summary authority.  The binding must remain.
+
+    Removing summary_authority from the validator without a replacement would
+    leave it reporting success while nothing checks who signed the acceptance
+    evidence.  These tests fail if that happens.
+    """
+
+    def active_authority(self) -> dict:
+        admissions, _summary, remote = build_case()
+        captured: list[dict] = []
+        self.assertEqual(
+            validate_case(admissions, remote, authority_sink=captured),
+            {"flow": "production:flow:1"},
+        )
+        self.assertEqual(len(captured), 1)
+        return captured[0]
+
+    def test_attestation_verifier_receives_the_exact_certificate_identity(
+        self,
+    ) -> None:
+        authority = self.active_authority()
+        # Literal values, not lifecycle.EXPECTED_AUTHORITY: a refactor that
+        # empties or rewrites the pinned trust root must fail here too.
+        self.assertEqual(
+            authority["certificate_identity"],
+            "https://github.com/OpenAdaptAI/openadapt-evals/.github/workflows/"
+            "production-lifecycle-evidence.yml@refs/heads/main",
+        )
+        self.assertEqual(
+            authority["oidc_issuer"], "https://token.actions.githubusercontent.com"
+        )
+        self.assertEqual(authority["repository"], "OpenAdaptAI/openadapt-evals")
+        self.assertEqual(authority["source_ref"], "refs/heads/main")
+
+    def test_certificate_identity_is_derived_from_repository_and_workflow(
+        self,
+    ) -> None:
+        authority = self.active_authority()
+        self.assertEqual(
+            authority["certificate_identity"],
+            "https://github.com/"
+            + authority["repository"]
+            + "/"
+            + authority["workflow"]
+            + "@"
+            + authority["source_ref"],
+        )
+
+    def test_published_policy_no_longer_carries_the_authority(self) -> None:
+        policy = load_policy()
+        self.assertNotIn("summary_authority", json.dumps(policy))
+        # The authority is absent from the policy and present at the verifier.
+        self.assertTrue(self.active_authority()["certificate_identity"])
+
+    def test_refused_attestation_removes_derived_production(self) -> None:
+        admissions, _summary, remote = build_case()
+        with self.assertRaisesRegex(lifecycle.LifecycleError, "attestation"):
+            validate_case(admissions, remote, attestation_valid=False)
+
+    def test_verifier_command_pins_the_identity_flags(self) -> None:
+        recorded: list[list[str]] = []
+
+        class Completed:
+            returncode = 0
+            stdout = "not json"
+            stderr = ""
+
+        def fake_run(command, **_kwargs):
+            recorded.append(list(command))
+            return Completed()
+
+        with mock.patch.object(lifecycle.subprocess, "run", fake_run):
+            with self.assertRaises(lifecycle.LifecycleError):
+                lifecycle._verify_attestation(
+                    b"{}", b"{}", lifecycle.EXPECTED_AUTHORITY, "1" * 40
+                )
+        self.assertEqual(len(recorded), 1)
+        command = recorded[0]
+        self.assertIn("--cert-identity", command)
+        self.assertEqual(
+            command[command.index("--cert-identity") + 1],
+            "https://github.com/OpenAdaptAI/openadapt-evals/.github/workflows/"
+            "production-lifecycle-evidence.yml@refs/heads/main",
+        )
+        self.assertIn("--cert-oidc-issuer", command)
+        self.assertEqual(
+            command[command.index("--cert-oidc-issuer") + 1],
+            "https://token.actions.githubusercontent.com",
+        )
+        self.assertIn("--deny-self-hosted-runners", command)
+
+    def test_pinned_authority_checks_still_bite(self) -> None:
+        # v1 checked the authority where the policy declared it.  v2 removed the
+        # declaration, so the same checks now run against the pinned trust root.
+        # Each mutation must still be refused.
+        cases = (
+            ("oidc_issuer", "https://token.actions.example.com", "OIDC issuer"),
+            ("source_ref", "refs/heads/release", "refs/heads/main"),
+            (
+                "certificate_identity",
+                "https://github.com/OpenAdaptAI/attacker/w.yml@refs/heads/main",
+                "certificate identity is not exact",
+            ),
+            (
+                "summary_schema_version",
+                "openadapt.production-lifecycle-evidence-summary/v2",
+                "summary authority schema",
+            ),
+            (
+                "evidence_manifest_schema_version",
+                "openadapt.production-acceptance/v2",
+                "evidence manifest schema",
+            ),
+            (
+                "release_identity_schema_version",
+                "openadapt.monotonic-production-release/v2",
+                "release identity schema",
+            ),
+            ("production_channel", "staging", "channel is not production"),
+            (
+                "signer_provenance_digest_domain",
+                "OpenAdapt production certificate signer provenance v2\0",
+                "signer provenance digest domain",
+            ),
+        )
+        for key, value, message in cases:
+            with self.subTest(key=key):
+                authority = copy.deepcopy(lifecycle.EXPECTED_AUTHORITY)
+                authority[key] = value
+                with self.assertRaisesRegex(lifecycle.LifecycleError, message):
+                    lifecycle._validate_summary_authority(authority)
+
+    def test_pinned_authority_cannot_gain_or_lose_a_field(self) -> None:
+        authority = copy.deepcopy(lifecycle.EXPECTED_AUTHORITY)
+        authority["extra"] = "value"
+        with self.assertRaisesRegex(
+            lifecycle.LifecycleError, "must contain exactly"
+        ):
+            lifecycle._validate_summary_authority(authority)
+        authority = copy.deepcopy(lifecycle.EXPECTED_AUTHORITY)
+        del authority["certificate_identity"]
+        with self.assertRaisesRegex(
+            lifecycle.LifecycleError, "must contain exactly"
+        ):
+            lifecycle._validate_summary_authority(authority)
+
+    def test_published_authority_passes_every_pinned_check(self) -> None:
+        self.assertEqual(
+            lifecycle._validate_summary_authority(
+                copy.deepcopy(lifecycle.EXPECTED_AUTHORITY)
+            ),
+            lifecycle.EXPECTED_AUTHORITY,
+        )
 
 
 if __name__ == "__main__":

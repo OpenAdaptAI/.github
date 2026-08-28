@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "production-current-default.schema.json",
+  "title": "OpenAdapt production current default v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "default_set_revision",
+    "previous_default_set_sha256",
+    "targets",
+    "issued_at",
+    "not_before",
+    "expires_at",
+    "issuer"
+  ],
+  "properties": {
+    "schema_version": {"const": "openadapt.production-current-default/v1"},
+    "default_set_revision": {"type": "integer", "minimum": 1},
+    "previous_default_set_sha256": {"oneOf": [{"$ref": "#/$defs/digest"}, {"type": "null"}]},
+    "targets": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/default_target"}
+    },
+    "issued_at": {"$ref": "#/$defs/timestamp"},
+    "not_before": {"$ref": "#/$defs/timestamp"},
+    "expires_at": {"$ref": "#/$defs/timestamp"},
+    "issuer": {"$ref": "#/$defs/issuer"}
+  },
+  "$defs": {
+    "target": {"enum": ["agent", "capture", "cloud", "desktop", "docs", "flow", "openadapt"]},
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "decimal_id": {"type": "string", "pattern": "^[1-9][0-9]*$"},
+    "timestamp": {"type": "string", "format": "date-time", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"},
+    "default_target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target", "release_sha256", "artifact_inventory_sha256", "version", "tag",
+        "deployment_id", "deployment_sha256", "qualification_release_sha256", "default_identity_sha256"
+      ],
+      "properties": {
+        "target": {"$ref": "#/$defs/target"},
+        "release_sha256": {"$ref": "#/$defs/digest"},
+        "artifact_inventory_sha256": {"$ref": "#/$defs/digest"},
+        "version": {"oneOf": [{"type": "string", "minLength": 1, "maxLength": 80}, {"type": "null"}]},
+        "tag": {"oneOf": [{"type": "string", "minLength": 1, "maxLength": 120}, {"type": "null"}]},
+        "deployment_id": {"oneOf": [{"$ref": "#/$defs/decimal_id"}, {"type": "null"}]},
+        "deployment_sha256": {"oneOf": [{"$ref": "#/$defs/digest"}, {"type": "null"}]},
+        "qualification_release_sha256": {"$ref": "#/$defs/digest"},
+        "default_identity_sha256": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "issuer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository", "repository_id", "repository_owner_id", "workflow",
+        "ref", "source_commit", "environment"
+      ],
+      "properties": {
+        "repository": {"const": "OpenAdaptAI/openadapt-ops"},
+        "repository_id": {"const": "1172011294"},
+        "repository_owner_id": {"const": "132681217"},
+        "workflow": {"const": ".github/workflows/production-current-default.yml"},
+        "ref": {"const": "refs/heads/main"},
+        "source_commit": {"$ref": "#/$defs/commit"},
+        "environment": {"const": "production-current-default"}
+      }
+    }
+  }
+}

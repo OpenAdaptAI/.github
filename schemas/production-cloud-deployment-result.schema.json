@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "production-cloud-deployment-result.schema.json",
+  "title": "OpenAdapt production Cloud deployment handoff v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "handoff_id_sha256", "authorization_reference",
+    "authorization_bundle_reference", "authorization_sha256",
+    "cloud_source_commitment_sha256", "profile_commit", "profile_run_id",
+    "profile_run_attempt", "source_proof_request", "source_proof_request_sha256",
+    "source_proof_response", "source_proof_response_sha256",
+    "reviewed_public_values_sha256",
+    "expected_live_attestation_sha256", "live_attestation_sha256",
+    "provider_idempotency_key", "audience", "signer_registry_sha256",
+    "revocation_state_sha256", "verdict", "issued_at", "not_before",
+    "expires_at", "issuer"
+  ],
+  "properties": {
+    "schema_version": {"const": "openadapt.production-cloud-deployment-result/v1"},
+    "handoff_id_sha256": {"$ref": "#/$defs/digest"},
+    "authorization_reference": {"$ref": "#/$defs/authorization_reference"},
+    "authorization_bundle_reference": {"$ref": "#/$defs/authorization_bundle_reference"},
+    "authorization_sha256": {"$ref": "#/$defs/digest"},
+    "cloud_source_commitment_sha256": {"$ref": "#/$defs/digest"},
+    "profile_commit": {"$ref": "#/$defs/commit"},
+    "profile_run_id": {"$ref": "#/$defs/decimal_id"},
+    "profile_run_attempt": {"const": "1"},
+    "source_proof_request": {"$ref": "#/$defs/source_proof_request"},
+    "source_proof_request_sha256": {"$ref": "#/$defs/digest"},
+    "source_proof_response": {"$ref": "#/$defs/source_proof_response"},
+    "source_proof_response_sha256": {"$ref": "#/$defs/digest"},
+    "reviewed_public_values_sha256": {"$ref": "#/$defs/digest"},
+    "expected_live_attestation_sha256": {"$ref": "#/$defs/digest"},
+    "live_attestation_sha256": {"$ref": "#/$defs/digest"},
+    "provider_idempotency_key": {"type": "string", "pattern": "^cloud-deploy:[0-9a-f]{64}$"},
+    "audience": {"const": "openadapt-private-cloud-production-deploy"},
+    "signer_registry_sha256": {"$ref": "#/$defs/digest"},
+    "revocation_state_sha256": {"$ref": "#/$defs/digest"},
+    "verdict": {"const": "accepted"},
+    "issued_at": {"$ref": "#/$defs/timestamp"},
+    "not_before": {"$ref": "#/$defs/timestamp"},
+    "expires_at": {"$ref": "#/$defs/timestamp"},
+    "issuer": {"$ref": "#/$defs/issuer"}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "raw_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "decimal_id": {"type": "string", "pattern": "^[1-9][0-9]*$"},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "timestamp": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"},
+    "source_proof_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authorization_sha256", "cloud_source_commit",
+        "expected_live_attestation_sha256", "expires_at", "issued_at", "nonce",
+        "production_origin", "profile_commit", "profile_environment",
+        "profile_repository", "profile_workflow_ref", "run_attempt", "run_id",
+        "schema_version", "site_id", "source_names"
+      ],
+      "properties": {
+        "schema_version": {"const": "openadapt.production-secret-source-proof-request/v2"},
+        "authorization_sha256": {"$ref": "#/$defs/raw_digest"},
+        "cloud_source_commit": {"$ref": "#/$defs/commit"},
+        "expected_live_attestation_sha256": {"$ref": "#/$defs/raw_digest"},
+        "profile_commit": {"$ref": "#/$defs/commit"},
+        "production_origin": {"const": "https://app.openadapt.ai"},
+        "profile_environment": {"const": "production-cloud-deploy"},
+        "profile_repository": {"const": "OpenAdaptAI/.github"},
+        "profile_workflow_ref": {"const": "OpenAdaptAI/.github/.github/workflows/production-cloud-deploy.yml@refs/heads/main"},
+        "run_id": {"$ref": "#/$defs/decimal_id"},
+        "run_attempt": {"const": "1"},
+        "site_id": {"const": "ccf1a48a-d934-48ea-a9a8-36cbddf27cb5"},
+        "nonce": {"type": "string", "pattern": "^[A-Za-z0-9_-]{43}$"},
+        "source_names": {
+          "const": [
+            "BUSINESS_DECISION_ANSWER_HMAC_KEY",
+            "BUSINESS_DECISION_ANSWER_HMAC_KEY_ID",
+            "BUSINESS_DECISION_CLOUD_POLICY_HMAC_KEYS_JSON",
+            "BUSINESS_DECISION_PRINCIPAL_ALIAS_HMAC_KEY",
+            "BUSINESS_DECISION_QUALIFICATION_HMAC_KEYS_JSON",
+            "BUSINESS_DECISION_ROLE_MAPPING_HMAC_KEY",
+            "BUSINESS_DECISION_RUNNER_RECEIPT_HMAC_KEYS_JSON",
+            "BUSINESS_DECISION_SESSION_BINDING_HMAC_KEY",
+            "BUSINESS_DECISION_TASK_HMAC_KEYS_JSON",
+            "EXECUTE_ACCEPTANCE_CAMPAIGN_PROVISIONER_TOKEN",
+            "EXECUTE_ACCEPTANCE_OBSERVER_BEARER_TOKEN",
+            "EXECUTE_ACCEPTANCE_OBSERVER_SIGNING_PRIVATE_KEY",
+            "EXECUTE_ACCEPTANCE_TARGET_SIGNING_SECRET"
+          ]
+        },
+        "issued_at": {"$ref": "#/$defs/timestamp"},
+        "expires_at": {"$ref": "#/$defs/timestamp"}
+      }
+    },
+    "source_proof_response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authorization_sha256", "live_attestation_sha256", "live_deployment",
+        "oidc_identity_sha256", "production_origin", "proofs", "public_values",
+        "request_sha256", "schema_version", "site_id"
+      ],
+      "properties": {
+        "schema_version": {"const": "openadapt.production-secret-source-proof-response/v2"},
+        "request_sha256": {"$ref": "#/$defs/raw_digest"},
+        "authorization_sha256": {"$ref": "#/$defs/raw_digest"},
+        "live_attestation_sha256": {"$ref": "#/$defs/raw_digest"},
+        "live_deployment": {"$ref": "#/$defs/live_deployment"},
+        "oidc_identity_sha256": {"$ref": "#/$defs/raw_digest"},
+        "production_origin": {"const": "https://app.openadapt.ai"},
+        "site_id": {"const": "ccf1a48a-d934-48ea-a9a8-36cbddf27cb5"},
+        "proofs": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "BUSINESS_DECISION_ANSWER_HMAC_KEY",
+            "BUSINESS_DECISION_CLOUD_POLICY_HMAC_KEYS_JSON",
+            "BUSINESS_DECISION_PRINCIPAL_ALIAS_HMAC_KEY",
+            "BUSINESS_DECISION_QUALIFICATION_HMAC_KEYS_JSON",
+            "BUSINESS_DECISION_ROLE_MAPPING_HMAC_KEY",
+            "BUSINESS_DECISION_RUNNER_RECEIPT_HMAC_KEYS_JSON",
+            "BUSINESS_DECISION_SESSION_BINDING_HMAC_KEY",
+            "BUSINESS_DECISION_TASK_HMAC_KEYS_JSON",
+            "EXECUTE_ACCEPTANCE_CAMPAIGN_PROVISIONER_TOKEN",
+            "EXECUTE_ACCEPTANCE_OBSERVER_BEARER_TOKEN",
+            "EXECUTE_ACCEPTANCE_OBSERVER_SIGNING_PRIVATE_KEY",
+            "EXECUTE_ACCEPTANCE_TARGET_SIGNING_SECRET"
+          ],
+          "properties": {
+            "BUSINESS_DECISION_ANSWER_HMAC_KEY": {"$ref": "#/$defs/raw_digest"},
+            "BUSINESS_DECISION_CLOUD_POLICY_HMAC_KEYS_JSON": {"$ref": "#/$defs/raw_digest"},
+            "BUSINESS_DECISION_PRINCIPAL_ALIAS_HMAC_KEY": {"$ref": "#/$defs/raw_digest"},
+            "BUSINESS_DECISION_QUALIFICATION_HMAC_KEYS_JSON": {"$ref": "#/$defs/raw_digest"},
+            "BUSINESS_DECISION_ROLE_MAPPING_HMAC_KEY": {"$ref": "#/$defs/raw_digest"},
+            "BUSINESS_DECISION_RUNNER_RECEIPT_HMAC_KEYS_JSON": {"$ref": "#/$defs/raw_digest"},
+            "BUSINESS_DECISION_SESSION_BINDING_HMAC_KEY": {"$ref": "#/$defs/raw_digest"},
+            "BUSINESS_DECISION_TASK_HMAC_KEYS_JSON": {"$ref": "#/$defs/raw_digest"},
+            "EXECUTE_ACCEPTANCE_CAMPAIGN_PROVISIONER_TOKEN": {"$ref": "#/$defs/raw_digest"},
+            "EXECUTE_ACCEPTANCE_OBSERVER_BEARER_TOKEN": {"$ref": "#/$defs/raw_digest"},
+            "EXECUTE_ACCEPTANCE_OBSERVER_SIGNING_PRIVATE_KEY": {"$ref": "#/$defs/raw_digest"},
+            "EXECUTE_ACCEPTANCE_TARGET_SIGNING_SECRET": {"$ref": "#/$defs/raw_digest"}
+          }
+        },
+        "public_values": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["BUSINESS_DECISION_ANSWER_HMAC_KEY_ID"],
+          "properties": {
+            "BUSINESS_DECISION_ANSWER_HMAC_KEY_ID": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+            }
+          }
+        }
+      }
+    },
+    "live_deployment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["build_id", "source_commit"],
+      "properties": {
+        "build_id": {"$ref": "#/$defs/digest"},
+        "source_commit": {"$ref": "#/$defs/commit"}
+      }
+    },
+    "authorization_reference": {
+      "allOf": [
+        {"$ref": "production-evidence-object-reference.schema.json"},
+        {"properties": {
+          "kind": {"const": "production-cloud-deploy-authorization"},
+          "object_schema_version": {"const": "openadapt.production-cloud-deploy-authorization/v1"},
+          "object_media_type": {"const": "application/vnd.openadapt.production-cloud-deploy-authorization+json;version=1"},
+          "subject_sha256": {"type": "null"}
+        }}
+      ]
+    },
+    "authorization_bundle_reference": {
+      "allOf": [
+        {"$ref": "production-evidence-object-reference.schema.json"},
+        {"properties": {
+          "kind": {"const": "production-cloud-deploy-authorization-sigstore-bundle"},
+          "object_schema_version": {"const": "application/vnd.dev.sigstore.bundle.v0.3+json"},
+          "object_media_type": {"const": "application/vnd.dev.sigstore.bundle.v0.3+json"},
+          "subject_sha256": {"$ref": "#/$defs/digest"}
+        }}
+      ]
+    },
+    "issuer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "repository_id", "repository_owner_id", "workflow", "ref", "source_commit", "environment"],
+      "properties": {
+        "repository": {"const": "OpenAdaptAI/.github"},
+        "repository_id": {"const": "858454062"},
+        "repository_owner_id": {"const": "132681217"},
+        "workflow": {"const": ".github/workflows/production-cloud-deploy.yml"},
+        "ref": {"const": "refs/heads/main"},
+        "source_commit": {"$ref": "#/$defs/commit"},
+        "environment": {"const": "production-cloud-deploy"}
+      }
+    }
+  }
+}

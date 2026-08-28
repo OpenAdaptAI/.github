@@ -1,0 +1,147 @@
+name: Production lifecycle feed ref
+
+on:
+  workflow_dispatch:
+    inputs:
+      feed_update_json:
+        description: Closed openadapt.production-lifecycle-feed-update/v1 JSON
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  attestations: read
+
+concurrency:
+  group: production-lifecycle-feed-ref
+  cancel-in-progress: false
+
+jobs:
+  authorize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions: {}
+    steps:
+      - name: Require the registered lifecycle App dispatcher
+        env:
+          ACTOR: ${{ github.actor }}
+          ACTOR_ID: ${{ github.actor_id }}
+          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$ACTOR" = 'openadapt-lifecycle[bot]'
+          test "$ACTOR_ID" = '321544198'
+          test "$TRIGGERING_ACTOR" = 'openadapt-lifecycle[bot]'
+
+  update:
+    needs: authorize
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production-lifecycle-feed
+    steps:
+      - name: Check out current protected main
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Mint the lifecycle App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: '4730735'
+          private-key: ${{ secrets.OPENADAPT_LIFECYCLE_APP_PRIVATE_KEY }}
+          owner: OpenAdaptAI
+          repositories: .github
+
+      - name: Install the pinned GitHub attestation verifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/gh_2.98.0_linux_amd64.tar.gz"
+          curl --fail --location --silent --show-error \
+            --output "$archive" \
+            https://github.com/cli/cli/releases/download/v2.98.0/gh_2.98.0_linux_amd64.tar.gz
+          echo "3b8ac6b30336802fc1a858d7c084e11cdf24ac1a761ca90b68022d7d729208de  $archive" \
+            | sha256sum --check --strict
+          tar --extract --gzip --file "$archive" --directory "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/gh_2.98.0_linux_amd64/bin" >> "$GITHUB_PATH"
+
+      - name: Install the pinned message-signature verifier
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.0
+        with:
+          cosign-release: v3.1.3
+
+      - name: Bind Cosign and the Sigstore trust material
+        shell: bash
+        run: |
+          set -euo pipefail
+          cosign_path=$(command -v cosign)
+          test "$(wc -c < "$cosign_path" | tr -d ' ')" = '141178250'
+          echo "4629c757b7618056f8ddd7e2625ae9fdd94c0372a65049520bc7d9df9efc7f71  $cosign_path" \
+            | sha256sum --check --strict
+          trusted_root="$RUNNER_TEMP/sigstore-trusted-root.json"
+          signing_config="$RUNNER_TEMP/sigstore-signing-config.json"
+          curl --fail --location --silent --show-error \
+            --output "$trusted_root" \
+            https://raw.githubusercontent.com/sigstore/root-signing/c6f23ff62645fb0c46ebc7945675835b52f91aa8/targets/trusted_root.json
+          test "$(wc -c < "$trusted_root" | tr -d ' ')" = '6787'
+          echo "6494e21ea73fa7ee769f85f57d5a3e6a08725eae1e38c755fc3517c9e6bc0b66  $trusted_root" \
+            | sha256sum --check --strict
+          curl --fail --location --silent --show-error \
+            --output "$signing_config" \
+            https://raw.githubusercontent.com/sigstore/root-signing/c6f23ff62645fb0c46ebc7945675835b52f91aa8/targets/signing_config.json
+          test "$(wc -c < "$signing_config" | tr -d ' ')" = '219'
+          echo "d358c75d032833f4193500f5b01b5760409410558fac962c599439adbb268b0f  $signing_config" \
+            | sha256sum --check --strict
+          echo "OPENADAPT_SIGSTORE_TRUSTED_ROOT=$trusted_root" >> "$GITHUB_ENV"
+
+      - name: Validate the exact feed commit
+        env:
+          FEED_UPDATE_JSON: ${{ inputs.feed_update_json }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          new_commit=$(python3 -c 'import json,os; print(json.loads(os.environ["FEED_UPDATE_JSON"])["new_commit"])')
+          expected_old=$(python3 -c 'import json,os; print(json.loads(os.environ["FEED_UPDATE_JSON"])["expected_old_commit"] or "")')
+          git fetch --no-tags origin "$new_commit"
+          if [ -n "$expected_old" ]; then
+            git fetch --no-tags origin "$expected_old"
+          fi
+          python3 scripts/validate_production_lifecycle_ref.py \
+            --update-json "$FEED_UPDATE_JSON" \
+            --trusted-main "${{ github.sha }}"
+
+      - name: Verify lifecycle App installation
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(gh api /installation --jq '.app_id|tostring')" = '4730735'
+          test "$(gh api /installation --jq '.id|tostring')" = '156835618'
+          test "$(gh api /installation --jq '.account.id|tostring')" = '132681217'
+
+      - name: Compare and swap the protected feed ref
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          FEED_UPDATE_JSON: ${{ inputs.feed_update_json }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_old=$(python3 -c 'import json,os; print(json.loads(os.environ["FEED_UPDATE_JSON"])["expected_old_commit"] or "")')
+          new_commit=$(python3 -c 'import json,os; print(json.loads(os.environ["FEED_UPDATE_JSON"])["new_commit"])')
+          current=$(gh api /repos/OpenAdaptAI/.github/git/ref/heads/production-lifecycle-feed \
+            --jq .object.sha 2>/dev/null || true)
+          test "$current" = "$expected_old"
+          if [ -z "$expected_old" ]; then
+            gh api --method POST /repos/OpenAdaptAI/.github/git/refs \
+              -f ref=refs/heads/production-lifecycle-feed -f sha="$new_commit" >/dev/null
+          else
+            test "$(gh api /repos/OpenAdaptAI/.github/git/ref/heads/production-lifecycle-feed --jq .object.sha)" = "$expected_old"
+            gh api --method PATCH /repos/OpenAdaptAI/.github/git/refs/heads/production-lifecycle-feed \
+              -f sha="$new_commit" -F force=false >/dev/null
+          fi
+          test "$(gh api /repos/OpenAdaptAI/.github/git/ref/heads/production-lifecycle-feed --jq .object.sha)" = "$new_commit"

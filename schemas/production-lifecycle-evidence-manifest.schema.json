@@ -1,190 +1,128 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/OpenAdaptAI/.github/blob/main/schemas/production-lifecycle-evidence-manifest.schema.json",
-  "title": "OpenAdapt Production acceptance evidence manifest",
+  "$id": "production-lifecycle-evidence-manifest.schema.json",
+  "title": "OpenAdapt production acceptance manifest v2",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "schema_version",
     "target",
-    "claim_scope",
     "verdict",
+    "claim_scope",
     "acceptance_policy_sha256",
     "lifecycle_policy_sha256",
-    "target_release_sha256",
-    "target_artifact_inventory_sha256",
-    "evidence_identity_sha256",
-    "source_evidence",
-    "qualification",
-    "failure_taxonomy_counts",
-    "reliability",
-    "retention"
+    "release_identity",
+    "release",
+    "release_sha256",
+    "artifact_inventory",
+    "artifact_inventory_sha256",
+    "publication_staging",
+    "publication_staging_sha256",
+    "qualification_evidence_decision_receipt_reference",
+    "qualification_evidence_decision_receipt_bundle_reference",
+    "qualification_admission_reference",
+    "qualification_admission_bundle_reference",
+    "campaign_summary",
+    "authority_state_sha256",
+    "revocation_state_sha256",
+    "signer_registry_sha256",
+    "issued_at",
+    "not_before",
+    "expires_at",
+    "issuer"
   ],
   "properties": {
-    "schema_version": {"const": "openadapt.production-acceptance/v1"},
-    "target": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$"},
-    "claim_scope": {"type": "string", "pattern": "^[a-z][a-z0-9_]{2,127}$"},
+    "schema_version": {"const": "openadapt.production-acceptance/v2"},
+    "target": {"enum": ["agent", "capture", "cloud", "desktop", "docs", "flow", "openadapt"]},
     "verdict": {"const": "accepted"},
+    "claim_scope": {"type": "string", "pattern": "^production_[a-z]+$"},
     "acceptance_policy_sha256": {"$ref": "#/$defs/digest"},
     "lifecycle_policy_sha256": {"$ref": "#/$defs/digest"},
-    "target_release_sha256": {"$ref": "#/$defs/digest"},
-    "target_artifact_inventory_sha256": {"$ref": "#/$defs/digest"},
-    "evidence_identity_sha256": {"$ref": "#/$defs/digest"},
-    "source_evidence": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "source_result_sha256",
-        "certificate_sha256",
-        "campaign_sha256",
-        "qualification_admission_sha256",
-        "attestation_sha256",
-        "attestation_bundle_sha256"
-      ],
-      "properties": {
-        "source_result_sha256": {"$ref": "#/$defs/digest"},
-        "certificate_sha256": {"$ref": "#/$defs/digest"},
-        "campaign_sha256": {"$ref": "#/$defs/digest"},
-        "qualification_admission_sha256": {"$ref": "#/$defs/digest"},
-        "attestation_sha256": {"$ref": "#/$defs/digest"},
-        "attestation_bundle_sha256": {"$ref": "#/$defs/digest"}
-      }
-    },
-    "qualification": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "campaign_contract_sha256",
-        "campaign_outcomes_sha256",
-        "oracle_contract_sha256",
-        "task_count",
-        "condition_count",
-        "required_trial_count",
-        "observed_trial_count",
-        "minimum_trials_per_condition",
-        "excluded_trial_count",
-        "task_condition_inventory_sha256"
-      ],
-      "properties": {
-        "campaign_contract_sha256": {"$ref": "#/$defs/digest"},
-        "campaign_outcomes_sha256": {"$ref": "#/$defs/digest"},
-        "oracle_contract_sha256": {"$ref": "#/$defs/digest"},
-        "task_count": {"type": "integer", "minimum": 1},
-        "condition_count": {"type": "integer", "minimum": 1},
-        "required_trial_count": {"type": "integer", "minimum": 3},
-        "observed_trial_count": {"type": "integer", "minimum": 3},
-        "minimum_trials_per_condition": {"type": "integer", "minimum": 3},
-        "excluded_trial_count": {"const": 0},
-        "task_condition_inventory_sha256": {"$ref": "#/$defs/digest"}
-      }
-    },
-    "failure_taxonomy_counts": {"$ref": "#/$defs/failureTaxonomy"},
-    "reliability": {"$ref": "#/$defs/reliability"},
-    "retention": {"$ref": "#/$defs/retention"}
+    "release_identity": {"$ref": "qualification-release.schema.json#/$defs/release_identity"},
+    "release": {"$ref": "qualification-release.schema.json#/$defs/release_candidate"},
+    "release_sha256": {"$ref": "#/$defs/digest"},
+    "artifact_inventory": {"$ref": "production-release-artifact-inventory.schema.json"},
+    "artifact_inventory_sha256": {"$ref": "#/$defs/digest"},
+    "publication_staging": {"$ref": "qualification-release.schema.json#/$defs/publication_staging"},
+    "publication_staging_sha256": {"$ref": "#/$defs/digest"},
+    "qualification_evidence_decision_receipt_reference": {"$ref": "#/$defs/receipt_reference"},
+    "qualification_evidence_decision_receipt_bundle_reference": {"$ref": "#/$defs/receipt_bundle_reference"},
+    "qualification_admission_reference": {"$ref": "#/$defs/admission_reference"},
+    "qualification_admission_bundle_reference": {"$ref": "#/$defs/admission_bundle_reference"},
+    "campaign_summary": {"$ref": "qualification-admission.schema.json#/$defs/campaign_summary"},
+    "authority_state_sha256": {"$ref": "#/$defs/digest"},
+    "revocation_state_sha256": {"$ref": "#/$defs/digest"},
+    "signer_registry_sha256": {"$ref": "#/$defs/digest"},
+    "issued_at": {"$ref": "#/$defs/timestamp"},
+    "not_before": {"$ref": "#/$defs/timestamp"},
+    "expires_at": {"$ref": "#/$defs/timestamp"},
+    "issuer": {"$ref": "#/$defs/issuer"}
   },
   "$defs": {
     "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
-    "millisecondTimestamp": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"},
-    "count": {"type": "integer", "minimum": 0},
-    "failureTaxonomy": {
+    "timestamp": {"type": "string", "format": "date-time", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "issuer": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "collateral_effect",
-        "duplicate_effect",
-        "healthy_path_model_call",
-        "operator_intervention",
-        "over_halt",
-        "platform_failure",
-        "safe_halt",
-        "silent_incorrect_success",
-        "uncertain_delivery",
-        "verified",
-        "wrong_record"
-      ],
+      "required": ["repository", "repository_id", "repository_owner_id", "workflow", "ref", "source_commit", "environment"],
       "properties": {
-        "collateral_effect": {"$ref": "#/$defs/count"},
-        "duplicate_effect": {"$ref": "#/$defs/count"},
-        "healthy_path_model_call": {"$ref": "#/$defs/count"},
-        "operator_intervention": {"$ref": "#/$defs/count"},
-        "over_halt": {"$ref": "#/$defs/count"},
-        "platform_failure": {"$ref": "#/$defs/count"},
-        "safe_halt": {"$ref": "#/$defs/count"},
-        "silent_incorrect_success": {"$ref": "#/$defs/count"},
-        "uncertain_delivery": {"$ref": "#/$defs/count"},
-        "verified": {"$ref": "#/$defs/count"},
-        "wrong_record": {"$ref": "#/$defs/count"}
+        "repository": {"const": "OpenAdaptAI/openadapt-evals"},
+        "repository_id": {"const": "1135998197"},
+        "repository_owner_id": {"const": "132681217"},
+        "workflow": {"const": ".github/workflows/issue-production-acceptance.yml"},
+        "ref": {"const": "refs/heads/main"},
+        "source_commit": {"$ref": "#/$defs/commit"},
+        "environment": {"const": "production-acceptance"}
       }
     },
-    "reliability": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "silent_incorrect_success_count",
-        "over_halt_count",
-        "wrong_record_count",
-        "duplicate_effect_count",
-        "collateral_effect_count",
-        "operator_intervention_count",
-        "uncertain_delivery_count",
-        "model_call_count"
-      ],
-      "properties": {
-        "silent_incorrect_success_count": {"$ref": "#/$defs/count"},
-        "over_halt_count": {"$ref": "#/$defs/count"},
-        "wrong_record_count": {"$ref": "#/$defs/count"},
-        "duplicate_effect_count": {"$ref": "#/$defs/count"},
-        "collateral_effect_count": {"$ref": "#/$defs/count"},
-        "operator_intervention_count": {"$ref": "#/$defs/count"},
-        "uncertain_delivery_count": {"$ref": "#/$defs/count"},
-        "model_call_count": {"$ref": "#/$defs/count"}
-      }
+    "regular_reference": {
+      "allOf": [
+        {"$ref": "production-evidence-object-reference.schema.json"},
+        {"properties": {"subject_sha256": {"type": "null"}}}
+      ]
     },
-    "retention": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "receipt_id",
-        "ciphertext_sha256",
-        "candidate_sha256",
-        "private_envelope_sha256",
-        "store_attestation_sha256",
-        "storage_identity_sha256",
-        "object_version_sha256",
-        "private_locator_version_sha256",
-        "kms_key_identity_sha256",
-        "uploader_identity_sha256",
-        "retention_mode",
-        "retention_until",
-        "retained_at",
-        "upload_verified",
-        "head_verified",
-        "object_lock_verified",
-        "private_locator_recorded",
-        "acceptance_verified_at",
-        "provenance_attestation"
-      ],
-      "properties": {
-        "receipt_id": {"type": "string", "pattern": "^retention:[0-9a-f]{32}$"},
-        "ciphertext_sha256": {"$ref": "#/$defs/digest"},
-        "candidate_sha256": {"$ref": "#/$defs/digest"},
-        "private_envelope_sha256": {"$ref": "#/$defs/digest"},
-        "store_attestation_sha256": {"$ref": "#/$defs/digest"},
-        "storage_identity_sha256": {"$ref": "#/$defs/digest"},
-        "object_version_sha256": {"$ref": "#/$defs/digest"},
-        "private_locator_version_sha256": {"$ref": "#/$defs/digest"},
-        "kms_key_identity_sha256": {"$ref": "#/$defs/digest"},
-        "uploader_identity_sha256": {"$ref": "#/$defs/digest"},
-        "retention_mode": {"const": "COMPLIANCE"},
-        "retention_until": {"$ref": "#/$defs/millisecondTimestamp"},
-        "retained_at": {"$ref": "#/$defs/millisecondTimestamp"},
-        "upload_verified": {"const": true},
-        "head_verified": {"const": true},
-        "object_lock_verified": {"const": true},
-        "private_locator_recorded": {"const": true},
-        "acceptance_verified_at": {"$ref": "#/$defs/millisecondTimestamp"},
-        "provenance_attestation": {"const": "github-artifact-attestation-v4"}
-      }
+    "bundle_reference": {
+      "allOf": [
+        {"$ref": "production-evidence-object-reference.schema.json"},
+        {"properties": {
+          "object_schema_version": {"const": "application/vnd.dev.sigstore.bundle.v0.3+json"},
+          "object_media_type": {"const": "application/vnd.dev.sigstore.bundle.v0.3+json"},
+          "subject_sha256": {"$ref": "#/$defs/digest"}
+        }}
+      ]
+    },
+    "receipt_reference": {
+      "allOf": [
+        {"$ref": "#/$defs/regular_reference"},
+        {"properties": {
+          "kind": {"const": "qualification-evidence-decision-receipt"},
+          "object_schema_version": {"const": "openadapt.qualification-evidence-decision-receipt/v1"},
+          "object_media_type": {"const": "application/vnd.openadapt.qualification-evidence-decision-receipt+json;version=1"}
+        }}
+      ]
+    },
+    "receipt_bundle_reference": {
+      "allOf": [
+        {"$ref": "#/$defs/bundle_reference"},
+        {"properties": {"kind": {"const": "qualification-evidence-decision-receipt-sigstore-bundle"}}}
+      ]
+    },
+    "admission_reference": {
+      "allOf": [
+        {"$ref": "#/$defs/regular_reference"},
+        {"properties": {
+          "kind": {"const": "qualification-admission"},
+          "object_schema_version": {"const": "openadapt.qualification-admission/v3"},
+          "object_media_type": {"const": "application/vnd.openadapt.qualification-admission+json;version=3"}
+        }}
+      ]
+    },
+    "admission_bundle_reference": {
+      "allOf": [
+        {"$ref": "#/$defs/bundle_reference"},
+        {"properties": {"kind": {"const": "qualification-admission-sigstore-bundle"}}}
+      ]
     }
   }
 }

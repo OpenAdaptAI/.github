@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "qualification-evidence-signing-statement.schema.json",
+  "title": "OpenAdapt qualification evidence signing statement v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "object_schema_version",
+    "signature_domain",
+    "unsigned_object_sha256",
+    "unsigned_size_bytes",
+    "commitment_scheme"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "openadapt.qualification-evidence-signing-statement/v1"
+    },
+    "object_schema_version": {
+      "type": "string",
+      "pattern": "^openadapt\\.[a-z0-9.-]+/v[1-9][0-9]*$"
+    },
+    "signature_domain": {
+      "type": "string",
+      "pattern": "^OpenAdapt .+\\u0000$"
+    },
+    "unsigned_object_sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "unsigned_size_bytes": {"type": "integer", "minimum": 1},
+    "commitment_scheme": {"const": "sha256-canonical-json-lf"}
+  }
+}

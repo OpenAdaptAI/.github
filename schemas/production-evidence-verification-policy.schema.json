@@ -1,0 +1,225 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "production-evidence-verification-policy.schema.json",
+  "title": "OpenAdapt production evidence verification policy v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "repository",
+    "repository_id",
+    "repository_owner_id",
+    "reference_schema_version",
+    "transport",
+    "signer_registry_schema_version",
+    "embedded_signatures",
+    "message_signature",
+    "sigstore",
+    "public_trust_dsse"
+  ],
+  "properties": {
+    "schema_version": {"const": "openadapt.production-evidence-verification-policy/v1"},
+    "repository": {"const": "OpenAdaptAI/.github"},
+    "repository_id": {"const": "858454062"},
+    "repository_owner_id": {"const": "132681217"},
+    "reference_schema_version": {"const": "openadapt.production-evidence-object-reference/v2"},
+    "transport": {"const": "exact-commit-raw-github"},
+    "signer_registry_schema_version": {"const": "openadapt.qualification-signer-registry/v2"},
+    "embedded_signatures": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/embedded_signature"}
+    },
+    "message_signature": {"$ref": "#/$defs/message_signature"},
+    "sigstore": {"$ref": "#/$defs/sigstore"},
+    "public_trust_dsse": {"$ref": "#/$defs/public_trust_dsse"}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "archive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["os", "arch", "url", "sha256"],
+      "properties": {
+        "os": {"enum": ["linux", "macos"]},
+        "arch": {"enum": ["amd64", "arm64"]},
+        "url": {"type": "string", "pattern": "^https://github\\.com/cli/cli/releases/download/v[0-9]+\\.[0-9]+\\.[0-9]+/gh_"},
+        "sha256": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "certificate_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "bundle_profile", "issuer_repository", "certificate_identity"],
+      "properties": {
+        "kind": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        "bundle_profile": {"enum": ["github-attestation", "sigstore-message-signature"]},
+        "issuer_repository": {"type": "string", "pattern": "^OpenAdaptAI/[A-Za-z0-9._-]+$"},
+        "certificate_identity": {"type": "string", "pattern": "^https://github\\.com/OpenAdaptAI/[A-Za-z0-9._-]+/\\.github/workflows/[A-Za-z0-9._-]+\\.yml@refs/heads/main$"}
+      }
+    },
+    "pinned_document": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "commit", "path", "sha256", "size_bytes"],
+      "properties": {
+        "repository": {"const": "sigstore/root-signing"},
+        "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "path": {"enum": ["targets/trusted_root.json", "targets/signing_config.json"]},
+        "sha256": {"$ref": "#/$defs/digest"},
+        "size_bytes": {"type": "integer", "minimum": 1}
+      }
+    },
+    "embedded_signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind", "algorithm", "profile", "statement_schema_version",
+        "signature_domain", "projection", "encoding", "key_source"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "qualification-authority-state-receipt",
+            "qualification-evidence-decision-receipt",
+            "qualification-revocation-state-receipt"
+          ]
+        },
+        "algorithm": {"const": "ed25519"},
+        "profile": {"const": "ed25519-canonical-signing-statement"},
+        "statement_schema_version": {
+          "const": "openadapt.qualification-evidence-signing-statement/v1"
+        },
+        "signature_domain": {
+          "enum": [
+            "OpenAdapt qualification authority state receipt v2\u0000",
+            "OpenAdapt qualification evidence decision receipt v1\u0000",
+            "OpenAdapt qualification revocation state receipt v1\u0000"
+          ]
+        },
+        "projection": {
+          "const": "canonical-object-minus-signature-and-signing-statement"
+        },
+        "encoding": {"const": "base64-rfc4648-padded"},
+        "key_source": {"const": "active-qualification-signer-registry-v2"}
+      }
+    },
+    "message_signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile", "tool", "version", "runner", "architecture", "installer_action", "url",
+        "sha256", "size_bytes", "trusted_root", "signing_config"
+      ],
+      "properties": {
+        "profile": {"const": "sigstore-message-signature"},
+        "tool": {"const": "cosign"},
+        "version": {"const": "3.1.3"},
+        "runner": {"const": "ubuntu-24.04"},
+        "architecture": {"const": "linux-amd64"},
+        "installer_action": {"const": "sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6"},
+        "url": {"const": "https://github.com/sigstore/cosign/releases/download/v3.1.3/cosign-linux-amd64"},
+        "sha256": {"$ref": "#/$defs/digest"},
+        "size_bytes": {"type": "integer", "minimum": 1},
+        "trusted_root": {"$ref": "#/$defs/pinned_document"},
+        "signing_config": {"$ref": "#/$defs/pinned_document"}
+      }
+    },
+    "public_trust_dsse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile", "bundle_media_type", "statement_schema_version",
+        "statement_media_type", "signature_encoding", "key_origin",
+        "aws_account_id", "aws_region", "kms_key_spec",
+        "kms_signing_algorithm", "kms_message_type", "role_arn",
+        "signing_workflow", "signing_environment", "key_source",
+        "offline_verification_required", "alias_allowed", "activation_state",
+        "allowed_kinds"
+      ],
+      "properties": {
+        "profile": {"const": "aws-kms-p256-dsse-v1"},
+        "bundle_media_type": {"const": "application/vnd.dev.sigstore.bundle.v0.3+json"},
+        "statement_schema_version": {"const": "openadapt.production-public-trust-signing-statement/v1"},
+        "statement_media_type": {"const": "application/vnd.openadapt.production-public-trust-signing-statement+json;version=1"},
+        "signature_encoding": {"const": "asn1-der-low-s-base64-rfc4648-padded"},
+        "key_origin": {"const": "aws-kms"},
+        "aws_account_id": {"const": "992382684924"},
+        "aws_region": {"const": "us-east-1"},
+        "kms_key_spec": {"const": "ECC_NIST_P256"},
+        "kms_signing_algorithm": {"const": "ECDSA_SHA_256"},
+        "kms_message_type": {"const": "DIGEST"},
+        "role_arn": {"const": "arn:aws:iam::992382684924:role/openadapt-public-trust-signer"},
+        "signing_workflow": {"const": "https://github.com/OpenAdaptAI/.github/.github/workflows/sign-production-evidence.yml@refs/heads/main"},
+        "signing_environment": {"const": "public-trust-signing"},
+        "key_source": {"const": "active-qualification-signer-registry-v2"},
+        "offline_verification_required": {"const": true},
+        "alias_allowed": {"const": false},
+        "activation_state": {"const": "inactive-until-all-consumers-pin-exact-verifier"},
+        "allowed_kinds": {
+          "type": "array",
+          "minItems": 17,
+          "maxItems": 17,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "production-acceptance-manifest",
+              "production-acceptance-summary",
+              "production-cloud-deploy-authorization",
+              "production-cloud-deployment-result",
+              "production-current-default",
+              "production-deployment-observation",
+              "production-lifecycle-checkpoint",
+              "qualification-admission",
+              "qualification-authority-state-receipt",
+              "qualification-campaign-permit",
+              "qualification-campaign-permit-policy",
+              "qualification-campaign-permit-receipt",
+              "qualification-campaign-permit-request",
+              "qualification-evidence-decision-receipt",
+              "qualification-release",
+              "qualification-revocation-state-receipt",
+              "support-release-admission"
+            ]
+          }
+        }
+      }
+    },
+    "sigstore": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tool",
+        "version",
+        "cert_oidc_issuer",
+        "deny_self_hosted_runners",
+        "allow_public_good",
+        "archives",
+        "certificate_identities"
+      ],
+      "properties": {
+        "tool": {"const": "gh"},
+        "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+        "cert_oidc_issuer": {"const": "https://token.actions.githubusercontent.com"},
+        "deny_self_hosted_runners": {"const": true},
+        "allow_public_good": {"const": false},
+        "archives": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/archive"}
+        },
+        "certificate_identities": {
+          "type": "array",
+          "minItems": 10,
+          "maxItems": 10,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/certificate_identity"}
+        }
+      }
+    }
+  }
+}

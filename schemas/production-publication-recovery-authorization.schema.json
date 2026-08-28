@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "production-publication-recovery-authorization.schema.json",
+  "title": "OpenAdapt production publication recovery authorization v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "authorization_id_sha256",
+    "qualification_release_reference", "qualification_release_object_sha256",
+    "release_sha256", "artifact_inventory_sha256", "publication_staging_sha256",
+    "repository", "repository_id", "target", "tag", "tag_ref",
+    "tag_object_id", "target_commit", "draft_release_id", "requested_effect",
+    "run_id", "run_attempt", "dispatcher_actor_id", "environment",
+    "release_app", "idempotency_key", "issued_at", "not_before",
+    "expires_at", "issuer"
+  ],
+  "properties": {
+    "schema_version": {"const": "openadapt.production-publication-recovery-authorization/v1"},
+    "authorization_id_sha256": {"$ref": "#/$defs/digest"},
+    "qualification_release_reference": {"$ref": "#/$defs/release_reference"},
+    "qualification_release_object_sha256": {"$ref": "#/$defs/digest"},
+    "release_sha256": {"$ref": "#/$defs/digest"},
+    "artifact_inventory_sha256": {"$ref": "#/$defs/digest"},
+    "publication_staging_sha256": {"$ref": "#/$defs/digest"},
+    "repository": {"type": "string", "pattern": "^OpenAdaptAI/[A-Za-z0-9._-]+$"},
+    "repository_id": {"$ref": "#/$defs/decimal_id"},
+    "target": {"enum": ["agent", "capture", "desktop", "flow", "openadapt"]},
+    "tag": {"type": "string", "pattern": "^v(0|[1-9][0-9]{0,9})\\.(0|[1-9][0-9]{0,9})\\.(0|[1-9][0-9]{0,9})(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$"},
+    "tag_ref": {"type": "string", "pattern": "^refs/tags/v(0|[1-9][0-9]{0,9})\\.(0|[1-9][0-9]{0,9})\\.(0|[1-9][0-9]{0,9})(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$"},
+    "tag_object_id": {"$ref": "#/$defs/commit"},
+    "target_commit": {"$ref": "#/$defs/commit"},
+    "draft_release_id": {"$ref": "#/$defs/decimal_id"},
+    "requested_effect": {
+      "enum": [
+        "stage-draft-assets",
+        "publish-pypi",
+        "publish-github-release",
+        "publish-mcp-registry"
+      ]
+    },
+    "run_id": {"$ref": "#/$defs/decimal_id"},
+    "run_attempt": {"const": "1"},
+    "dispatcher_actor_id": {"const": "774615"},
+    "environment": {"enum": ["release-identity", "pypi", "mcp-registry"]},
+    "release_app": {"$ref": "#/$defs/release_app"},
+    "idempotency_key": {"type": "string", "pattern": "^publication-recovery:[0-9a-f]{64}$"},
+    "issued_at": {"$ref": "#/$defs/timestamp"},
+    "not_before": {"$ref": "#/$defs/timestamp"},
+    "expires_at": {"$ref": "#/$defs/timestamp"},
+    "issuer": {"$ref": "#/$defs/issuer"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"requested_effect": {"enum": ["stage-draft-assets", "publish-github-release"]}}},
+      "then": {"properties": {"environment": {"const": "release-identity"}}}
+    },
+    {
+      "if": {"properties": {"requested_effect": {"const": "publish-pypi"}}},
+      "then": {"properties": {"environment": {"const": "pypi"}}}
+    },
+    {
+      "if": {"properties": {"requested_effect": {"const": "publish-mcp-registry"}}},
+      "then": {
+        "properties": {
+          "environment": {"const": "mcp-registry"},
+          "target": {"const": "agent"}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "decimal_id": {"type": "string", "pattern": "^[1-9][0-9]*$"},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "timestamp": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"},
+    "release_reference": {
+      "allOf": [
+        {"$ref": "production-evidence-object-reference.schema.json"},
+        {"properties": {
+          "kind": {"const": "qualification-release"},
+          "object_schema_version": {"const": "openadapt.qualification-release/v1"},
+          "object_media_type": {"const": "application/vnd.openadapt.qualification-release+json;version=1"},
+          "subject_sha256": {"type": "null"}
+        }}
+      ]
+    },
+    "release_app": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["app_id", "installation_id", "bot_user_id", "bot_login"],
+      "properties": {
+        "app_id": {"const": "4730708"},
+        "installation_id": {"const": "156835568"},
+        "bot_user_id": {"const": "321543906"},
+        "bot_login": {"const": "openadapt-release[bot]"}
+      }
+    },
+    "issuer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "repository_id", "repository_owner_id", "workflow", "ref", "source_commit", "environment"],
+      "properties": {
+        "repository": {"const": "OpenAdaptAI/.github"},
+        "repository_id": {"const": "858454062"},
+        "repository_owner_id": {"const": "132681217"},
+        "workflow": {"const": ".github/workflows/issue-production-publication-recovery.yml"},
+        "ref": {"const": "refs/heads/main"},
+        "source_commit": {"$ref": "#/$defs/commit"},
+        "environment": {"enum": ["mcp-registry", "pypi", "release-identity"]}
+      }
+    }
+  }
+}

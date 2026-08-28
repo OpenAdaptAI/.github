@@ -66,7 +66,9 @@ jobs:
           else
             printf '{"admissions":[]}\n' > "$RUNNER_TEMP/previous-production-lifecycle-admissions.json"
           fi
-          python3 scripts/validate_production_lifecycle.py --previous-admissions "$RUNNER_TEMP/previous-production-lifecycle-admissions.json"
+          python3 scripts/validate_production_lifecycle.py \
+            --history-only \
+            --previous-admissions "$RUNNER_TEMP/previous-production-lifecycle-admissions.json"
       - name: Validate product truth and links
         run: python3 scripts/check_profile.py
 

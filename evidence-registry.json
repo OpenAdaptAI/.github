@@ -1,6 +1,13 @@
 {
   "$schema": "schemas/evidence-registry.schema.json",
-  "schema_version": "openadapt.production-evidence-registry/v1",
-  "head_entry_sha256": null,
+  "schema_version": "openadapt.production-evidence-registry/v2",
+  "repository": "OpenAdaptAI/.github",
+  "repository_id": "858454062",
+  "repository_owner_id": "132681217",
+  "revision": 1,
+  "previous_registry_head_sha256": null,
+  "registry_head_sha256": "sha256:3c88a4e945f1aa51ee080f05331c0d7a36b907ad288cf8a24b2fef08b1681a97",
+  "signer_registry": null,
+  "signer_registry_history": [],
   "entries": []
 }

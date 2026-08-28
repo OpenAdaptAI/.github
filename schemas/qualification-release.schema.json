@@ -1,0 +1,327 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "qualification-release.schema.json",
+  "title": "OpenAdapt qualification release v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "admission_id_sha256",
+    "target",
+    "verdict",
+    "claim_scope",
+    "release_identity",
+    "release",
+    "release_sha256",
+    "artifact_inventory_sha256",
+    "publication_staging",
+    "publication_staging_sha256",
+    "production_acceptance_summary_reference",
+    "production_acceptance_summary_bundle_reference",
+    "authority_state_sha256",
+    "revocation_state_sha256",
+    "signer_registry_sha256",
+    "publication_policy_sha256",
+    "issued_at",
+    "not_before",
+    "expires_at",
+    "issuer"
+  ],
+  "properties": {
+    "schema_version": {"const": "openadapt.qualification-release/v1"},
+    "admission_id_sha256": {"$ref": "#/$defs/digest"},
+    "target": {"$ref": "#/$defs/target"},
+    "verdict": {"const": "accepted"},
+    "claim_scope": {"type": "string", "pattern": "^production_[a-z]+$"},
+    "release_identity": {"$ref": "#/$defs/release_identity"},
+    "release": {"$ref": "#/$defs/release_candidate"},
+    "release_sha256": {"$ref": "#/$defs/digest"},
+    "artifact_inventory_sha256": {"$ref": "#/$defs/digest"},
+    "publication_staging": {"$ref": "#/$defs/publication_staging"},
+    "publication_staging_sha256": {"$ref": "#/$defs/digest"},
+    "production_acceptance_summary_reference": {"$ref": "#/$defs/summary_reference"},
+    "production_acceptance_summary_bundle_reference": {"$ref": "#/$defs/summary_bundle_reference"},
+    "authority_state_sha256": {"$ref": "#/$defs/digest"},
+    "revocation_state_sha256": {"$ref": "#/$defs/digest"},
+    "signer_registry_sha256": {"$ref": "#/$defs/digest"},
+    "publication_policy_sha256": {"$ref": "#/$defs/digest"},
+    "issued_at": {"$ref": "#/$defs/timestamp"},
+    "not_before": {"$ref": "#/$defs/timestamp"},
+    "expires_at": {"$ref": "#/$defs/timestamp"},
+    "issuer": {"$ref": "#/$defs/issuer"}
+  },
+  "$defs": {
+    "target": {"enum": ["agent", "capture", "cloud", "desktop", "docs", "flow", "openadapt"]},
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "decimal_id": {"type": "string", "pattern": "^[1-9][0-9]*$"},
+    "timestamp": {"type": "string", "format": "date-time", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"},
+    "release_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "channel", "sequence", "previous_admission_sha256"],
+      "properties": {
+        "schema_version": {"const": "openadapt.monotonic-production-release/v1"},
+        "channel": {"const": "production"},
+        "sequence": {"type": "integer", "minimum": 1},
+        "previous_admission_sha256": {
+          "oneOf": [
+            {"$ref": "#/$defs/digest"},
+            {"type": "null"}
+          ]
+        }
+      }
+    },
+    "publish_destinations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {"enum": ["deployment", "github-release", "pypi"]}
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "kind", "sha256", "size_bytes", "media_type", "publish_destinations"],
+      "properties": {
+        "name": {"type": "string", "pattern": "^[^/\\\\]+$", "minLength": 1, "maxLength": 255},
+        "kind": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        "sha256": {"$ref": "#/$defs/digest"},
+        "size_bytes": {"type": "integer", "minimum": 1},
+        "media_type": {"type": "string", "pattern": "^[^/]+/[^/]+$", "maxLength": 200},
+        "publish_destinations": {"$ref": "#/$defs/publish_destinations"}
+      }
+    },
+    "release_candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "kind", "source_repository", "source_repository_id",
+        "source_commit", "version", "tag", "deployment_id", "deployment_sha256", "artifacts"
+      ],
+      "properties": {
+        "schema_version": {"const": "openadapt.production-release-candidate/v1"},
+        "kind": {"enum": ["package", "deployment", "hybrid"]},
+        "source_repository": {"type": "string", "pattern": "^OpenAdaptAI/[A-Za-z0-9._-]+$"},
+        "source_repository_id": {"$ref": "#/$defs/decimal_id"},
+        "source_commit": {"$ref": "#/$defs/commit"},
+        "version": {"oneOf": [{"type": "string", "minLength": 1, "maxLength": 80}, {"type": "null"}]},
+        "tag": {"oneOf": [{"type": "string", "minLength": 1, "maxLength": 120}, {"type": "null"}]},
+        "deployment_id": {"oneOf": [{"$ref": "#/$defs/decimal_id"}, {"type": "null"}]},
+        "deployment_sha256": {"oneOf": [{"$ref": "#/$defs/digest"}, {"type": "null"}]},
+        "artifacts": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/artifact"}
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "kind": {"const": "package"},
+            "version": {"type": "string", "minLength": 1, "maxLength": 80},
+            "tag": {"type": "string", "minLength": 1, "maxLength": 120},
+            "deployment_id": {"type": "null"},
+            "deployment_sha256": {"type": "null"}
+          }
+        },
+        {
+          "properties": {
+            "kind": {"const": "deployment"},
+            "version": {"type": "null"},
+            "tag": {"type": "null"},
+            "deployment_id": {"$ref": "#/$defs/decimal_id"},
+            "deployment_sha256": {"$ref": "#/$defs/digest"}
+          }
+        },
+        {
+          "properties": {
+            "kind": {"const": "hybrid"},
+            "version": {"type": "string", "minLength": 1, "maxLength": 80},
+            "tag": {"type": "string", "minLength": 1, "maxLength": 120},
+            "deployment_id": {"$ref": "#/$defs/decimal_id"},
+            "deployment_sha256": {"$ref": "#/$defs/digest"}
+          }
+        }
+      ]
+    },
+    "staged_asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "asset_id", "name", "kind", "sha256", "size_bytes", "media_type",
+        "publish_destinations", "uploader_id", "uploader_login"
+      ],
+      "properties": {
+        "asset_id": {"$ref": "#/$defs/decimal_id"},
+        "name": {"type": "string", "pattern": "^[^/\\\\]+$", "minLength": 1, "maxLength": 255},
+        "kind": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        "sha256": {"$ref": "#/$defs/digest"},
+        "size_bytes": {"type": "integer", "minimum": 1},
+        "media_type": {"type": "string", "pattern": "^[^/]+/[^/]+$", "maxLength": 200},
+        "publish_destinations": {"$ref": "#/$defs/publish_destinations"},
+        "uploader_id": {"const": "321543906"},
+        "uploader_login": {"const": "openadapt-release[bot]"}
+      }
+    },
+    "tag_conditions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref_name"],
+      "properties": {
+        "ref_name": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["include", "exclude"],
+          "properties": {
+            "include": {"const": ["refs/tags/v*"]},
+            "exclude": {"const": []}
+          }
+        }
+      }
+    },
+    "tag_ruleset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "role", "repository", "repository_id", "ruleset_id",
+        "name", "target", "enforcement", "bypass_actors", "conditions", "rules"
+      ],
+      "properties": {
+        "schema_version": {"const": "openadapt.production-release-tag-ruleset/v1"},
+        "role": {"enum": ["creation_authority", "immutability"]},
+        "repository": {"type": "string", "pattern": "^OpenAdaptAI/[A-Za-z0-9._-]+$"},
+        "repository_id": {"$ref": "#/$defs/decimal_id"},
+        "ruleset_id": {"$ref": "#/$defs/decimal_id"},
+        "name": {"type": "string", "minLength": 1, "maxLength": 100},
+        "target": {"const": "tag"},
+        "enforcement": {"const": "active"},
+        "bypass_actors": {"type": "array"},
+        "conditions": {"$ref": "#/$defs/tag_conditions"},
+        "rules": {"type": "array"}
+      }
+    },
+    "creation_ruleset": {
+      "allOf": [
+        {"$ref": "#/$defs/tag_ruleset"},
+        {"properties": {
+          "role": {"const": "creation_authority"},
+          "name": {"const": "OpenAdapt policy: release tag creation"},
+          "bypass_actors": {"const": [{"actor_id": "4730708", "actor_type": "Integration", "bypass_mode": "always"}]},
+          "rules": {"const": [{"type": "creation"}]}
+        }}
+      ]
+    },
+    "immutability_ruleset": {
+      "allOf": [
+        {"$ref": "#/$defs/tag_ruleset"},
+        {"properties": {
+          "role": {"const": "immutability"},
+          "name": {"const": "OpenAdapt policy: immutable release tags"},
+          "bypass_actors": {"const": []},
+          "rules": {"const": [
+            {"type": "deletion"},
+            {"type": "non_fast_forward"},
+            {"type": "update", "parameters": {"update_allows_fetch_and_merge": false}}
+          ]}
+        }}
+      ]
+    },
+    "publication_staging": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "repository", "repository_id", "draft_release_id", "tag",
+        "target_commitish", "draft", "prerelease", "release_app_id",
+        "release_app_installation_id", "release_app_bot_user_id", "release_author_login",
+        "assets", "immutable_releases", "immutable_releases_sha256",
+        "tag_rulesets", "tag_rulesets_sha256", "tag_ref_state",
+        "tag_ref_state_sha256", "observed_at"
+      ],
+      "properties": {
+        "schema_version": {"const": "openadapt.production-release-staging-evidence/v1"},
+        "repository": {"type": "string", "pattern": "^OpenAdaptAI/[A-Za-z0-9._-]+$"},
+        "repository_id": {"$ref": "#/$defs/decimal_id"},
+        "draft_release_id": {"$ref": "#/$defs/decimal_id"},
+        "tag": {"type": "string", "minLength": 1, "maxLength": 120},
+        "target_commitish": {"$ref": "#/$defs/commit"},
+        "draft": {"const": true},
+        "prerelease": {"const": false},
+        "release_app_id": {"const": "4730708"},
+        "release_app_installation_id": {"const": "156835568"},
+        "release_app_bot_user_id": {"const": "321543906"},
+        "release_author_login": {"const": "openadapt-release[bot]"},
+        "assets": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/staged_asset"}},
+        "immutable_releases": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "enforced_by_owner"],
+          "properties": {
+            "enabled": {"const": true},
+            "enforced_by_owner": {"type": "boolean"}
+          }
+        },
+        "immutable_releases_sha256": {"$ref": "#/$defs/digest"},
+        "tag_rulesets": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "prefixItems": [
+            {"$ref": "#/$defs/creation_ruleset"},
+            {"$ref": "#/$defs/immutability_ruleset"}
+          ],
+          "items": false
+        },
+        "tag_rulesets_sha256": {"$ref": "#/$defs/digest"},
+        "tag_ref_state": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ref", "exists"],
+          "properties": {
+            "ref": {"type": "string", "pattern": "^refs/tags/v[^/]+$"},
+            "exists": {"const": false}
+          }
+        },
+        "tag_ref_state_sha256": {"$ref": "#/$defs/digest"},
+        "observed_at": {"$ref": "#/$defs/timestamp"}
+      }
+    },
+    "summary_reference": {
+      "allOf": [
+        {"$ref": "production-evidence-object-reference.schema.json"},
+        {"properties": {
+          "kind": {"const": "production-acceptance-summary"},
+          "object_schema_version": {"const": "openadapt.production-lifecycle-evidence-summary/v2"},
+          "object_media_type": {"const": "application/vnd.openadapt.production-lifecycle-evidence-summary+json;version=2"},
+          "subject_sha256": {"type": "null"}
+        }}
+      ]
+    },
+    "summary_bundle_reference": {
+      "allOf": [
+        {"$ref": "production-evidence-object-reference.schema.json"},
+        {"properties": {
+          "kind": {"const": "production-acceptance-summary-sigstore-bundle"},
+          "object_schema_version": {"const": "application/vnd.dev.sigstore.bundle.v0.3+json"},
+          "object_media_type": {"const": "application/vnd.dev.sigstore.bundle.v0.3+json"},
+          "subject_sha256": {"$ref": "#/$defs/digest"}
+        }}
+      ]
+    },
+    "issuer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "repository_id", "repository_owner_id", "workflow", "ref", "source_commit", "environment"],
+      "properties": {
+        "repository": {"const": "OpenAdaptAI/.github"},
+        "repository_id": {"const": "858454062"},
+        "repository_owner_id": {"const": "132681217"},
+        "workflow": {"const": ".github/workflows/issue-production-release-admission.yml"},
+        "ref": {"const": "refs/heads/main"},
+        "source_commit": {"$ref": "#/$defs/commit"},
+        "environment": {"const": "production-release-admission"}
+      }
+    }
+  }
+}

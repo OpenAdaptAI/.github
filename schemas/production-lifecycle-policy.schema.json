@@ -1,96 +1,75 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/OpenAdaptAI/.github/blob/main/schemas/production-lifecycle-policy.schema.json",
-  "title": "OpenAdapt Production lifecycle policy",
+  "$id": "production-lifecycle-policy.schema.json",
+  "title": "OpenAdapt production lifecycle policy v2",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "$schema",
     "schema_version",
     "revision",
-    "maximum_admission_days",
-    "summary_authority",
+    "maximum_release_admission_days",
+    "maximum_workflow_admission_days",
+    "object_reference_schema_version",
+    "release_admission_schema_version",
+    "workflow_admission_schema_version",
+    "lifecycle_checkpoint_schema_version",
+    "lifecycle_feed_schema_version",
+    "lifecycle_feed_ref",
     "targets"
   ],
   "properties": {
     "$schema": {"const": "schemas/production-lifecycle-policy.schema.json"},
-    "schema_version": {"const": "openadapt.production-lifecycle-policy/v1"},
-    "revision": {"type": "integer", "minimum": 1},
-    "maximum_admission_days": {"type": "integer", "minimum": 1, "maximum": 30},
-    "summary_authority": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "repository",
-        "workflow",
-        "source_ref",
-        "oidc_issuer",
-        "certificate_identity",
-        "summary_schema_version",
-        "private_certificate_schema_version",
-        "evidence_manifest_schema_version",
-        "acceptance_policy_sha256",
-        "release_identity_schema_version",
-        "production_channel",
-        "signer_provenance_digest_domain"
-      ],
-      "properties": {
-        "repository": {"type": "string", "pattern": "^OpenAdaptAI/[A-Za-z0-9._-]+$"},
-        "workflow": {"type": "string", "pattern": "^\\.github/workflows/[A-Za-z0-9._-]+\\.ya?ml$"},
-        "source_ref": {"const": "refs/heads/main"},
-        "oidc_issuer": {"const": "https://token.actions.githubusercontent.com"},
-        "certificate_identity": {"type": "string", "format": "uri"},
-        "summary_schema_version": {"const": "openadapt.production-lifecycle-evidence-summary/v1"},
-        "private_certificate_schema_version": {"const": "openadapt.execute-live-acceptance-record/v2"},
-        "evidence_manifest_schema_version": {"const": "openadapt.production-acceptance/v1"},
-        "acceptance_policy_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
-        "release_identity_schema_version": {"const": "openadapt.monotonic-production-release/v1"},
-        "production_channel": {"const": "production"},
-        "signer_provenance_digest_domain": {"const": "OpenAdapt production certificate signer provenance v1\u0000"}
-      }
-    },
+    "schema_version": {"const": "openadapt.production-lifecycle-policy/v2"},
+    "revision": {"type": "integer", "minimum": 2},
+    "maximum_release_admission_days": {"const": 30},
+    "maximum_workflow_admission_days": {"const": 7},
+    "object_reference_schema_version": {"const": "openadapt.production-evidence-object-reference/v2"},
+    "release_admission_schema_version": {"const": "openadapt.qualification-release/v1"},
+    "workflow_admission_schema_version": {"const": "openadapt.qualification-admission/v3"},
+    "lifecycle_checkpoint_schema_version": {"const": "openadapt.production-lifecycle-checkpoint/v1"},
+    "lifecycle_feed_schema_version": {"const": "openadapt.production-lifecycle-feed/v1"},
+    "lifecycle_feed_ref": {"const": "refs/heads/production-lifecycle-feed"},
     "targets": {
       "type": "array",
       "minItems": 7,
       "maxItems": 7,
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "id",
-          "display_name",
-          "lifecycle_scope",
-          "lifecycle_subject",
-          "source_repository",
-          "release_kind",
-          "required_claim_scope",
-          "required_artifact_kinds",
-          "package_index_project",
-          "artifact_authority_by_kind"
-        ],
-        "properties": {
-          "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$"},
-          "display_name": {"type": "string", "minLength": 1},
-          "lifecycle_scope": {"enum": ["repository", "public_surface"]},
-          "lifecycle_subject": {"type": "string", "minLength": 1},
-          "source_repository": {"type": "string", "pattern": "^OpenAdaptAI/[A-Za-z0-9._-]+$"},
-          "release_kind": {"enum": ["public_package", "private_deployment", "public_deployment"]},
-          "required_claim_scope": {"type": "string", "pattern": "^[a-z][a-z0-9_]{2,127}$"},
-          "package_index_project": {
-            "oneOf": [
-              {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]+$"},
-              {"type": "null"}
-            ]
-          },
-          "artifact_authority_by_kind": {
-            "type": "object",
-            "additionalProperties": {"enum": ["pypi", "github_release", "managed_evidence"]}
-          },
-          "required_artifact_kinds": {
-            "type": "array",
-            "uniqueItems": true,
-            "items": {"type": "string", "minLength": 1}
-          }
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/target"}
+    }
+  },
+  "$defs": {
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "display_name",
+        "source_repository",
+        "source_repository_id",
+        "release_kind",
+        "claim_scope",
+        "required_artifact_kinds",
+        "package_index_project"
+      ],
+      "properties": {
+        "id": {"enum": ["agent", "capture", "cloud", "desktop", "docs", "flow", "openadapt"]},
+        "display_name": {"type": "string", "minLength": 1, "maxLength": 80},
+        "source_repository": {"type": "string", "pattern": "^OpenAdaptAI/[A-Za-z0-9._-]+$"},
+        "source_repository_id": {"type": "string", "pattern": "^[1-9][0-9]*$"},
+        "release_kind": {"enum": ["package", "deployment", "hybrid"]},
+        "claim_scope": {"type": "string", "pattern": "^production_[a-z]+$"},
+        "required_artifact_kinds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"}
+        },
+        "package_index_project": {
+          "oneOf": [
+            {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            {"type": "null"}
+          ]
         }
       }
     }

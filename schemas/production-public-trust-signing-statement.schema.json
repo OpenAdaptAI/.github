@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "production-public-trust-signing-statement.schema.json",
+  "title": "OpenAdapt production public-trust signing statement v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "object_kind", "object_schema_version", "object_media_type",
+    "object_sha256", "object_size_bytes", "semantic_identity_sha256", "source_issuer",
+    "signer_registry_sha256", "authority_state_sha256", "revocation_state_sha256",
+    "issued_at", "not_before", "expires_at", "request_id_sha256",
+    "signing_authority", "key_id", "signature_profile"
+  ],
+  "properties": {
+    "schema_version": {"const": "openadapt.production-public-trust-signing-statement/v1"},
+    "object_kind": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,95}$"},
+    "object_schema_version": {"type": "string", "minLength": 1, "maxLength": 160},
+    "object_media_type": {"type": "string", "minLength": 1, "maxLength": 200},
+    "object_sha256": {"$ref": "#/$defs/digest"},
+    "object_size_bytes": {"type": "integer", "minimum": 1},
+    "semantic_identity_sha256": {"$ref": "#/$defs/digest"},
+    "source_issuer": {"$ref": "#/$defs/issuer"},
+    "signer_registry_sha256": {"$ref": "#/$defs/digest"},
+    "authority_state_sha256": {"$ref": "#/$defs/digest"},
+    "revocation_state_sha256": {"$ref": "#/$defs/digest"},
+    "issued_at": {"$ref": "#/$defs/timestamp"},
+    "not_before": {"$ref": "#/$defs/timestamp"},
+    "expires_at": {"$ref": "#/$defs/timestamp"},
+    "request_id_sha256": {"$ref": "#/$defs/digest"},
+    "signing_authority": {"$ref": "#/$defs/signing_authority"},
+    "key_id": {"type": "string", "pattern": "^oa-public-trust-p256-[0-9a-f]{16}$"},
+    "signature_profile": {"const": "aws-kms-p256-dsse-v1"}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "timestamp": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"},
+    "issuer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "repository_id", "repository_owner_id", "workflow", "ref", "source_commit", "environment"],
+      "properties": {
+        "repository": {"type": "string", "pattern": "^OpenAdaptAI/[A-Za-z0-9._-]+$"},
+        "repository_id": {"type": "string", "pattern": "^[1-9][0-9]*$"},
+        "repository_owner_id": {"const": "132681217"},
+        "workflow": {"type": "string", "pattern": "^\\.github/workflows/[A-Za-z0-9._-]+\\.yml$"},
+        "ref": {"const": "refs/heads/main"},
+        "source_commit": {"$ref": "#/$defs/commit"},
+        "environment": {"type": "string", "pattern": "^[a-z][a-z0-9-]{2,63}$"}
+      }
+    },
+    "signing_authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository", "repository_id", "repository_owner_id", "workflow", "ref",
+        "source_commit", "environment", "aws_account_id", "aws_region", "kms_key_arn",
+        "kms_key_spec", "kms_signing_algorithm", "kms_message_type", "role_arn"
+      ],
+      "properties": {
+        "repository": {"const": "OpenAdaptAI/.github"},
+        "repository_id": {"const": "858454062"},
+        "repository_owner_id": {"const": "132681217"},
+        "workflow": {"const": ".github/workflows/sign-production-evidence.yml"},
+        "ref": {"const": "refs/heads/main"},
+        "source_commit": {"$ref": "#/$defs/commit"},
+        "environment": {"type": "string", "pattern": "^[a-z][a-z0-9-]{2,63}$"},
+        "aws_account_id": {"const": "992382684924"},
+        "aws_region": {"const": "us-east-1"},
+        "kms_key_arn": {"type": "string", "pattern": "^arn:aws:kms:us-east-1:992382684924:key/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
+        "kms_key_spec": {"const": "ECC_NIST_P256"},
+        "kms_signing_algorithm": {"const": "ECDSA_SHA_256"},
+        "kms_message_type": {"const": "DIGEST"},
+        "role_arn": {"const": "arn:aws:iam::992382684924:role/openadapt-public-trust-signer"}
+      }
+    }
+  }
+}

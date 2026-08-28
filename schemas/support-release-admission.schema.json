@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "support-release-admission.schema.json",
+  "title": "OpenAdapt Support release admission v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "admission_id_sha256", "lifecycle_state",
+    "support_target", "verdict", "claim_scope", "release_identity",
+    "release", "release_sha256", "artifact_inventory_sha256",
+    "publication_staging", "publication_staging_sha256",
+    "authority_state_sha256", "revocation_state_sha256",
+    "signer_registry_sha256", "support_policy_sha256", "issued_at",
+    "not_before", "expires_at", "issuer"
+  ],
+  "properties": {
+    "schema_version": {"const": "openadapt.support-release-admission/v1"},
+    "admission_id_sha256": {"$ref": "#/$defs/digest"},
+    "lifecycle_state": {"const": "Support"},
+    "support_target": {"const": "openadapt-tray"},
+    "verdict": {"const": "accepted"},
+    "claim_scope": {"const": "support_openadapt_tray"},
+    "release_identity": {"$ref": "#/$defs/release_identity"},
+    "release": {"$ref": "qualification-release.schema.json#/$defs/release_candidate"},
+    "release_sha256": {"$ref": "#/$defs/digest"},
+    "artifact_inventory_sha256": {"$ref": "#/$defs/digest"},
+    "publication_staging": {"$ref": "qualification-release.schema.json#/$defs/publication_staging"},
+    "publication_staging_sha256": {"$ref": "#/$defs/digest"},
+    "authority_state_sha256": {"$ref": "#/$defs/digest"},
+    "revocation_state_sha256": {"$ref": "#/$defs/digest"},
+    "signer_registry_sha256": {"$ref": "#/$defs/digest"},
+    "support_policy_sha256": {"$ref": "#/$defs/digest"},
+    "issued_at": {"$ref": "#/$defs/timestamp"},
+    "not_before": {"$ref": "#/$defs/timestamp"},
+    "expires_at": {"$ref": "#/$defs/timestamp"},
+    "issuer": {"$ref": "#/$defs/issuer"}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "timestamp": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"},
+    "release_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "channel", "sequence", "previous_admission_sha256"],
+      "properties": {
+        "schema_version": {"const": "openadapt.monotonic-support-release/v1"},
+        "channel": {"const": "support"},
+        "sequence": {"type": "integer", "minimum": 1},
+        "previous_admission_sha256": {"oneOf": [{"$ref": "#/$defs/digest"}, {"type": "null"}]}
+      }
+    },
+    "issuer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "repository_id", "repository_owner_id", "workflow", "ref", "source_commit", "environment"],
+      "properties": {
+        "repository": {"const": "OpenAdaptAI/.github"},
+        "repository_id": {"const": "858454062"},
+        "repository_owner_id": {"const": "132681217"},
+        "workflow": {"const": ".github/workflows/issue-support-release-admission.yml"},
+        "ref": {"const": "refs/heads/main"},
+        "source_commit": {"$ref": "#/$defs/commit"},
+        "environment": {"const": "support-release-admission"}
+      }
+    }
+  }
+}
