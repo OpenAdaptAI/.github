@@ -1,5 +1,5 @@
 {
-  "$comment": "Binds every benchmark figure printed on an org front page to the upstream artifact that measured it. Every other claim guard in this org checks that a page contains an attribution string; none of them checks the number. openadapt-web published success_count 20 for the OpenEMR compiled arm for five weeks while the measured artifact said 19, and no guard noticed. scripts/check_benchmark_claims.py re-hashes the vendored snapshots under benchmark-claims/upstream/, renders each registered figure straight out of those bytes, and refuses any figure-shaped token on a registered surface that no entry here claims. So a new figure cannot land on the org profile without a deliberate edit to this file. profile/README.md currently publishes 20/20 for the OpenEMR compiled arm and the pinned artifact says 19 of 20; that one figure is recorded below as an open drift with an expiry date, and the checker fails once the date passes. This repository does not own that prose, so this guard reports the mismatch instead of editing it.",
+  "$comment": "Binds every benchmark figure printed on an org front page to the upstream artifact that measured it. Every other claim guard in this org checks that a page contains an attribution string; none of them checks the number. openadapt-web published success_count 20 for the OpenEMR compiled arm for five weeks while the measured artifact said 19, and no guard noticed. scripts/check_benchmark_claims.py re-hashes the vendored snapshots under benchmark-claims/upstream/, renders each registered figure straight out of those bytes, and refuses any figure-shaped token on a registered surface that no entry here claims. So a new figure cannot land on the org profile without a deliberate edit to this file. A figure this repository does not own can be recorded as an open drift with an owner and an expiry date; the checker prints it on every run and fails unconditionally once the date passes.",
   "schema_version": "openadapt.benchmark-claim-binding/v1",
   "upstream": {
     "repository": "OpenAdaptAI/openadapt-flow",
@@ -47,8 +47,8 @@
     {
       "id": "openemr-compiled-success-ratio",
       "surface": "profile/README.md",
-      "context": "compiled replay went **20/20 at 39.2s p50 with zero model calls**",
-      "text": "20/20",
+      "context": "compiled replay went **19/20 at 39.2s p50 with zero model calls**",
+      "text": "19/20",
       "renderer": "ratio",
       "decimals": null,
       "source": "openemr",
@@ -56,19 +56,13 @@
         "/arms/compiled/success_count",
         "/arms/compiled/n"
       ],
-      "status": "drift_open",
-      "drift": {
-        "upstream_text": "19/20",
-        "recorded_on": "2026-08-28",
-        "expires_on": "2026-09-25",
-        "owner": "the agent that owns org front-page corrections",
-        "reason": "profile/README.md publishes 20/20 for the OpenEMR compiled arm. The pinned artifact records success_count 19 of n 20, because the saved-row oracle adjudication of 2026-07-28 rejected compiled run 20: the note stayed in the unsaved entry form. The published figure is wrong and must become 19/20. This guard adds the binding and does not edit the prose."
-      }
+      "status": "bound",
+      "drift": null
     },
     {
       "id": "openemr-compiled-p50",
       "surface": "profile/README.md",
-      "context": "compiled replay went **20/20 at 39.2s p50 with zero model calls**",
+      "context": "compiled replay went **19/20 at 39.2s p50 with zero model calls**",
       "text": "39.2s",
       "renderer": "seconds",
       "decimals": 1,
