@@ -20,6 +20,18 @@ LIFECYCLE_WORKFLOWS = {
     "qualification-authority-state.yml": "qualification-authority-state",
     "qualification-revocation-state.yml": "qualification-revocation-state",
 }
+INACTIVE_ISSUER_WORKFLOWS = {
+    "issue-qualification-admission.yml": {
+        "interface_command": "python3 scripts/qualification_issuer.py interface",
+        "interface_label": "admission issuer",
+    },
+    "issue-synthetic-qualification-evidence-decision.yml": {
+        "interface_command": (
+            "python3 scripts/qualification_kms_ed25519.py interface"
+        ),
+        "interface_label": "KMS issuer",
+    },
+}
 
 
 def _read(path: str) -> str:
@@ -117,8 +129,50 @@ class GovernanceWorkflowContractTests(unittest.TestCase):
         self.assertEqual(
             discovered,
             set(LIFECYCLE_WORKFLOWS)
+            | set(INACTIVE_ISSUER_WORKFLOWS)
             | {"production-lifecycle-ref.yml", "profile-consistency.yml"},
         )
+
+    def test_inactive_issuer_workflows_cannot_issue_or_acquire_authority(self) -> None:
+        forbidden = (
+            "environment:",
+            "id-token: write",
+            "attestations: write",
+            "contents: write",
+            "packages: write",
+            "pull-requests: write",
+            "${{ secrets.",
+            "aws-actions/",
+            "aws kms",
+            "sign-request",
+            "registry-candidate",
+            "issue_workflow_admission",
+            "issue_release_admission",
+            "actions/upload-artifact",
+            "gh api",
+            "git push",
+        )
+        for filename, contract in INACTIVE_ISSUER_WORKFLOWS.items():
+            content = _read(f".github/workflows/{filename}")
+            self.assertIn("  workflow_dispatch:\n", content, filename)
+            self.assertNotRegex(
+                content,
+                r"(?m)^  (?:pull_request|pull_request_target|push|release|schedule|repository_dispatch|workflow_call):\s*$",
+                filename,
+            )
+            self.assertIn("permissions: {}", content, filename)
+            self.assertIn("persist-credentials: false", content, filename)
+            self.assertIn("github.repository", content, filename)
+            self.assertIn("github.ref", content, filename)
+            self.assertIn("github.sha", content, filename)
+            self.assertIn("refs/heads/main", content, filename)
+            self.assertIn("EXPECTED_ACTIVATION_STATE: inactive", content, filename)
+            self.assertIn(contract["interface_command"], content, filename)
+            self.assertIn(contract["interface_label"], content, filename)
+            self.assertIn("exit 1", content, filename)
+            self.assertIn("cancel-in-progress: false", content, filename)
+            for marker in forbidden:
+                self.assertNotIn(marker, content, f"{filename}: {marker}")
 
     def test_lifecycle_workflows_are_app_only_review_paths(self) -> None:
         for filename, environment in LIFECYCLE_WORKFLOWS.items():
