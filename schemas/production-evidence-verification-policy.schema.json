@@ -52,9 +52,10 @@
     "certificate_identity": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "bundle_profile", "issuer_repository", "certificate_identity"],
+      "required": ["kind", "evidence_class", "bundle_profile", "issuer_repository", "certificate_identity"],
       "properties": {
         "kind": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        "evidence_class": {"enum": ["not-applicable", "private-customer", "remote-safe-synthetic"]},
         "bundle_profile": {"enum": ["github-attestation", "sigstore-message-signature"]},
         "issuer_repository": {"type": "string", "pattern": "^OpenAdaptAI/[A-Za-z0-9._-]+$"},
         "certificate_identity": {"type": "string", "pattern": "^https://github\\.com/OpenAdaptAI/[A-Za-z0-9._-]+/\\.github/workflows/[A-Za-z0-9._-]+\\.yml@refs/heads/main$"}
@@ -95,7 +96,7 @@
         "signature_domain": {
           "enum": [
             "OpenAdapt qualification authority state receipt v2\u0000",
-            "OpenAdapt qualification evidence decision receipt v1\u0000",
+            "OpenAdapt qualification evidence decision receipt v2\u0000",
             "OpenAdapt qualification revocation state receipt v1\u0000"
           ]
         },

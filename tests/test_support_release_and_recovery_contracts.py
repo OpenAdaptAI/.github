@@ -305,9 +305,12 @@ def refresh_recovery_authorization(authorization: dict) -> None:
         "environment": authorization["environment"],
         "release_app": authorization["release_app"],
     }
-    authorization["idempotency_key"] = "publication-recovery:" + hashlib.sha256(
-        trust.PUBLICATION_RECOVERY_IDEMPOTENCY_DOMAIN + trust.canonical(projection)
-    ).hexdigest()
+    authorization["idempotency_key"] = (
+        "publication-recovery:"
+        + hashlib.sha256(
+            trust.PUBLICATION_RECOVERY_IDEMPOTENCY_DOMAIN + trust.canonical(projection)
+        ).hexdigest()
+    )
     identity_projection = dict(authorization)
     identity_projection.pop("authorization_id_sha256", None)
     authorization["authorization_id_sha256"] = trust.digest_bytes(
@@ -319,7 +322,7 @@ def recovery_authorization() -> dict:
     release_reference = evidence_reference()
     authorization = {
         "schema_version": (
-            "openadapt.production-publication-recovery-authorization/v1"
+            "openadapt.production-publication-recovery-authorization/v2"
         ),
         "authorization_id_sha256": sha("placeholder"),
         "qualification_release_reference": release_reference,
@@ -354,9 +357,7 @@ def recovery_authorization() -> dict:
             "repository": "OpenAdaptAI/.github",
             "repository_id": "858454062",
             "repository_owner_id": "132681217",
-            "workflow": (
-                ".github/workflows/issue-production-publication-recovery.yml"
-            ),
+            "workflow": (".github/workflows/issue-production-publication-recovery.yml"),
             "ref": "refs/heads/main",
             "source_commit": "c" * 40,
             "environment": "release-identity",
@@ -376,10 +377,7 @@ class SupportReleaseAdmissionTests(unittest.TestCase):
         )
         self.assertTrue(value["publication_staging"]["draft"])
         self.assertEqual(
-            {
-                item["uploader_login"]
-                for item in value["publication_staging"]["assets"]
-            },
+            {item["uploader_login"] for item in value["publication_staging"]["assets"]},
             {"openadapt-release[bot]"},
         )
 
@@ -388,7 +386,8 @@ class SupportReleaseAdmissionTests(unittest.TestCase):
         value = support_admission()
         value.pop("lifecycle_state")
         value.pop("support_target")
-        value["schema_version"] = "openadapt.qualification-release/v1"
+        value["schema_version"] = "openadapt.qualification-release/v2"
+        value["evidence_class"] = "remote-safe-synthetic"
         value["target"] = "openadapt-tray"
         value["production_acceptance_summary_reference"] = evidence_reference(
             "production-acceptance-summary"
@@ -399,9 +398,7 @@ class SupportReleaseAdmissionTests(unittest.TestCase):
         summary_bundle["subject_sha256"] = value[
             "production_acceptance_summary_reference"
         ]["object_sha256"]
-        projection = {
-            field: summary_bundle[field] for field in registry.ENTRY_FIELDS
-        }
+        projection = {field: summary_bundle[field] for field in registry.ENTRY_FIELDS}
         summary_bundle["registry_entry_sha256"] = registry.entry_digest(projection)
         value["production_acceptance_summary_bundle_reference"] = summary_bundle
         value["publication_policy_sha256"] = value.pop("support_policy_sha256")
@@ -455,9 +452,7 @@ class SupportReleaseAdmissionTests(unittest.TestCase):
 
     def test_staged_inventory_must_exactly_match_admitted_inventory(self) -> None:
         value = support_admission()
-        value["publication_staging"]["assets"][0]["sha256"] = sha(
-            "other-staged-bytes"
-        )
+        value["publication_staging"]["assets"][0]["sha256"] = sha("other-staged-bytes")
         refresh_support_admission(value)
         with self.assertRaisesRegex(trust.TrustError, "staged assets differ"):
             trust.validate_support_release(value)
@@ -502,9 +497,7 @@ class SupportReleaseAdmissionTests(unittest.TestCase):
             ),
             (
                 "not a draft",
-                lambda value: value["publication_staging"].__setitem__(
-                    "draft", False
-                ),
+                lambda value: value["publication_staging"].__setitem__("draft", False),
             ),
             (
                 "prerelease",
@@ -573,9 +566,10 @@ class SupportReleaseAdmissionTests(unittest.TestCase):
             ],
         }
         signer_identity = registry.signer_registry_identity_digest(signer_registry)
-        signer_raw_sha = "sha256:" + hashlib.sha256(
-            registry.canonical(signer_registry) + b"\n"
-        ).hexdigest()
+        signer_raw_sha = (
+            "sha256:"
+            + hashlib.sha256(registry.canonical(signer_registry) + b"\n").hexdigest()
+        )
         authority = {
             "authority_state_sha256": sha("current-authority"),
             "signer_registry_sha256": signer_raw_sha,
@@ -589,14 +583,12 @@ class SupportReleaseAdmissionTests(unittest.TestCase):
             "revocations": [],
         }
         value["authority_state_sha256"] = authority["authority_state_sha256"]
-        value["revocation_state_sha256"] = revocation[
-            "revocation_state_sha256"
-        ]
+        value["revocation_state_sha256"] = revocation["revocation_state_sha256"]
         value["signer_registry_sha256"] = signer_identity
         refresh_support_admission(value)
-        object_sha256 = "sha256:" + hashlib.sha256(
-            trust.canonical(value) + b"\n"
-        ).hexdigest()
+        object_sha256 = (
+            "sha256:" + hashlib.sha256(trust.canonical(value) + b"\n").hexdigest()
+        )
         admission_reference = evidence_reference(
             "support-release-admission",
             object_sha256=object_sha256,
@@ -635,9 +627,10 @@ class SupportReleaseAdmissionTests(unittest.TestCase):
                     changed = copy.deepcopy(value)
                     changed[field] = sha(f"not-current:{field}")
                     refresh_support_admission(changed)
-                    changed_sha = "sha256:" + hashlib.sha256(
-                        trust.canonical(changed) + b"\n"
-                    ).hexdigest()
+                    changed_sha = (
+                        "sha256:"
+                        + hashlib.sha256(trust.canonical(changed) + b"\n").hexdigest()
+                    )
                     changed_reference = evidence_reference(
                         "support-release-admission",
                         object_sha256=changed_sha,
@@ -661,8 +654,8 @@ class SupportReleaseAdmissionTests(unittest.TestCase):
                 field: changed_identity_reference[field]
                 for field in registry.ENTRY_FIELDS
             }
-            changed_identity_reference["registry_entry_sha256"] = (
-                registry.entry_digest(projection)
+            changed_identity_reference["registry_entry_sha256"] = registry.entry_digest(
+                projection
             )
             with self.assertRaisesRegex(
                 trust.TrustError, "semantic identity|reference differs"
@@ -679,9 +672,7 @@ class SupportReleaseAdmissionTests(unittest.TestCase):
             revocation["revocations"] = [
                 {
                     "subject_kind": "support-release-admission",
-                    "subject_id": admission_reference[
-                        "semantic_identity_sha256"
-                    ],
+                    "subject_id": admission_reference["semantic_identity_sha256"],
                 }
             ]
             with self.assertRaisesRegex(trust.TrustError, "admission is revoked"):
@@ -696,9 +687,7 @@ class SupportReleaseAdmissionTests(unittest.TestCase):
             revocation["revocations"] = [
                 {
                     "subject_kind": "qualification-signer-key",
-                    "subject_id": signer_registry["signers"][0][
-                        "public_key_sha256"
-                    ],
+                    "subject_id": signer_registry["signers"][0]["public_key_sha256"],
                 }
             ]
             with self.assertRaisesRegex(trust.TrustError, "signer key is revoked"):
@@ -928,7 +917,10 @@ class PublicationRecoveryAuthorizationTests(unittest.TestCase):
     def test_replay_key_binds_every_effect_critical_recovery_field(self) -> None:
         first = recovery_authorization()
         mutations: list[tuple[str, object]] = [
-            ("target commit", lambda value: value.__setitem__("target_commit", "e" * 40)),
+            (
+                "target commit",
+                lambda value: value.__setitem__("target_commit", "e" * 40),
+            ),
             ("draft", lambda value: value.__setitem__("draft_release_id", "21")),
             (
                 "release",
@@ -948,8 +940,16 @@ class PublicationRecoveryAuthorizationTests(unittest.TestCase):
                     "publication_staging_sha256", sha("different-staging")
                 ),
             ),
-            ("effect", lambda value: value.__setitem__("requested_effect", "stage-draft-assets")),
-            ("App", lambda value: value["release_app"].__setitem__("installation_id", "1")),
+            (
+                "effect",
+                lambda value: value.__setitem__(
+                    "requested_effect", "stage-draft-assets"
+                ),
+            ),
+            (
+                "App",
+                lambda value: value["release_app"].__setitem__("installation_id", "1"),
+            ),
         ]
         for label, mutate in mutations:
             with self.subTest(label=label):
@@ -1035,9 +1035,13 @@ class EvidenceKindProfileTests(unittest.TestCase):
             )
             entries.extend((regular, bundle))
         self.assertEqual(len(entries), 34)
-        self.assertEqual(registry.validate_registry(self.registry_document(entries)), entries)
+        self.assertEqual(
+            registry.validate_registry(self.registry_document(entries)), entries
+        )
 
-    def test_profile_and_adjacency_substitution_are_refused_for_every_kind(self) -> None:
+    def test_profile_and_adjacency_substitution_are_refused_for_every_kind(
+        self,
+    ) -> None:
         kinds = list(registry.REGULAR_KIND_CONTRACTS)
         for index, kind in enumerate(kinds):
             other_kind = kinds[(index + 1) % len(kinds)]
@@ -1055,7 +1059,9 @@ class EvidenceKindProfileTests(unittest.TestCase):
                 with self.assertRaisesRegex(
                     registry.EvidenceRegistryError, "schema or media type"
                 ):
-                    registry.validate_registry(self.registry_document([regular, bundle]))
+                    registry.validate_registry(
+                        self.registry_document([regular, bundle])
+                    )
             with self.subTest(kind=kind, substitution="bundle adjacency"):
                 regular = evidence_entry(kind, label=f"regular:{kind}")
                 substituted_bundle = evidence_entry(

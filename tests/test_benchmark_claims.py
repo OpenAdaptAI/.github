@@ -541,9 +541,26 @@ class WorkflowWiringTests(unittest.TestCase):
         self.assertIn("--online", step)
         self.assertIn("github.event_name == 'schedule'", step)
 
-    def test_the_daily_job_needs_no_dependency_install(self) -> None:
+    def test_profile_test_dependency_install_is_exact_and_pinned(self) -> None:
         content = self.workflow()
-        self.assertNotIn("pip install", content)
+        install = (
+            "python3 -m pip install --requirement "
+            "requirements/profile-consistency.txt"
+        )
+        self.assertEqual(content.count("pip install"), 1)
+        self.assertIn(install, content)
+        self.assertNotIn("pip install --upgrade", content)
+        requirements = (
+            ROOT / "requirements" / "profile-consistency.txt"
+        ).read_text(encoding="utf-8")
+        self.assertEqual(
+            requirements.splitlines(),
+            [
+                "cryptography==43.0.3",
+                "jsonschema==4.23.0",
+                "referencing==0.30.2",
+            ],
+        )
 
 
 if __name__ == "__main__":

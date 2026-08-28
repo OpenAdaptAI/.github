@@ -48,22 +48,22 @@ POLICY_PATH = ROOT / "production-lifecycle-policy.json"
 ADMISSIONS_PATH = ROOT / "production-lifecycle-admissions.json"
 LIFECYCLE_PATH = ROOT / "repository-lifecycle.yml"
 
-POLICY_SCHEMA = "openadapt.production-lifecycle-policy/v2"
+POLICY_SCHEMA = "openadapt.production-lifecycle-policy/v3"
 POLICY_DOCUMENT_SCHEMA = "schemas/production-lifecycle-policy.schema.json"
-POLICY_REVISION_MINIMUM = 2
+POLICY_REVISION_MINIMUM = 3
 ADMISSIONS_SCHEMA = "openadapt.production-lifecycle-admissions/v1"
 SUMMARY_SCHEMA = "openadapt.production-lifecycle-evidence-summary/v1"
 RELEASE_IDENTITY_SCHEMA = "openadapt.monotonic-production-release/v1"
 OBJECT_REFERENCE_SCHEMA = "openadapt.production-evidence-object-reference/v2"
-RELEASE_ADMISSION_SCHEMA = "openadapt.qualification-release/v1"
-WORKFLOW_ADMISSION_SCHEMA = "openadapt.qualification-admission/v3"
-LIFECYCLE_CHECKPOINT_SCHEMA = "openadapt.production-lifecycle-checkpoint/v1"
-LIFECYCLE_FEED_SCHEMA = "openadapt.production-lifecycle-feed/v1"
+RELEASE_ADMISSION_SCHEMA = "openadapt.qualification-release/v2"
+WORKFLOW_ADMISSION_SCHEMA = "openadapt.qualification-admission/v4"
+LIFECYCLE_CHECKPOINT_SCHEMA = "openadapt.production-lifecycle-checkpoint/v2"
+LIFECYCLE_FEED_SCHEMA = "openadapt.production-lifecycle-feed/v2"
 LIFECYCLE_FEED_REF = "refs/heads/production-lifecycle-feed"
 # production_trust.validate_release enforces a 30 day window on every
-# openadapt.qualification-release/v1 object, and
+# openadapt.qualification-release/v2 object, and
 # production_trust.validate_qualification_admission enforces a 7 day window on
-# every openadapt.qualification-admission/v3 object.  The policy declares both
+# every openadapt.qualification-admission/v4 object.  The policy declares both
 # numbers; this module refuses a policy that declares a different one.
 RELEASE_ADMISSION_MAXIMUM_DAYS = 30
 WORKFLOW_ADMISSION_MAXIMUM_DAYS = 7
@@ -382,11 +382,7 @@ def load_lifecycle(
 def _admission_days(value: object, label: str, enforced: int) -> int:
     """Validate one declared admission window against the enforced window."""
 
-    if (
-        not isinstance(value, int)
-        or isinstance(value, bool)
-        or not 1 <= value <= 30
-    ):
+    if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= 30:
         raise LifecycleError(f"{label} must be between 1 and 30")
     if value != enforced:
         raise LifecycleError(
@@ -504,30 +500,22 @@ def _validate_policy_target(
         raise LifecycleError(f"target id is invalid or duplicate: {target_id!r}")
     contract = production_trust.TARGET_CONTRACTS.get(target_id)
     if contract is None:
-        raise LifecycleError(
-            f"target {target_id} has no Production trust contract"
-        )
+        raise LifecycleError(f"target {target_id} has no Production trust contract")
     _nonempty(target["display_name"], f"target {target_id} display name")
     source_repository = _nonempty(
         target["source_repository"], f"target {target_id} source repository"
     )
     if not source_repository.startswith("OpenAdaptAI/"):
-        raise LifecycleError(
-            f"target {target_id} source repository is not first-party"
-        )
+        raise LifecycleError(f"target {target_id} source repository is not first-party")
     repository_id = target["source_repository_id"]
     if (
         not isinstance(repository_id, str)
         or DECIMAL_ID.fullmatch(repository_id) is None
     ):
-        raise LifecycleError(
-            f"target {target_id} source repository id is invalid"
-        )
+        raise LifecycleError(f"target {target_id} source repository id is invalid")
     if target["release_kind"] not in TARGET_RELEASE_KINDS:
         raise LifecycleError(f"target {target_id} release kind is invalid")
-    claim_scope = _nonempty(
-        target["claim_scope"], f"target {target_id} claim scope"
-    )
+    claim_scope = _nonempty(target["claim_scope"], f"target {target_id} claim scope")
     if CLAIM_SCOPE.fullmatch(claim_scope) is None:
         raise LifecycleError(f"target {target_id} claim scope is invalid")
     kinds = target["required_artifact_kinds"]
@@ -536,9 +524,7 @@ def _validate_policy_target(
         or not kinds
         or not all(isinstance(kind, str) and kind for kind in kinds)
     ):
-        raise LifecycleError(
-            f"target {target_id} required artifact kinds are invalid"
-        )
+        raise LifecycleError(f"target {target_id} required artifact kinds are invalid")
     if kinds != sorted(set(kinds)):
         raise LifecycleError(
             f"target {target_id} required artifact kinds must be unique and sorted"
@@ -567,13 +553,13 @@ def _validate_policy_target(
 
 
 def _validate_policy(value: object) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Validate the v2 policy and pin the retained v1 admission contract.
+    """Validate the v3 policy and pin the versioned admission contracts.
 
-    The v2 policy states which schema versions the signed checkpoint chain
+    The v3 policy states which schema versions the signed checkpoint chain
     accepts and how long each admission kind may live.  Every target it declares
     must agree with the Production trust contract that
     production_trust.validate_release applies to the matching
-    openadapt.qualification-release/v1 object.
+    openadapt.qualification-release/v2 object.
     """
 
     policy = _closed(
@@ -631,9 +617,7 @@ def _validate_policy(value: object) -> tuple[dict[str, Any], dict[str, Any]]:
         ("lifecycle_feed_ref", LIFECYCLE_FEED_REF),
     ):
         if policy[key] != expected:
-            raise LifecycleError(
-                f"production lifecycle policy {key} is not supported"
-            )
+            raise LifecycleError(f"production lifecycle policy {key} is not supported")
 
     targets_value = policy["targets"]
     if not isinstance(targets_value, list) or not targets_value:
@@ -643,9 +627,7 @@ def _validate_policy(value: object) -> tuple[dict[str, Any], dict[str, Any]]:
         target_id, target = _validate_policy_target(item, index, targets)
         targets[target_id] = target
     if set(targets) != set(EXPECTED_TARGETS):
-        raise LifecycleError(
-            "production target map differs from the pinned target map"
-        )
+        raise LifecycleError("production target map differs from the pinned target map")
     return policy, _retained_admission_contract(release_days)
 
 
@@ -1881,9 +1863,7 @@ def main() -> int:
                 args.root / ADMISSIONS_PATH.name,
                 "current Production lifecycle admissions",
             )
-            validate_history_document(
-                previous, "previous Production admission history"
-            )
+            validate_history_document(previous, "previous Production admission history")
             validate_history_document(current, "current Production admission history")
             validate_append_only_history(previous, current)
             print("Validated retained v1 Production admission history.")

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "qualification-signer-registry-candidate.schema.json",
+  "title": "OpenAdapt inactive qualification signer registry candidate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "activation_state", "interface_sha256", "proposed_registry"
+  ],
+  "properties": {
+    "schema_version": {"const": "openadapt.qualification-signer-registry-candidate/v1"},
+    "activation_state": {"const": "not-installed"},
+    "interface_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "proposed_registry": {"$ref": "qualification-signer-registry.schema.json"}
+  }
+}

@@ -174,7 +174,9 @@ class EvidenceRegistryTests(unittest.TestCase):
         value = entry()
         value["object_path"] = "production-evidence/objects/sha256/aa/wrong.json"
         value["registry_entry_sha256"] = registry.entry_digest(value)
-        with self.assertRaisesRegex(registry.EvidenceRegistryError, "content-addressed"):
+        with self.assertRaisesRegex(
+            registry.EvidenceRegistryError, "content-addressed"
+        ):
             registry.validate_reference(reference(value))
 
     def test_bundle_must_immediately_follow_and_bind_regular_object(self) -> None:
@@ -217,14 +219,14 @@ class EvidenceRegistryTests(unittest.TestCase):
     def test_registry_readback_binds_exact_bytes_and_size(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            raw = b'{"schema_version":"openadapt.production-acceptance/v2"}\n'
+            raw = b'{"schema_version":"openadapt.production-acceptance/v3"}\n'
             object_sha = "sha256:" + hashlib.sha256(raw).hexdigest()
             regular = entry(
                 object_sha256=object_sha,
                 size_bytes=len(raw),
                 semantic_identity_sha256=registry.semantic_identity_digest(
                     kind="production-acceptance-manifest",
-                    object_schema_version="openadapt.production-acceptance/v2",
+                    object_schema_version="openadapt.production-acceptance/v3",
                     object_value=json.loads(raw),
                     object_sha256=object_sha,
                 ),
@@ -232,7 +234,9 @@ class EvidenceRegistryTests(unittest.TestCase):
             path = root / regular["object_path"]
             path.parent.mkdir(parents=True)
             path.write_bytes(raw)
-            bundle_raw = b'{"mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"}\n'
+            bundle_raw = (
+                b'{"mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"}\n'
+            )
             bundle_sha = "sha256:" + hashlib.sha256(bundle_raw).hexdigest()
             bundle = entry(
                 "production-acceptance-manifest-sigstore-bundle",
@@ -265,7 +269,9 @@ class EvidenceRegistryTests(unittest.TestCase):
                 signer_registry=signer,
                 signer_registry_history=[signer],
             )
-            with self.assertRaisesRegex(registry.EvidenceRegistryError, "signer registry"):
+            with self.assertRaisesRegex(
+                registry.EvidenceRegistryError, "signer registry"
+            ):
                 registry.validate_registry(value, root=root)
             path.write_bytes(raw + b" ")
             with self.assertRaisesRegex(registry.EvidenceRegistryError, "bytes differ"):
@@ -285,16 +291,14 @@ class EvidenceRegistryTests(unittest.TestCase):
                     "algorithm": "ed25519",
                     "key_id": "qa-ed25519-" + hashlib.sha256(key).hexdigest()[:16],
                     "public_key": public_key,
-                    "public_key_spki_der_base64": registry.base64.b64encode(spki).decode(),
-                    "public_key_sha256": (
-                        "sha256:" + hashlib.sha256(spki).hexdigest()
-                    ),
+                    "public_key_spki_der_base64": registry.base64.b64encode(
+                        spki
+                    ).decode(),
+                    "public_key_sha256": ("sha256:" + hashlib.sha256(spki).hexdigest()),
                     "statement_schema_versions": [
                         "openadapt.qualification-evidence-signing-statement/v1"
                     ],
-                    "allowed_usages": [
-                        "qualification-evidence-decision-receipt"
-                    ],
+                    "allowed_usages": ["qualification-evidence-decision-receipt"],
                     "allowed_workflows": [
                         (
                             "https://github.com/OpenAdaptAI/openadapt-internal/"
@@ -320,12 +324,11 @@ class EvidenceRegistryTests(unittest.TestCase):
         )
         self.assertIn(
             registry.RECOVERY_SIGNER_USAGE,
-            schema["$defs"]["ed25519_signer"]["properties"]["allowed_usages"]
-            ["items"]["enum"],
+            schema["$defs"]["ed25519_signer"]["properties"]["allowed_usages"]["items"][
+                "enum"
+            ],
         )
-        recovery = ed25519_signer(
-            17, registry.RECOVERY_SIGNER_USAGE
-        )
+        recovery = ed25519_signer(17, registry.RECOVERY_SIGNER_USAGE)
         storage = ed25519_signer(
             18, "private-qualification-evidence-decision-storage-seal"
         )
@@ -351,27 +354,21 @@ class EvidenceRegistryTests(unittest.TestCase):
             )
 
         revoked = signer_registry(
-            ed25519_signer(
-                20, registry.RECOVERY_SIGNER_USAGE, status="revoked"
-            )
+            ed25519_signer(20, registry.RECOVERY_SIGNER_USAGE, status="revoked")
         )
         with self.assertRaisesRegex(
             registry.EvidenceRegistryError, "exactly one active recovery signer"
         ):
             registry.validate_signer_registry(revoked)
 
-        reused = signer_registry(
-            ed25519_signer(21, registry.RECOVERY_SIGNER_USAGE)
-        )
+        reused = signer_registry(ed25519_signer(21, registry.RECOVERY_SIGNER_USAGE))
         reused["signers"][0]["allowed_usages"] = sorted(
             [
                 registry.RECOVERY_SIGNER_USAGE,
                 "private-qualification-evidence-decision-storage-seal",
             ]
         )
-        with self.assertRaisesRegex(
-            registry.EvidenceRegistryError, "distinct signer"
-        ):
+        with self.assertRaisesRegex(registry.EvidenceRegistryError, "distinct signer"):
             registry.validate_signer_registry(reused)
 
     def test_signer_registry_accepts_only_exact_aws_kms_p256_profile(self) -> None:
@@ -421,7 +418,9 @@ class EvidenceRegistryTests(unittest.TestCase):
         with self.assertRaisesRegex(registry.EvidenceRegistryError, "ARN"):
             registry.validate_signer_registry(alias)
 
-    def test_signer_registry_install_is_canonical_consecutive_and_append_only(self) -> None:
+    def test_signer_registry_install_is_canonical_consecutive_and_append_only(
+        self,
+    ) -> None:
         key = bytes(range(32))
         spki = bytes.fromhex("302a300506032b6570032100") + key
 
@@ -438,9 +437,7 @@ class EvidenceRegistryTests(unittest.TestCase):
                             "qa-ed25519-" + hashlib.sha256(key).hexdigest()[:16]
                         ),
                         "public_key": (
-                            registry.base64.urlsafe_b64encode(key)
-                            .decode()
-                            .rstrip("=")
+                            registry.base64.urlsafe_b64encode(key).decode().rstrip("=")
                         ),
                         "public_key_spki_der_base64": (
                             registry.base64.b64encode(spki).decode()
@@ -451,9 +448,7 @@ class EvidenceRegistryTests(unittest.TestCase):
                         "statement_schema_versions": [
                             "openadapt.qualification-evidence-signing-statement/v1"
                         ],
-                        "allowed_usages": [
-                            "qualification-evidence-decision-receipt"
-                        ],
+                        "allowed_usages": ["qualification-evidence-decision-receipt"],
                         "allowed_workflows": [
                             (
                                 "https://github.com/OpenAdaptAI/"
@@ -476,7 +471,9 @@ class EvidenceRegistryTests(unittest.TestCase):
             first_path = root / "signers-v1.json"
             first_path.write_bytes(registry.canonical(first) + b"\n")
             stage.install_signer_registry(value, first_path, root)
-            self.assertEqual(value["signer_registry_history"], [value["signer_registry"]])
+            self.assertEqual(
+                value["signer_registry_history"], [value["signer_registry"]]
+            )
             stage.install_signer_registry(value, first_path, root)
             self.assertEqual(len(value["signer_registry_history"]), 1)
 
@@ -491,10 +488,15 @@ class EvidenceRegistryTests(unittest.TestCase):
             second_path.write_bytes(registry.canonical(second) + b"\n")
             stage.install_signer_registry(value, second_path, root)
             self.assertEqual(
-                [item["registry_revision"] for item in value["signer_registry_history"]],
+                [
+                    item["registry_revision"]
+                    for item in value["signer_registry_history"]
+                ],
                 [1, 2],
             )
-            self.assertEqual(value["signer_registry"], value["signer_registry_history"][-1])
+            self.assertEqual(
+                value["signer_registry"], value["signer_registry_history"][-1]
+            )
 
             noncanonical = root / "noncanonical.json"
             noncanonical.write_text(json.dumps(signer_registry(3), indent=2) + "\n")
@@ -553,13 +555,14 @@ class EvidenceRegistryTests(unittest.TestCase):
 
     def test_decision_revision_semantic_identity_cannot_conflict(self) -> None:
         receipt_identity = {
+            "evidence_class": "private-customer",
             "decision_identity_sha256": sha("1"),
             "decision_revision": 7,
         }
         semantic = registry.semantic_identity_digest(
             kind="qualification-evidence-decision-receipt",
             object_schema_version=(
-                "openadapt.qualification-evidence-decision-receipt/v1"
+                "openadapt.qualification-evidence-decision-receipt/v2"
             ),
             object_value=receipt_identity,
             object_sha256=sha("2"),

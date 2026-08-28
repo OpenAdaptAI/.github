@@ -43,8 +43,13 @@ def legacy_entry_digest(entry: dict) -> str:
     projection = {
         field: entry[field]
         for field in (
-            "kind", "prior_entry_sha256", "recorded_at", "sequence",
-            "sha256", "size_bytes", "url",
+            "kind",
+            "prior_entry_sha256",
+            "recorded_at",
+            "sequence",
+            "sha256",
+            "size_bytes",
+            "url",
         )
     }
     return digest_bytes(
@@ -64,7 +69,10 @@ def legacy_build_entry(**fields: object) -> dict:
 def legacy_registry_adapter() -> types.SimpleNamespace:
     def validate_registry(value: object) -> list[dict]:
         if not isinstance(value, dict) or set(value) != {
-            "$schema", "schema_version", "head_entry_sha256", "entries"
+            "$schema",
+            "schema_version",
+            "head_entry_sha256",
+            "entries",
         }:
             raise LegacyRegistryError("evidence registry object is not closed")
         if value["schema_version"] != "openadapt.production-evidence-registry/v1":
@@ -89,7 +97,8 @@ def legacy_registry_adapter() -> types.SimpleNamespace:
         entries: list[dict], *, url: str, sha256: str, kind: str, label: str
     ) -> None:
         matches = [
-            entry for entry in entries
+            entry
+            for entry in entries
             if entry["url"] == url and entry["sha256"] == sha256
         ]
         if len(matches) != 1:
@@ -499,7 +508,11 @@ def build_registry(admissions: dict, remote: dict[str, bytes]) -> dict | None:
         reference = admission["acceptance_evidence"]
         for kind, url_key, digest_key in (
             ("evidence-summary", "summary_url", "summary_sha256"),
-            ("attestation-bundle", "attestation_bundle_url", "attestation_bundle_sha256"),
+            (
+                "attestation-bundle",
+                "attestation_bundle_url",
+                "attestation_bundle_sha256",
+            ),
         ):
             identity = (kind, reference[url_key], reference[digest_key])
             if identity in seen_references:
@@ -570,9 +583,7 @@ def validate_case(
             if group != "production" and subject in subjects:
                 subjects.remove(subject)
 
-    with mock.patch.object(
-        lifecycle, "evidence_registry", legacy_registry_adapter()
-    ):
+    with mock.patch.object(lifecycle, "evidence_registry", legacy_registry_adapter()):
         result = lifecycle.validate(
             load_policy(),
             admissions,
@@ -903,9 +914,7 @@ class ProductionLifecycleTests(unittest.TestCase):
         policy["summary_authority"]["signer_provenance_digest_domain"] = (
             "OpenAdapt production certificate signer provenance v2\0"
         )
-        with self.assertRaisesRegex(
-            lifecycle.LifecycleError, "must contain exactly"
-        ):
+        with self.assertRaisesRegex(lifecycle.LifecycleError, "must contain exactly"):
             lifecycle.validate(
                 policy,
                 empty_admissions(),
@@ -1058,9 +1067,7 @@ class ProductionLifecycleTests(unittest.TestCase):
 
     def test_policy_target_cannot_drop_a_target(self) -> None:
         policy = load_policy()
-        policy["targets"] = [
-            item for item in policy["targets"] if item["id"] != "flow"
-        ]
+        policy["targets"] = [item for item in policy["targets"] if item["id"] != "flow"]
         with self.assertRaisesRegex(lifecycle.LifecycleError, "pinned target map"):
             lifecycle.validate(
                 policy,
@@ -1075,9 +1082,7 @@ class ProductionLifecycleTests(unittest.TestCase):
         next(item for item in policy["targets"] if item["id"] == "flow")[
             "required_artifact_kinds"
         ] = ["python-sdist", "python-wheel", "unregistered-kind"]
-        with self.assertRaisesRegex(
-            lifecycle.LifecycleError, "does not define"
-        ):
+        with self.assertRaisesRegex(lifecycle.LifecycleError, "does not define"):
             lifecycle.validate(
                 policy,
                 empty_admissions(),
@@ -1108,12 +1113,12 @@ class PublishedPolicyTests(unittest.TestCase):
     def test_published_policy_declares_the_v2_contract(self) -> None:
         policy = load_policy()
         self.assertEqual(
-            policy["schema_version"], "openadapt.production-lifecycle-policy/v2"
+            policy["schema_version"], "openadapt.production-lifecycle-policy/v3"
         )
         self.assertEqual(
-            lifecycle.POLICY_SCHEMA, "openadapt.production-lifecycle-policy/v2"
+            lifecycle.POLICY_SCHEMA, "openadapt.production-lifecycle-policy/v3"
         )
-        self.assertGreaterEqual(policy["revision"], 2)
+        self.assertGreaterEqual(policy["revision"], 3)
         self.assertNotIn("summary_authority", policy)
         self.assertNotIn("maximum_admission_days", policy)
         self.assertEqual(
@@ -1122,17 +1127,15 @@ class PublishedPolicyTests(unittest.TestCase):
 
     def test_published_policy_matches_its_own_schema_key_set(self) -> None:
         schema = json.loads(
-            (
-                ROOT / "schemas" / "production-lifecycle-policy.schema.json"
-            ).read_text(encoding="utf-8")
+            (ROOT / "schemas" / "production-lifecycle-policy.schema.json").read_text(
+                encoding="utf-8"
+            )
         )
         self.assertEqual(set(load_policy()), set(schema["required"]))
 
     def test_retained_ledger_carries_the_v1_policy_digest(self) -> None:
         ledger = json.loads(
-            (ROOT / "production-lifecycle-admissions.json").read_text(
-                encoding="utf-8"
-            )
+            (ROOT / "production-lifecycle-admissions.json").read_text(encoding="utf-8")
         )
         self.assertEqual(ledger["policy_sha256"], lifecycle.RETAINED_POLICY_SHA256)
         self.assertNotEqual(
@@ -1184,9 +1187,9 @@ class AdmissionWindowTests(unittest.TestCase):
 
     def test_declared_maximums_match_the_enforced_windows(self) -> None:
         # production_trust is the v2 trust core.  validate_release applies the
-        # release window to openadapt.qualification-release/v1 and
+        # release window to openadapt.qualification-release/v2 and
         # validate_qualification_admission applies the workflow window to
-        # openadapt.qualification-admission/v3.  A drift between the declared
+        # openadapt.qualification-admission/v4.  A drift between the declared
         # policy numbers and those call sites must fail here.
         policy = load_policy()
         for function, days in (
@@ -1341,12 +1344,12 @@ class CertificateIdentityBindingTests(unittest.TestCase):
             ),
             (
                 "summary_schema_version",
-                "openadapt.production-lifecycle-evidence-summary/v2",
+                "openadapt.production-lifecycle-evidence-summary/v3",
                 "summary authority schema",
             ),
             (
                 "evidence_manifest_schema_version",
-                "openadapt.production-acceptance/v2",
+                "openadapt.production-acceptance/v3",
                 "evidence manifest schema",
             ),
             (
@@ -1371,15 +1374,11 @@ class CertificateIdentityBindingTests(unittest.TestCase):
     def test_pinned_authority_cannot_gain_or_lose_a_field(self) -> None:
         authority = copy.deepcopy(lifecycle.EXPECTED_AUTHORITY)
         authority["extra"] = "value"
-        with self.assertRaisesRegex(
-            lifecycle.LifecycleError, "must contain exactly"
-        ):
+        with self.assertRaisesRegex(lifecycle.LifecycleError, "must contain exactly"):
             lifecycle._validate_summary_authority(authority)
         authority = copy.deepcopy(lifecycle.EXPECTED_AUTHORITY)
         del authority["certificate_identity"]
-        with self.assertRaisesRegex(
-            lifecycle.LifecycleError, "must contain exactly"
-        ):
+        with self.assertRaisesRegex(lifecycle.LifecycleError, "must contain exactly"):
             lifecycle._validate_summary_authority(authority)
 
     def test_published_authority_passes_every_pinned_check(self) -> None:

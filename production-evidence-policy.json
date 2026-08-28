@@ -22,7 +22,7 @@
       "algorithm": "ed25519",
       "profile": "ed25519-canonical-signing-statement",
       "statement_schema_version": "openadapt.qualification-evidence-signing-statement/v1",
-      "signature_domain": "OpenAdapt qualification evidence decision receipt v1\u0000",
+      "signature_domain": "OpenAdapt qualification evidence decision receipt v2\u0000",
       "projection": "canonical-object-minus-signature-and-signing-statement",
       "encoding": "base64-rfc4648-padded",
       "key_source": "active-qualification-signer-registry-v2"
@@ -76,16 +76,17 @@
       {"os":"macos","arch":"arm64","url":"https://github.com/cli/cli/releases/download/v2.98.0/gh_2.98.0_macOS_arm64.zip","sha256":"sha256:8cfb027cc5310675f2b830eac8f9865c1155a45ffcf9757f699fdd5a22046ca4"}
     ],
     "certificate_identities": [
-      {"kind":"production-acceptance-manifest","bundle_profile":"github-attestation","issuer_repository":"OpenAdaptAI/openadapt-evals","certificate_identity":"https://github.com/OpenAdaptAI/openadapt-evals/.github/workflows/issue-production-acceptance.yml@refs/heads/main"},
-      {"kind":"production-acceptance-summary","bundle_profile":"github-attestation","issuer_repository":"OpenAdaptAI/openadapt-evals","certificate_identity":"https://github.com/OpenAdaptAI/openadapt-evals/.github/workflows/issue-production-acceptance.yml@refs/heads/main"},
-      {"kind":"production-current-default","bundle_profile":"github-attestation","issuer_repository":"OpenAdaptAI/openadapt-ops","certificate_identity":"https://github.com/OpenAdaptAI/openadapt-ops/.github/workflows/production-current-default.yml@refs/heads/main"},
-      {"kind":"production-lifecycle-checkpoint","bundle_profile":"github-attestation","issuer_repository":"OpenAdaptAI/openadapt-ops","certificate_identity":"https://github.com/OpenAdaptAI/openadapt-ops/.github/workflows/production-lifecycle-checkpoint.yml@refs/heads/main"},
-      {"kind":"qualification-admission","bundle_profile":"github-attestation","issuer_repository":"OpenAdaptAI/.github","certificate_identity":"https://github.com/OpenAdaptAI/.github/.github/workflows/issue-qualification-admission.yml@refs/heads/main"},
-      {"kind":"qualification-authority-state-receipt","bundle_profile":"github-attestation","issuer_repository":"OpenAdaptAI/openadapt-ops","certificate_identity":"https://github.com/OpenAdaptAI/openadapt-ops/.github/workflows/qualification-authority-state.yml@refs/heads/main"},
-      {"kind":"qualification-evidence-decision-receipt","bundle_profile":"sigstore-message-signature","issuer_repository":"OpenAdaptAI/openadapt-internal","certificate_identity":"https://github.com/OpenAdaptAI/openadapt-internal/.github/workflows/issue-private-qualification-evidence-decision.yml@refs/heads/main"},
-      {"kind":"qualification-release","bundle_profile":"github-attestation","issuer_repository":"OpenAdaptAI/.github","certificate_identity":"https://github.com/OpenAdaptAI/.github/.github/workflows/issue-production-release-admission.yml@refs/heads/main"},
-      {"kind":"qualification-revocation-state-receipt","bundle_profile":"github-attestation","issuer_repository":"OpenAdaptAI/openadapt-ops","certificate_identity":"https://github.com/OpenAdaptAI/openadapt-ops/.github/workflows/qualification-revocation-state.yml@refs/heads/main"},
-      {"kind":"support-release-admission","bundle_profile":"github-attestation","issuer_repository":"OpenAdaptAI/.github","certificate_identity":"https://github.com/OpenAdaptAI/.github/.github/workflows/issue-support-release-admission.yml@refs/heads/main"}
+      {"kind":"production-acceptance-manifest","evidence_class":"not-applicable","bundle_profile":"github-attestation","issuer_repository":"OpenAdaptAI/openadapt-evals","certificate_identity":"https://github.com/OpenAdaptAI/openadapt-evals/.github/workflows/issue-production-acceptance.yml@refs/heads/main"},
+      {"kind":"production-acceptance-summary","evidence_class":"not-applicable","bundle_profile":"github-attestation","issuer_repository":"OpenAdaptAI/openadapt-evals","certificate_identity":"https://github.com/OpenAdaptAI/openadapt-evals/.github/workflows/issue-production-acceptance.yml@refs/heads/main"},
+      {"kind":"production-current-default","evidence_class":"not-applicable","bundle_profile":"github-attestation","issuer_repository":"OpenAdaptAI/openadapt-ops","certificate_identity":"https://github.com/OpenAdaptAI/openadapt-ops/.github/workflows/production-current-default.yml@refs/heads/main"},
+      {"kind":"production-lifecycle-checkpoint","evidence_class":"not-applicable","bundle_profile":"github-attestation","issuer_repository":"OpenAdaptAI/openadapt-ops","certificate_identity":"https://github.com/OpenAdaptAI/openadapt-ops/.github/workflows/production-lifecycle-checkpoint.yml@refs/heads/main"},
+      {"kind":"qualification-admission","evidence_class":"not-applicable","bundle_profile":"github-attestation","issuer_repository":"OpenAdaptAI/.github","certificate_identity":"https://github.com/OpenAdaptAI/.github/.github/workflows/issue-qualification-admission.yml@refs/heads/main"},
+      {"kind":"qualification-authority-state-receipt","evidence_class":"not-applicable","bundle_profile":"github-attestation","issuer_repository":"OpenAdaptAI/openadapt-ops","certificate_identity":"https://github.com/OpenAdaptAI/openadapt-ops/.github/workflows/qualification-authority-state.yml@refs/heads/main"},
+      {"kind":"qualification-evidence-decision-receipt","evidence_class":"private-customer","bundle_profile":"sigstore-message-signature","issuer_repository":"OpenAdaptAI/openadapt-internal","certificate_identity":"https://github.com/OpenAdaptAI/openadapt-internal/.github/workflows/issue-private-qualification-evidence-decision.yml@refs/heads/main"},
+      {"kind":"qualification-evidence-decision-receipt","evidence_class":"remote-safe-synthetic","bundle_profile":"github-attestation","issuer_repository":"OpenAdaptAI/.github","certificate_identity":"https://github.com/OpenAdaptAI/.github/.github/workflows/issue-synthetic-qualification-evidence-decision.yml@refs/heads/main"},
+      {"kind":"qualification-release","evidence_class":"not-applicable","bundle_profile":"github-attestation","issuer_repository":"OpenAdaptAI/.github","certificate_identity":"https://github.com/OpenAdaptAI/.github/.github/workflows/issue-production-release-admission.yml@refs/heads/main"},
+      {"kind":"qualification-revocation-state-receipt","evidence_class":"not-applicable","bundle_profile":"github-attestation","issuer_repository":"OpenAdaptAI/openadapt-ops","certificate_identity":"https://github.com/OpenAdaptAI/openadapt-ops/.github/workflows/qualification-revocation-state.yml@refs/heads/main"},
+      {"kind":"support-release-admission","evidence_class":"not-applicable","bundle_profile":"github-attestation","issuer_repository":"OpenAdaptAI/.github","certificate_identity":"https://github.com/OpenAdaptAI/.github/.github/workflows/issue-support-release-admission.yml@refs/heads/main"}
     ]
   },
   "public_trust_dsse": {

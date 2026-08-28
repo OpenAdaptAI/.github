@@ -14,6 +14,16 @@ on:
       expected_tag: {required: true, type: string}
       central_verifier_sha: {required: true, type: string}
     outputs:
+      verification_json:
+        value: ${{ jobs.verify.outputs.verification_json }}
+      verification_id_sha256:
+        value: ${{ jobs.verify.outputs.verification_id_sha256 }}
+      evidence_class:
+        value: ${{ jobs.verify.outputs.evidence_class }}
+      target:
+        value: ${{ jobs.verify.outputs.target }}
+      claim_scope:
+        value: ${{ jobs.verify.outputs.claim_scope }}
       admission_object_sha256:
         value: ${{ jobs.verify.outputs.admission_object_sha256 }}
       release_sha256:
@@ -26,10 +36,22 @@ on:
         value: ${{ jobs.verify.outputs.publication_staging_sha256 }}
       draft_release_id:
         value: ${{ jobs.verify.outputs.draft_release_id }}
+      authority_state_sha256:
+        value: ${{ jobs.verify.outputs.authority_state_sha256 }}
+      revocation_state_sha256:
+        value: ${{ jobs.verify.outputs.revocation_state_sha256 }}
+      signer_registry_sha256:
+        value: ${{ jobs.verify.outputs.signer_registry_sha256 }}
+      admitted_runtime_sha256:
+        value: ${{ jobs.verify.outputs.admitted_runtime_sha256 }}
+      verified_at:
+        value: ${{ jobs.verify.outputs.verified_at }}
       expires_at:
         value: ${{ jobs.verify.outputs.expires_at }}
       registry_source_commit:
         value: ${{ jobs.verify.outputs.registry_source_commit }}
+      trust_state_source_commit:
+        value: ${{ jobs.verify.outputs.trust_state_source_commit }}
 
 permissions:
   contents: read
@@ -41,14 +63,25 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
+      verification_json: ${{ steps.verify.outputs.verification_json }}
+      verification_id_sha256: ${{ steps.verify.outputs.verification_id_sha256 }}
+      evidence_class: ${{ steps.verify.outputs.evidence_class }}
+      target: ${{ steps.verify.outputs.target }}
+      claim_scope: ${{ steps.verify.outputs.claim_scope }}
       admission_object_sha256: ${{ steps.verify.outputs.admission_object_sha256 }}
       release_sha256: ${{ steps.verify.outputs.release_sha256 }}
       artifact_inventory_sha256: ${{ steps.verify.outputs.artifact_inventory_sha256 }}
       publication_staging_json: ${{ steps.verify.outputs.publication_staging_json }}
       publication_staging_sha256: ${{ steps.verify.outputs.publication_staging_sha256 }}
       draft_release_id: ${{ steps.verify.outputs.draft_release_id }}
+      authority_state_sha256: ${{ steps.verify.outputs.authority_state_sha256 }}
+      revocation_state_sha256: ${{ steps.verify.outputs.revocation_state_sha256 }}
+      signer_registry_sha256: ${{ steps.verify.outputs.signer_registry_sha256 }}
+      admitted_runtime_sha256: ${{ steps.verify.outputs.admitted_runtime_sha256 }}
+      verified_at: ${{ steps.verify.outputs.verified_at }}
       expires_at: ${{ steps.verify.outputs.expires_at }}
       registry_source_commit: ${{ steps.verify.outputs.registry_source_commit }}
+      trust_state_source_commit: ${{ steps.verify.outputs.trust_state_source_commit }}
     steps:
       - name: Bind this reusable call to the requested central commit
         shell: bash

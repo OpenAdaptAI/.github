@@ -7,6 +7,9 @@ import unittest
 from pathlib import Path
 from typing import Any
 
+from jsonschema import Draft202012Validator
+from referencing import Registry, Resource
+
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_ROOT = ROOT / "schemas"
 
@@ -451,6 +454,7 @@ EXPECTED_TOP_LEVEL_FIELDS = {
     "qualification-admission.schema.json": {
         "schema_version",
         "admission_id_sha256",
+        "evidence_class",
         "organization_id_sha256",
         "workflow_id_sha256",
         "workflow_version_id_sha256",
@@ -482,6 +486,7 @@ EXPECTED_TOP_LEVEL_FIELDS = {
     },
     "qualification-evidence-decision-receipt.schema.json": {
         "schema_version",
+        "evidence_class",
         "decision_identity_sha256",
         "decision_revision",
         "decision_commitment_sha256",
@@ -520,6 +525,7 @@ EXPECTED_TOP_LEVEL_FIELDS = {
     "qualification-release.schema.json": {
         "schema_version",
         "admission_id_sha256",
+        "evidence_class",
         "target",
         "verdict",
         "claim_scope",
@@ -540,6 +546,44 @@ EXPECTED_TOP_LEVEL_FIELDS = {
         "expires_at",
         "issuer",
     },
+    "qualification-release-verification-receipt.schema.json": {
+        "schema_version",
+        "verification_id_sha256",
+        "verdict",
+        "evidence_class",
+        "target",
+        "claim_scope",
+        "admission_object_sha256",
+        "admission_bundle_object_sha256",
+        "admission_id_sha256",
+        "release_sha256",
+        "artifact_inventory_sha256",
+        "release_identity",
+        "source_repository",
+        "source_repository_id",
+        "source_commit",
+        "version",
+        "tag",
+        "draft_release_id",
+        "publication_staging_sha256",
+        "authority_state_sha256",
+        "revocation_state_sha256",
+        "signer_registry_sha256",
+        "acceptance_summary_object_sha256",
+        "acceptance_manifest_object_sha256",
+        "decision_receipt_object_sha256",
+        "qualification_admission_object_sha256",
+        "qualification_admission_id_sha256",
+        "workflow_version_id_sha256",
+        "workflow_bundle_sha256",
+        "admitted_runtime_sha256",
+        "verified_at",
+        "expires_at",
+        "registry_source_commit",
+        "registry_revision",
+        "registry_head_sha256",
+        "trust_state_source_commit",
+    },
 }
 
 
@@ -554,6 +598,27 @@ def iter_nodes(value: Any):
 
 
 class PublicTrustSchemaTests(unittest.TestCase):
+    def test_remote_safe_flow_verification_fixture_matches_closed_schema(self) -> None:
+        resources = []
+        for path in SCHEMA_ROOT.glob("*.schema.json"):
+            value = json.loads(path.read_text(encoding="utf-8"))
+            resources.append((value["$id"], Resource.from_contents(value)))
+        registry = Registry().with_resources(resources)
+        schema = json.loads(
+            (
+                SCHEMA_ROOT / "qualification-release-verification-receipt.schema.json"
+            ).read_text(encoding="utf-8")
+        )
+        fixture = json.loads(
+            (
+                ROOT
+                / "tests"
+                / "fixtures"
+                / "remote-safe-synthetic-flow-release-verification.json"
+            ).read_text(encoding="utf-8")
+        )
+        Draft202012Validator(schema, registry=registry).validate(fixture)
+
     def test_every_schema_parses_and_declared_objects_are_closed(self) -> None:
         paths = sorted(SCHEMA_ROOT.glob("*.schema.json"))
         self.assertTrue(paths)
@@ -566,21 +631,25 @@ class PublicTrustSchemaTests(unittest.TestCase):
                     if node.get("type") != "object" or "properties" not in node:
                         continue
                     self.assertIs(node.get("additionalProperties"), False)
-                    self.assertEqual(set(node.get("required", [])), set(node["properties"]))
+                    self.assertEqual(
+                        set(node.get("required", [])), set(node["properties"])
+                    )
 
     def test_frozen_top_level_contracts_are_exact(self) -> None:
         for filename, expected in EXPECTED_TOP_LEVEL_FIELDS.items():
             with self.subTest(path=filename):
-                schema = json.loads((SCHEMA_ROOT / filename).read_text(encoding="utf-8"))
+                schema = json.loads(
+                    (SCHEMA_ROOT / filename).read_text(encoding="utf-8")
+                )
                 self.assertIs(schema["additionalProperties"], False)
                 self.assertEqual(set(schema["required"]), expected)
                 self.assertEqual(set(schema["properties"]), expected)
 
     def test_v2_reference_has_no_url_transport_field(self) -> None:
         schema = json.loads(
-            (SCHEMA_ROOT / "production-evidence-object-reference.schema.json").read_text(
-                encoding="utf-8"
-            )
+            (
+                SCHEMA_ROOT / "production-evidence-object-reference.schema.json"
+            ).read_text(encoding="utf-8")
         )
         self.assertEqual(len(schema["required"]), 16)
         self.assertNotIn("url", schema["properties"])
@@ -597,8 +666,13 @@ class PublicTrustSchemaTests(unittest.TestCase):
             (SCHEMA_ROOT / "production-lifecycle-checkpoint.schema.json").read_text()
         )
         common = {
-            "repository", "repository_id", "repository_owner_id", "workflow",
-            "ref", "source_commit", "environment",
+            "repository",
+            "repository_id",
+            "repository_owner_id",
+            "workflow",
+            "ref",
+            "source_commit",
+            "environment",
         }
         current_issuer = current["$defs"]["issuer"]
         checkpoint_issuer = checkpoint["$defs"]["issuer"]
@@ -615,8 +689,10 @@ class PublicTrustSchemaTests(unittest.TestCase):
             set(checkpoint_issuer["required"]),
             common
             | {
-                "policy_repository", "policy_repository_id",
-                "policy_source_commit", "policy_path",
+                "policy_repository",
+                "policy_repository_id",
+                "policy_source_commit",
+                "policy_path",
             },
         )
         self.assertEqual(
@@ -645,8 +721,18 @@ class PublicTrustSchemaTests(unittest.TestCase):
             set(staged["required"]),
             projection | {"asset_id", "uploader_id", "uploader_login"},
         )
-        self.assertEqual(schema["$defs"]["publication_staging"]["properties"]["tag_rulesets"]["minItems"], 2)
-        self.assertEqual(schema["$defs"]["publication_staging"]["properties"]["tag_rulesets"]["maxItems"], 2)
+        self.assertEqual(
+            schema["$defs"]["publication_staging"]["properties"]["tag_rulesets"][
+                "minItems"
+            ],
+            2,
+        )
+        self.assertEqual(
+            schema["$defs"]["publication_staging"]["properties"]["tag_rulesets"][
+                "maxItems"
+            ],
+            2,
+        )
 
     def test_verification_policy_keeps_sigstore_and_freezes_future_kms_profile(
         self,
@@ -659,12 +745,27 @@ class PublicTrustSchemaTests(unittest.TestCase):
             [item["kind"] for item in identities],
             sorted(item["kind"] for item in identities),
         )
-        profiles = {item["kind"]: item["bundle_profile"] for item in identities}
+        profiles = {
+            (item["kind"], item["evidence_class"]): item["bundle_profile"]
+            for item in identities
+        }
         self.assertEqual(
-            profiles["qualification-evidence-decision-receipt"],
+            profiles[("qualification-evidence-decision-receipt", "private-customer")],
             "sigstore-message-signature",
         )
-        self.assertEqual(profiles["qualification-release"], "github-attestation")
+        self.assertEqual(
+            profiles[
+                (
+                    "qualification-evidence-decision-receipt",
+                    "remote-safe-synthetic",
+                )
+            ],
+            "github-attestation",
+        )
+        self.assertEqual(
+            profiles[("qualification-release", "not-applicable")],
+            "github-attestation",
+        )
         message = policy["message_signature"]
         self.assertEqual(message["version"], "3.1.3")
         self.assertEqual(message["runner"], "ubuntu-24.04")
@@ -686,7 +787,13 @@ class PublicTrustSchemaTests(unittest.TestCase):
         self.assertIs(policy["production_projection"], False)
         self.assertEqual([item["id"] for item in policy["targets"]], ["openadapt-tray"])
         production_targets = {
-            "openadapt", "flow", "cloud", "desktop", "capture", "agent", "docs"
+            "openadapt",
+            "flow",
+            "cloud",
+            "desktop",
+            "capture",
+            "agent",
+            "docs",
         }
         self.assertTrue(production_targets.isdisjoint({"openadapt-tray"}))
 
@@ -695,7 +802,10 @@ class PublicTrustSchemaTests(unittest.TestCase):
             (ROOT / "qualification-trial-receipt-authority-policy.json").read_text()
         )
         self.assertEqual(policy["repository"], "OpenAdaptAI/openadapt-evals")
-        self.assertEqual(policy["workflow"], ".github/workflows/issue-qualification-trial-receipts.yml")
+        self.assertEqual(
+            policy["workflow"],
+            ".github/workflows/issue-qualification-trial-receipts.yml",
+        )
         self.assertEqual(policy["trigger"], "workflow_dispatch")
         self.assertEqual(len(policy["authorities"]), 8)
         self.assertEqual(
@@ -707,7 +817,9 @@ class PublicTrustSchemaTests(unittest.TestCase):
                 ["self-hosted", "evidence-authority", item["environment"]],
             )
 
-    def test_worker_contracts_pin_central_authority_and_terminal_uncertainty(self) -> None:
+    def test_worker_contracts_pin_central_authority_and_terminal_uncertainty(
+        self,
+    ) -> None:
         admission = json.loads(
             (SCHEMA_ROOT / "qualification-worker-admission.schema.json").read_text()
         )
@@ -715,7 +827,9 @@ class PublicTrustSchemaTests(unittest.TestCase):
             (SCHEMA_ROOT / "qualification-worker-dispatch.schema.json").read_text()
         )
         terminal = json.loads(
-            (SCHEMA_ROOT / "qualification-worker-terminal-receipt.schema.json").read_text()
+            (
+                SCHEMA_ROOT / "qualification-worker-terminal-receipt.schema.json"
+            ).read_text()
         )
         self.assertEqual(
             admission["$defs"]["issuer"]["properties"]["repository"]["const"],
@@ -741,26 +855,19 @@ class PublicTrustSchemaTests(unittest.TestCase):
         prelaunch = terminal["allOf"][0]["then"]["properties"]
         self.assertIs(prelaunch["effect_started"]["const"], False)
         self.assertEqual(prelaunch["delivery_state"]["const"], "not_started")
-        self.assertEqual(
-            prelaunch["terminal_state"]["const"], "PRELAUNCH_QUARANTINED"
-        )
-        self.assertIs(
-            prelaunch["quarantine"]["properties"]["active"]["const"], True
-        )
+        self.assertEqual(prelaunch["terminal_state"]["const"], "PRELAUNCH_QUARANTINED")
+        self.assertIs(prelaunch["quarantine"]["properties"]["active"]["const"], True)
         uncertain = next(
             rule["then"]["properties"]
             for rule in terminal["allOf"]
-            if rule["if"]["properties"].get("delivery_state")
-            == {"const": "uncertain"}
+            if rule["if"]["properties"].get("delivery_state") == {"const": "uncertain"}
         )
         self.assertIs(uncertain["effect_started"]["const"], True)
         self.assertEqual(
             uncertain["terminal_state"]["enum"],
             ["RECONCILIATION_REQUIRED", "QUARANTINED"],
         )
-        self.assertIs(
-            uncertain["quarantine"]["properties"]["active"]["const"], True
-        )
+        self.assertIs(uncertain["quarantine"]["properties"]["active"]["const"], True)
 
 
 if __name__ == "__main__":

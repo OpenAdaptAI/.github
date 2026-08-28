@@ -23,6 +23,9 @@ import validate_evidence_registry as evidence
 
 ROOT = Path(__file__).resolve().parents[1]
 POLICY_PATH = ROOT / "production-evidence-policy.json"
+VERIFICATION_RECEIPT_DOMAIN = (
+    b"OpenAdapt qualification release verification receipt v1\0"
+)
 
 
 def load_json_argument(value: str) -> Any:
@@ -32,14 +35,186 @@ def load_json_argument(value: str) -> Any:
     return json.loads(value)
 
 
-def fetch(url: str) -> bytes:
-    request = urllib.request.Request(url, headers={"User-Agent": "OpenAdapt-trust/1"})
+def fetch(url: str, *, headers: dict[str, str] | None = None) -> bytes:
+    request_headers = {"User-Agent": "OpenAdapt-trust/1"}
+    request_headers.update(headers or {})
+    request = urllib.request.Request(url, headers=request_headers)
     with urllib.request.urlopen(request, timeout=30) as response:
         return response.read()
 
 
 def raw_url(commit: str, path: str) -> str:
     return f"https://raw.githubusercontent.com/OpenAdaptAI/.github/{commit}/{path}"
+
+
+def protected_main_commit() -> str:
+    """Resolve the current protected main commit through the GitHub API."""
+
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    token = os.environ.get("GH_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    raw = fetch(
+        "https://api.github.com/repos/OpenAdaptAI/.github/git/ref/heads/main",
+        headers=headers,
+    )
+    try:
+        value = json.loads(raw)
+        commit = value["object"]["sha"]
+    except (json.JSONDecodeError, KeyError, TypeError) as exc:
+        raise trust.TrustError(
+            "current protected main commit response is invalid"
+        ) from exc
+    if not isinstance(commit, str) or trust.HEX40.fullmatch(commit) is None:
+        raise trust.TrustError("current protected main commit is not exact")
+    return commit
+
+
+def current_registered_reference(commit: str, *, kind: str) -> dict[str, Any]:
+    """Select the last registered current-state object of one exact kind."""
+
+    registry_raw = fetch(raw_url(commit, "evidence-registry.json"))
+    try:
+        registry_value = json.loads(registry_raw)
+        entries = evidence.validate_registry(registry_value)
+    except (json.JSONDecodeError, evidence.EvidenceRegistryError) as exc:
+        raise trust.TrustError("current protected-main registry is invalid") from exc
+    matches = [entry for entry in entries if entry["kind"] == kind]
+    if not matches:
+        raise trust.TrustError(f"current protected-main registry has no {kind}")
+    return {
+        "schema_version": evidence.REFERENCE_SCHEMA,
+        "repository": evidence.REPOSITORY,
+        "repository_id": evidence.REPOSITORY_ID,
+        "repository_owner_id": evidence.REPOSITORY_OWNER_ID,
+        "registry_source_commit": commit,
+        "registry_revision": registry_value["revision"],
+        "registry_head_sha256": registry_value["registry_head_sha256"],
+        **matches[-1],
+    }
+
+
+def current_admission_state(
+    admission: dict[str, Any],
+    *,
+    admission_reference: dict[str, Any],
+    policy: dict[str, Any],
+    now: datetime,
+) -> tuple[str, dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Resolve and verify the current authority, revocation, and signer state."""
+
+    commit = protected_main_commit()
+    authority_reference = current_registered_reference(
+        commit, kind="qualification-authority-state-receipt"
+    )
+    revocation_reference = current_registered_reference(
+        commit, kind="qualification-revocation-state-receipt"
+    )
+    authority, _, authority_current_registry = resolve_pair(
+        authority_reference,
+        derive_bundle_reference(authority_reference),
+        kind="qualification-authority-state-receipt",
+        policy=policy,
+    )
+    revocation, _, revocation_current_registry = resolve_pair(
+        revocation_reference,
+        derive_bundle_reference(revocation_reference),
+        kind="qualification-revocation-state-receipt",
+        policy=policy,
+    )
+    authority_registry_identity = evidence.signer_registry_identity_digest(
+        authority_current_registry
+    )
+    if authority_registry_identity != evidence.signer_registry_identity_digest(
+        revocation_current_registry
+    ):
+        raise trust.TrustError("current authority and revocation signer state differs")
+    trust.validate_admission_current_state(
+        admission,
+        admission_reference=admission_reference,
+        authority_state=authority,
+        revocation_state=revocation,
+        signer_registry=authority_current_registry,
+        now=now,
+    )
+    return commit, authority, revocation, authority_current_registry
+
+
+def _timestamp(value: datetime) -> str:
+    return value.replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def verification_receipt(
+    *,
+    admission: dict[str, Any],
+    admission_reference: dict[str, Any],
+    admission_bundle_reference: dict[str, Any],
+    summary: dict[str, Any],
+    qualification_admission: dict[str, Any],
+    verified_at: datetime,
+    trust_state_source_commit: str,
+) -> dict[str, Any]:
+    """Build the closed machine-consumable result of complete verification."""
+
+    receipt = {
+        "schema_version": ("openadapt.qualification-release-verification-receipt/v1"),
+        "verification_id_sha256": "sha256:" + "0" * 64,
+        "verdict": "verified",
+        "evidence_class": admission["evidence_class"],
+        "target": admission["target"],
+        "claim_scope": admission["claim_scope"],
+        "admission_object_sha256": admission_reference["object_sha256"],
+        "admission_bundle_object_sha256": admission_bundle_reference["object_sha256"],
+        "admission_id_sha256": admission["admission_id_sha256"],
+        "release_sha256": admission["release_sha256"],
+        "artifact_inventory_sha256": admission["artifact_inventory_sha256"],
+        "release_identity": admission["release_identity"],
+        "source_repository": admission["release"]["source_repository"],
+        "source_repository_id": admission["release"]["source_repository_id"],
+        "source_commit": admission["release"]["source_commit"],
+        "version": admission["release"]["version"],
+        "tag": admission["release"]["tag"],
+        "draft_release_id": admission["publication_staging"]["draft_release_id"],
+        "publication_staging_sha256": admission["publication_staging_sha256"],
+        "authority_state_sha256": admission["authority_state_sha256"],
+        "revocation_state_sha256": admission["revocation_state_sha256"],
+        "signer_registry_sha256": admission["signer_registry_sha256"],
+        "acceptance_summary_object_sha256": admission[
+            "production_acceptance_summary_reference"
+        ]["object_sha256"],
+        "acceptance_manifest_object_sha256": summary[
+            "production_acceptance_manifest_reference"
+        ]["object_sha256"],
+        "decision_receipt_object_sha256": summary[
+            "qualification_evidence_decision_receipt_reference"
+        ]["object_sha256"],
+        "qualification_admission_object_sha256": summary[
+            "qualification_admission_reference"
+        ]["object_sha256"],
+        "qualification_admission_id_sha256": qualification_admission[
+            "admission_id_sha256"
+        ],
+        "workflow_version_id_sha256": qualification_admission[
+            "workflow_version_id_sha256"
+        ],
+        "workflow_bundle_sha256": qualification_admission["bundle_sha256"],
+        "admitted_runtime_sha256": qualification_admission["admitted_runtime_sha256"],
+        "verified_at": _timestamp(verified_at),
+        "expires_at": admission["expires_at"],
+        "registry_source_commit": admission_reference["registry_source_commit"],
+        "registry_revision": admission_reference["registry_revision"],
+        "registry_head_sha256": admission_reference["registry_head_sha256"],
+        "trust_state_source_commit": trust_state_source_commit,
+    }
+    projection = dict(receipt)
+    projection.pop("verification_id_sha256")
+    receipt["verification_id_sha256"] = trust.digest_bytes(
+        VERIFICATION_RECEIPT_DOMAIN, projection
+    )
+    return receipt
 
 
 def verify_bytes(raw: bytes, reference: dict[str, Any], label: str) -> Any:
@@ -50,8 +225,15 @@ def verify_bytes(raw: bytes, reference: dict[str, Any], label: str) -> Any:
         value = json.loads(raw)
     except json.JSONDecodeError as exc:
         raise trust.TrustError(f"{label} is not JSON") from exc
-    identity_value = reference["subject_sha256"] if reference["kind"].endswith("-sigstore-bundle") else value
-    if not reference["kind"].endswith("-sigstore-bundle") and raw != evidence.canonical(value) + b"\n":
+    identity_value = (
+        reference["subject_sha256"]
+        if reference["kind"].endswith("-sigstore-bundle")
+        else value
+    )
+    if (
+        not reference["kind"].endswith("-sigstore-bundle")
+        and raw != evidence.canonical(value) + b"\n"
+    ):
         raise trust.TrustError(f"{label} is not canonical JSON followed by one LF")
     expected_identity = evidence.semantic_identity_digest(
         kind=reference["kind"],
@@ -170,8 +352,8 @@ def resolve_pair(
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     if regular_reference.get("kind") != kind:
         raise trust.TrustError(f"the referenced object is not {kind}")
-    regular_raw, bundle_raw, value, bound_signer_registry, current_signer_registry = fetch_pair(
-        regular_reference, bundle_reference
+    regular_raw, bundle_raw, value, bound_signer_registry, current_signer_registry = (
+        fetch_pair(regular_reference, bundle_reference)
     )
     verify_sigstore(
         regular_raw,
@@ -204,7 +386,9 @@ def derive_bundle_reference(regular_reference: dict[str, Any]) -> dict[str, Any]
             "registry_head_sha256": regular["registry_head_sha256"],
             **bundle_entry,
         }
-    raise trust.TrustError("the admission bundle does not immediately follow its object")
+    raise trust.TrustError(
+        "the admission bundle does not immediately follow its object"
+    )
 
 
 def verify_sigstore(
@@ -216,12 +400,21 @@ def verify_sigstore(
     policy: dict[str, Any],
 ) -> None:
     sigstore = policy["sigstore"]
-    identities = {
-        item["kind"]: item for item in sigstore["certificate_identities"]
-    }
-    identity = identities.get(kind)
-    if identity is None:
-        raise trust.TrustError(f"no keyless identity is registered for {kind}")
+    evidence_class = (
+        object_value.get("evidence_class", "private-customer")
+        if kind == "qualification-evidence-decision-receipt"
+        else "not-applicable"
+    )
+    identities = [
+        item
+        for item in sigstore["certificate_identities"]
+        if item["kind"] == kind and item.get("evidence_class") == evidence_class
+    ]
+    if len(identities) != 1:
+        raise trust.TrustError(
+            f"exactly one keyless identity must be registered for {kind}"
+        )
+    identity = identities[0]
     profile = identity.get("bundle_profile")
     if profile == "sigstore-message-signature":
         verify_message_signature(
@@ -249,15 +442,24 @@ def verify_sigstore(
         subject.write_bytes(regular_raw)
         bundle.write_bytes(bundle_raw)
         command = [
-            "gh", "attestation", "verify", str(subject), "--bundle", str(bundle),
-            "--repo", identity["issuer_repository"], "--cert-identity",
-            identity["certificate_identity"], "--cert-oidc-issuer",
-            sigstore["cert_oidc_issuer"], "--deny-self-hosted-runners",
-            "--no-public-good", "--format", "json",
+            "gh",
+            "attestation",
+            "verify",
+            str(subject),
+            "--bundle",
+            str(bundle),
+            "--repo",
+            identity["issuer_repository"],
+            "--cert-identity",
+            identity["certificate_identity"],
+            "--cert-oidc-issuer",
+            sigstore["cert_oidc_issuer"],
+            "--deny-self-hosted-runners",
+            "--no-public-good",
+            "--format",
+            "json",
         ]
-        result = subprocess.run(
-            command, capture_output=True, text=True, check=False
-        )
+        result = subprocess.run(command, capture_output=True, text=True, check=False)
         if result.returncode:
             raise trust.TrustError(
                 "Sigstore bundle verification failed: " + result.stderr.strip()
@@ -340,7 +542,8 @@ def verify_message_signature(
             raise trust.TrustError("messageSignature bundle media type differs")
         message = bundle["messageSignature"]
         if not isinstance(message, dict) or set(message) != {
-            "messageDigest", "signature"
+            "messageDigest",
+            "signature",
         }:
             raise trust.TrustError("messageSignature fields differ")
         digest = message["messageDigest"]
@@ -475,9 +678,7 @@ def main(argv: list[str] | None = None) -> int:
             admission_value,
             release_signer_registry,
             _current_signer_registry,
-        ) = fetch_pair(
-            reference, bundle_reference
-        )
+        ) = fetch_pair(reference, bundle_reference)
         policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
         verify_sigstore(
             regular_raw,
@@ -489,9 +690,16 @@ def main(argv: list[str] | None = None) -> int:
         now = datetime.now(timezone.utc)
         admission = trust.validate_release(admission_value)
         if (
-            admission["signer_registry_sha256"]
-            != evidence.signer_registry_identity_digest(release_signer_registry)
+            admission["target"] != "flow"
+            or admission["claim_scope"] != "production_flow"
+            or admission["evidence_class"] != "remote-safe-synthetic"
         ):
+            raise trust.TrustError(
+                "release verifier accepts only remote-safe synthetic Flow evidence"
+            )
+        if admission[
+            "signer_registry_sha256"
+        ] != evidence.signer_registry_identity_digest(release_signer_registry):
             raise trust.TrustError("release signer registry identity differs")
         summary, _, _ = resolve_pair(
             admission["production_acceptance_summary_reference"],
@@ -505,11 +713,13 @@ def main(argv: list[str] | None = None) -> int:
             kind="production-acceptance-manifest",
             policy=policy,
         )
-        receipt, receipt_signer_registry, receipt_current_signer_registry = resolve_pair(
-            summary["qualification_evidence_decision_receipt_reference"],
-            summary["qualification_evidence_decision_receipt_bundle_reference"],
-            kind="qualification-evidence-decision-receipt",
-            policy=policy,
+        receipt, receipt_signer_registry, receipt_current_signer_registry = (
+            resolve_pair(
+                summary["qualification_evidence_decision_receipt_reference"],
+                summary["qualification_evidence_decision_receipt_bundle_reference"],
+                kind="qualification-evidence-decision-receipt",
+                policy=policy,
+            )
         )
         qualification_admission, _, _ = resolve_pair(
             summary["qualification_admission_reference"],
@@ -517,18 +727,15 @@ def main(argv: list[str] | None = None) -> int:
             kind="qualification-admission",
             policy=policy,
         )
-        if (
-            receipt["signer_registry_sha256"]
-            != evidence.signer_registry_identity_digest(receipt_signer_registry)
-        ):
-            raise trust.TrustError(
-                "decision receipt signer registry identity differs"
-            )
+        if receipt[
+            "signer_registry_sha256"
+        ] != evidence.signer_registry_identity_digest(receipt_signer_registry):
+            raise trust.TrustError("decision receipt signer registry identity differs")
         trust.verify_embedded_signature(
             receipt,
             signer_registry=receipt_signer_registry,
             object_schema_version=(
-                "openadapt.qualification-evidence-decision-receipt/v1"
+                "openadapt.qualification-evidence-decision-receipt/v2"
             ),
             signature_domain=trust.DECISION_RECEIPT_SIGNATURE_DOMAIN,
             usage="qualification-evidence-decision-receipt",
@@ -538,7 +745,7 @@ def main(argv: list[str] | None = None) -> int:
             receipt,
             signer_registry=receipt_current_signer_registry,
             object_schema_version=(
-                "openadapt.qualification-evidence-decision-receipt/v1"
+                "openadapt.qualification-evidence-decision-receipt/v2"
             ),
             signature_domain=trust.DECISION_RECEIPT_SIGNATURE_DOMAIN,
             usage="qualification-evidence-decision-receipt",
@@ -553,6 +760,51 @@ def main(argv: list[str] | None = None) -> int:
             receipt_signer_registry=receipt_current_signer_registry,
             now=now,
         )
+        trust_state_commit, _authority, revocation, _active_signer_registry = (
+            current_admission_state(
+                admission,
+                admission_reference=reference,
+                policy=policy,
+                now=now,
+            )
+        )
+        revoked = {
+            (item["subject_kind"], item["subject_id"])
+            for item in revocation["revocations"]
+        }
+        for subject_kind, subject_id in (
+            (
+                "production-acceptance-summary",
+                admission["production_acceptance_summary_reference"][
+                    "semantic_identity_sha256"
+                ],
+            ),
+            (
+                "production-acceptance-manifest",
+                summary["production_acceptance_manifest_reference"][
+                    "semantic_identity_sha256"
+                ],
+            ),
+            (
+                "qualification-evidence-decision-receipt",
+                summary["qualification_evidence_decision_receipt_reference"][
+                    "semantic_identity_sha256"
+                ],
+            ),
+            (
+                "qualification-admission",
+                summary["qualification_admission_reference"][
+                    "semantic_identity_sha256"
+                ],
+            ),
+            ("qualification-campaign-permit", receipt["campaign_permit_sha256"]),
+            (
+                "qualification-evidence-authority",
+                receipt["evidence_authority_contract_sha256"],
+            ),
+        ):
+            if (subject_kind, subject_id) in revoked:
+                raise trust.TrustError(f"{subject_kind} is revoked")
         release = admission["release"]
         expected = {
             "target": args.expected_target,
@@ -581,7 +833,21 @@ def main(argv: list[str] | None = None) -> int:
         ):
             raise trust.TrustError("caller artifact inventory differs from admission")
         trust.verify_local_artifacts(Path(args.artifact_root), release["artifacts"])
+        receipt_output = verification_receipt(
+            admission=admission,
+            admission_reference=reference,
+            admission_bundle_reference=bundle_reference,
+            summary=summary,
+            qualification_admission=qualification_admission,
+            verified_at=now,
+            trust_state_source_commit=trust_state_commit,
+        )
         outputs = {
+            "verification_json": evidence.canonical(receipt_output).decode("utf-8"),
+            "verification_id_sha256": receipt_output["verification_id_sha256"],
+            "evidence_class": receipt_output["evidence_class"],
+            "target": receipt_output["target"],
+            "claim_scope": receipt_output["claim_scope"],
             "admission_object_sha256": reference["object_sha256"],
             "release_sha256": admission["release_sha256"],
             "artifact_inventory_sha256": admission["artifact_inventory_sha256"],
@@ -590,15 +856,21 @@ def main(argv: list[str] | None = None) -> int:
             ).decode("utf-8"),
             "publication_staging_sha256": admission["publication_staging_sha256"],
             "draft_release_id": admission["publication_staging"]["draft_release_id"],
+            "authority_state_sha256": admission["authority_state_sha256"],
+            "revocation_state_sha256": admission["revocation_state_sha256"],
+            "signer_registry_sha256": admission["signer_registry_sha256"],
+            "admitted_runtime_sha256": qualification_admission[
+                "admitted_runtime_sha256"
+            ],
+            "verified_at": receipt_output["verified_at"],
             "expires_at": admission["expires_at"],
             "registry_source_commit": reference["registry_source_commit"],
+            "trust_state_source_commit": trust_state_commit,
         }
         if args.github_output:
             with Path(args.github_output).open("a", encoding="utf-8") as handle:
-                handle.writelines(
-                    f"{key}={value}\n" for key, value in outputs.items()
-                )
-        print(json.dumps(outputs, sort_keys=True))
+                handle.writelines(f"{key}={value}\n" for key, value in outputs.items())
+        print(evidence.canonical(receipt_output).decode("utf-8"))
     except (
         OSError,
         ValueError,

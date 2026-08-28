@@ -1,12 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "qualification-admission.schema.json",
-  "title": "OpenAdapt qualification admission v3",
+  "title": "OpenAdapt qualification admission v4",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "schema_version",
     "admission_id_sha256",
+    "evidence_class",
     "organization_id_sha256",
     "workflow_id_sha256",
     "workflow_version_id_sha256",
@@ -37,8 +38,9 @@
     "issuer"
   ],
   "properties": {
-    "schema_version": {"const": "openadapt.qualification-admission/v3"},
+    "schema_version": {"const": "openadapt.qualification-admission/v4"},
     "admission_id_sha256": {"$ref": "#/$defs/digest"},
+    "evidence_class": {"enum": ["private-customer", "remote-safe-synthetic"]},
     "organization_id_sha256": {"$ref": "#/$defs/digest"},
     "workflow_id_sha256": {"$ref": "#/$defs/digest"},
     "workflow_version_id_sha256": {"$ref": "#/$defs/digest"},
@@ -81,8 +83,8 @@
         {"$ref": "production-evidence-object-reference.schema.json"},
         {"properties": {
           "kind": {"const": "qualification-evidence-decision-receipt"},
-          "object_schema_version": {"const": "openadapt.qualification-evidence-decision-receipt/v1"},
-          "object_media_type": {"const": "application/vnd.openadapt.qualification-evidence-decision-receipt+json;version=1"},
+          "object_schema_version": {"const": "openadapt.qualification-evidence-decision-receipt/v2"},
+          "object_media_type": {"const": "application/vnd.openadapt.qualification-evidence-decision-receipt+json;version=2"},
           "subject_sha256": {"type": "null"}
         }}
       ]
