@@ -513,6 +513,25 @@ class EvidenceRegistryTests(unittest.TestCase):
         with self.assertRaisesRegex(registry.EvidenceRegistryError, "previous head"):
             registry.validate_append_only_history(previous, current)
 
+    def test_an_untouched_registry_is_not_a_rollback(self) -> None:
+        previous = document()
+        registry.validate_append_only_history(previous, copy.deepcopy(previous))
+
+    def test_an_untouched_registry_still_has_to_be_valid(self) -> None:
+        previous = document()
+        broken = copy.deepcopy(previous)
+        broken["registry_head_sha256"] = sha("9")
+        with self.assertRaises(registry.EvidenceRegistryError):
+            registry.validate_append_only_history(broken, broken)
+
+    def test_a_revision_that_stands_still_while_the_registry_changes_is_refused(
+        self,
+    ) -> None:
+        previous = document()
+        current = document(previous_registry_head_sha256=sha("9"))
+        with self.assertRaisesRegex(registry.EvidenceRegistryError, "exactly one"):
+            registry.validate_append_only_history(previous, current)
+
     def test_only_exact_empty_v1_registry_can_create_the_empty_v2_genesis(self) -> None:
         previous = {
             "$schema": "schemas/evidence-registry.schema.json",
