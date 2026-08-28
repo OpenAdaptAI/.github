@@ -71,6 +71,14 @@ jobs:
             --previous-admissions "$RUNNER_TEMP/previous-production-lifecycle-admissions.json"
       - name: Validate product truth and links
         run: python3 scripts/check_profile.py
+      - name: Bind every published benchmark figure to its artifact
+        # --allow-recorded-drift keeps a dated, reviewed drift record from
+        # blocking every unrelated change. Each record is still printed, still
+        # names an owner, and still fails this step once its expiry date passes.
+        run: python3 scripts/check_benchmark_claims.py --allow-recorded-drift
+      - name: Re-fetch the pinned benchmark artifacts
+        if: github.event_name == 'schedule'
+        run: python3 scripts/check_benchmark_claims.py --online --allow-recorded-drift
 
   report-expired-admission:
     needs: [reject-lifecycle-app, validate-profile]
