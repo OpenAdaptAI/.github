@@ -41,10 +41,12 @@ Published head-to-head comparisons, each graded by an external success check
 that is independent of every arm:
 
 - **Live third-party EMR** (OpenEMR public demo, fake patients, 18-step
-  add-patient-note workflow): compiled replay went **20/20 at 39.2s p50 with
+  add-patient-note workflow): compiled replay went **19/20 at 39.2s p50 with
   zero model calls**; the agent went 10/10 at 70.4s p50 at about $0.55 of model
-  charge per run. Small sample on a shared, daily-resetting demo — not
-  CI-reproducible.
+  charge per run. Compiled run 20 didn't pass. The saved-row oracle, tightened
+  on 2026-07-28, refuses to count a note still sitting in the unsaved entry
+  form, and the replayer had already halted at step 17 rather than press on.
+  Small sample on a shared, daily-resetting demo — not CI-reproducible.
   [Methodology and caveats](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/benchmark/openemr/BENCHMARK.md).
 - **CI-reproducible control** (bundled MockMed task): both arms passed every
   run (100/100 compiled, 20/20 agent), so the result is cost and latency, not
