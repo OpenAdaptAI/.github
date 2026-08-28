@@ -806,6 +806,10 @@ def validate_append_only_history(previous_value: object, current_value: object) 
     previous_doc = previous_value
     current_doc = current_value
     assert isinstance(previous_doc, dict) and isinstance(current_doc, dict)
+    if current_doc == previous_doc:
+        # An untouched registry is not a rollback. Only a changed registry has to
+        # bump the revision, bind the previous head, and append to the history.
+        return
     if current_doc["revision"] != previous_doc["revision"] + 1:
         raise EvidenceRegistryError("registry revision must increase by exactly one")
     if current_doc["previous_registry_head_sha256"] != previous_doc["registry_head_sha256"]:
