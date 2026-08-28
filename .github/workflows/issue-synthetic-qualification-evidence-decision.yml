@@ -1,0 +1,51 @@
+name: Synthetic qualification evidence decision issuer
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  refuse-inactive-issuer:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout the exact requested source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Verify the inactive KMS issuer interface and refuse issuance
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EXPECTED_ACTIVATION_STATE: inactive
+          REF: ${{ github.ref }}
+          REPOSITORY: ${{ github.repository }}
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$REPOSITORY" = 'OpenAdaptAI/.github'
+          test "$REF" = 'refs/heads/main'
+          test "$EVENT_NAME" = 'workflow_dispatch'
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          python3 scripts/qualification_kms_ed25519.py interface > "$RUNNER_TEMP/interface.json"
+          INTERFACE_PATH="$RUNNER_TEMP/interface.json" python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          interface = json.loads(Path(os.environ["INTERFACE_PATH"]).read_text())
+          if interface.get("activation_state") != os.environ["EXPECTED_ACTIVATION_STATE"]:
+              raise SystemExit("the KMS issuer interface is not inactive")
+          if interface.get("allowed_evidence_class") != "remote-safe-synthetic":
+              raise SystemExit("the KMS issuer evidence class differs")
+          PY
+          echo '::error::The synthetic qualification decision issuer is installed but inactive.' >&2
+          echo 'KMS/OIDC, the protected environment, the signer registry, revocation state, and shared one-use storage must exist before activation.' >&2
+          exit 1
