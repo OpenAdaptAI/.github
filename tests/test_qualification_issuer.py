@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import base64
 import copy
 import hashlib
@@ -492,7 +493,11 @@ def workflow_request(fixture: dict, handle: str = "qair_" + "A" * 43) -> dict:
 
 
 def flow_release_inputs(
-    fixture: dict, admission: dict, resolver: RecordingResolver
+    fixture: dict,
+    admission: dict,
+    resolver: RecordingResolver,
+    *,
+    target: str = "flow",
 ) -> dict:
     admission_ref, admission_bundle_ref = reference_pair(
         "qualification-admission", admission
@@ -663,6 +668,113 @@ def flow_release_inputs(
         "release": candidate,
         "artifact_inventory": inventory,
     }
+    if target != "flow":
+        contract = trust.TARGET_CONTRACTS[target]
+        version = "1.35.0" if contract["release_kind"] != "deployment" else None
+        tag = "v1.35.0" if version is not None else None
+        deployment_id = (
+            "42" if contract["release_kind"] in {"deployment", "hybrid"} else None
+        )
+        deployment_sha256 = (
+            sha(f"{target}-deployment") if deployment_id is not None else None
+        )
+        metadata_names = {
+            "verification-metadata-linux-x86-64": (
+                f"OpenAdapt-Desktop-v{version}-linux-x86_64-verification.json"
+            ),
+            "verification-metadata-macos-arm64": (
+                f"OpenAdapt-Desktop-v{version}-macos-arm64-verification.json"
+            ),
+            "verification-metadata-macos-x86-64": (
+                f"OpenAdapt-Desktop-v{version}-macos-x86_64-verification.json"
+            ),
+            "verification-metadata-windows-x86-64": (
+                f"OpenAdapt-Desktop-v{version}-windows-x86_64-verification.json"
+            ),
+        }
+        artifacts = []
+        for index, (kind, (media_type, destinations)) in enumerate(
+            sorted(contract["artifacts"].items())
+        ):
+            artifacts.append(
+                {
+                    "name": metadata_names.get(kind, f"{target}-1.35.0-{kind}"),
+                    "kind": kind,
+                    "sha256": sha(f"{target}-{kind}"),
+                    "size_bytes": 200 + index,
+                    "media_type": media_type,
+                    "publish_destinations": list(destinations),
+                }
+            )
+        staging_tag = tag or f"v0.0.0-deployment.{deployment_id}"
+        target_rulesets = copy.deepcopy(rulesets)
+        for ruleset in target_rulesets:
+            ruleset["repository"] = contract["repository"]
+            ruleset["repository_id"] = contract["repository_id"]
+        staging = {
+            **staging,
+            "repository": contract["repository"],
+            "repository_id": contract["repository_id"],
+            "tag": staging_tag,
+            "assets": [
+                {
+                    "asset_id": str(130 + index),
+                    **artifact,
+                    "uploader_id": "321543906",
+                    "uploader_login": "openadapt-release[bot]",
+                }
+                for index, artifact in enumerate(
+                    sorted(artifacts, key=lambda item: item["name"])
+                )
+            ],
+            "tag_rulesets": target_rulesets,
+            "tag_rulesets_sha256": trust.digest_bytes(
+                trust.TAG_RULESETS_DOMAIN, target_rulesets
+            ),
+            "tag_ref_state": {"ref": f"refs/tags/{staging_tag}", "exists": False},
+            "tag_ref_state_sha256": trust.digest_bytes(
+                trust.TAG_REF_STATE_DOMAIN,
+                {"ref": f"refs/tags/{staging_tag}", "exists": False},
+            ),
+        }
+        candidate = {
+            **candidate,
+            "kind": contract["release_kind"],
+            "source_repository": contract["repository"],
+            "source_repository_id": contract["repository_id"],
+            "version": version,
+            "tag": tag,
+            "deployment_id": deployment_id,
+            "deployment_sha256": deployment_sha256,
+            "artifacts": artifacts,
+        }
+        inventory = {
+            "schema_version": "openadapt.production-release-artifact-inventory/v1",
+            "target": target,
+            "claim_scope": contract["claim_scope"],
+            "artifacts": artifacts,
+        }
+        common.update(
+            target=target,
+            claim_scope=contract["claim_scope"],
+            release_sha256=trust.digest_bytes(
+                trust.RELEASE_DOMAIN,
+                {
+                    "target": target,
+                    "claim_scope": contract["claim_scope"],
+                    "release": candidate,
+                },
+            ),
+            artifact_inventory_sha256=trust.artifact_inventory_digest(inventory),
+            publication_staging=staging,
+            publication_staging_sha256=trust.staging_digest(staging),
+        )
+        manifest = {
+            "schema_version": "openadapt.production-acceptance/v3",
+            **common,
+            "release": candidate,
+            "artifact_inventory": inventory,
+        }
     manifest_ref, manifest_bundle_ref = reference_pair(
         "production-acceptance-manifest", manifest
     )
@@ -1176,6 +1288,151 @@ class QualificationIssuerTests(unittest.TestCase):
                 now=NOW,
                 consumer=RecordingConsumer(),
             )
+
+    def test_release_admission_accepts_every_policy_target_with_full_chain(self) -> None:
+        for target in trust.TARGETS:
+            with self.subTest(target=target):
+                fixture = trust_fixture()
+                resolver = RecordingResolver(fixture)
+                workflow_admission = issuer.issue_workflow_admission(
+                    workflow_request(fixture),
+                    resolver=resolver,
+                    issuer_source_commit=WORKFLOW_REGISTRY_COMMIT,
+                    now=NOW,
+                    consumer=RecordingConsumer(),
+                )
+                request = flow_release_inputs(
+                    fixture,
+                    workflow_admission,
+                    resolver,
+                    target=target,
+                )
+                release = issuer.issue_release_admission(
+                    request,
+                    resolver=resolver,
+                    issuer_source_commit=RELEASE_REGISTRY_COMMIT,
+                    now=NOW,
+                    consumer=RecordingConsumer(),
+                )
+                contract = trust.TARGET_CONTRACTS[target]
+                self.assertEqual(release["target"], target)
+                self.assertEqual(release["claim_scope"], contract["claim_scope"])
+                self.assertEqual(
+                    release["release"]["source_repository"], contract["repository"]
+                )
+                self.assertEqual(
+                    release["release"]["source_repository_id"],
+                    contract["repository_id"],
+                )
+                self.assertEqual(
+                    release["release"]["kind"], contract["release_kind"]
+                )
+                self.assertEqual(
+                    release["expires_at"], workflow_admission["expires_at"]
+                )
+                release_reference, release_bundle_reference = reference_pair(
+                    "qualification-release",
+                    release,
+                    registry_source_commit=RELEASE_REGISTRY_COMMIT,
+                )
+                summary = resolver.objects[
+                    request["production_acceptance_summary_reference"][
+                        "object_sha256"
+                    ]
+                ]["value"]
+                verification = release_verifier.verification_receipt(
+                    admission=release,
+                    admission_reference=release_reference,
+                    admission_bundle_reference=release_bundle_reference,
+                    summary=summary,
+                    qualification_admission=workflow_admission,
+                    verified_at=NOW,
+                    trust_state_source_commit=RELEASE_REGISTRY_COMMIT,
+                )
+                self.assertEqual(verification["target"], target)
+                self.assertEqual(
+                    verification["source_repository"], contract["repository"]
+                )
+                self.assertEqual(
+                    verification["workflow_bundle_sha256"],
+                    workflow_admission["bundle_sha256"],
+                )
+
+    def test_verifier_closes_package_deployment_and_hybrid_caller_identity(
+        self,
+    ) -> None:
+        cases = {
+            "package": {
+                "version": "1.2.3",
+                "tag": "v1.2.3",
+                "deployment_id": None,
+                "deployment_sha256": None,
+            },
+            "deployment": {
+                "version": None,
+                "tag": None,
+                "deployment_id": "42",
+                "deployment_sha256": sha("deployment"),
+            },
+            "hybrid": {
+                "version": "1.2.3",
+                "tag": "v1.2.3",
+                "deployment_id": "42",
+                "deployment_sha256": sha("hybrid-deployment"),
+            },
+        }
+        for kind, identity in cases.items():
+            with self.subTest(kind=kind):
+                release = {
+                    "kind": kind,
+                    "source_repository": "OpenAdaptAI/example",
+                    "source_repository_id": "100",
+                    "source_commit": "a" * 40,
+                    **identity,
+                }
+                args = argparse.Namespace(
+                    expected_repository=release["source_repository"],
+                    expected_repository_id=release["source_repository_id"],
+                    expected_source_commit=release["source_commit"],
+                    expected_version=identity["version"] or "",
+                    expected_tag=identity["tag"] or "",
+                    expected_deployment_id=identity["deployment_id"] or "",
+                    expected_deployment_sha256=(
+                        identity["deployment_sha256"] or ""
+                    ),
+                )
+                expected, actual = release_verifier.caller_release_identity(
+                    args, release, target="flow"
+                )
+                self.assertEqual(expected, actual)
+                args.expected_source_commit = "b" * 40
+                expected, actual = release_verifier.caller_release_identity(
+                    args, release, target="flow"
+                )
+                self.assertNotEqual(expected, actual)
+
+    def test_verifier_refuses_incomplete_caller_identity(self) -> None:
+        release = {
+            "kind": "deployment",
+            "source_repository": "OpenAdaptAI/openadapt-cloud",
+            "source_repository_id": "1300570990",
+            "source_commit": "a" * 40,
+            "version": None,
+            "tag": None,
+            "deployment_id": "42",
+            "deployment_sha256": sha("deployment"),
+        }
+        args = argparse.Namespace(
+            expected_repository=release["source_repository"],
+            expected_repository_id=release["source_repository_id"],
+            expected_source_commit=release["source_commit"],
+            expected_version="",
+            expected_tag="",
+            expected_deployment_id="",
+            expected_deployment_sha256=release["deployment_sha256"],
+        )
+        with self.assertRaisesRegex(trust.TrustError, "deployment identity"):
+            release_verifier.caller_release_identity(args, release, target="cloud")
 
     def test_closed_flow_release_verification_receipt_matches_fixture(self) -> None:
         fixture = trust_fixture()

@@ -10,8 +10,10 @@ on:
       expected_repository: {required: true, type: string}
       expected_repository_id: {required: true, type: string}
       expected_source_commit: {required: true, type: string}
-      expected_version: {required: true, type: string}
-      expected_tag: {required: true, type: string}
+      expected_version: {required: false, type: string, default: ''}
+      expected_tag: {required: false, type: string, default: ''}
+      expected_deployment_id: {required: false, type: string, default: ''}
+      expected_deployment_sha256: {required: false, type: string, default: ''}
       central_verifier_sha: {required: true, type: string}
     outputs:
       verification_json:
@@ -36,6 +38,14 @@ on:
         value: ${{ jobs.verify.outputs.publication_staging_sha256 }}
       draft_release_id:
         value: ${{ jobs.verify.outputs.draft_release_id }}
+      version:
+        value: ${{ jobs.verify.outputs.version }}
+      tag:
+        value: ${{ jobs.verify.outputs.tag }}
+      deployment_id:
+        value: ${{ jobs.verify.outputs.deployment_id }}
+      deployment_sha256:
+        value: ${{ jobs.verify.outputs.deployment_sha256 }}
       authority_state_sha256:
         value: ${{ jobs.verify.outputs.authority_state_sha256 }}
       revocation_state_sha256:
@@ -74,6 +84,10 @@ jobs:
       publication_staging_json: ${{ steps.verify.outputs.publication_staging_json }}
       publication_staging_sha256: ${{ steps.verify.outputs.publication_staging_sha256 }}
       draft_release_id: ${{ steps.verify.outputs.draft_release_id }}
+      version: ${{ steps.verify.outputs.version }}
+      tag: ${{ steps.verify.outputs.tag }}
+      deployment_id: ${{ steps.verify.outputs.deployment_id }}
+      deployment_sha256: ${{ steps.verify.outputs.deployment_sha256 }}
       authority_state_sha256: ${{ steps.verify.outputs.authority_state_sha256 }}
       revocation_state_sha256: ${{ steps.verify.outputs.revocation_state_sha256 }}
       signer_registry_sha256: ${{ steps.verify.outputs.signer_registry_sha256 }}
@@ -202,6 +216,8 @@ jobs:
           EXPECTED_SOURCE_COMMIT: ${{ inputs.expected_source_commit }}
           EXPECTED_VERSION: ${{ inputs.expected_version }}
           EXPECTED_TAG: ${{ inputs.expected_tag }}
+          EXPECTED_DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
+          EXPECTED_DEPLOYMENT_SHA256: ${{ inputs.expected_deployment_sha256 }}
         run: |
           set -euo pipefail
           python3 central-trust/scripts/verify_production_release_admission.py \
@@ -214,4 +230,6 @@ jobs:
             --expected-source-commit "$EXPECTED_SOURCE_COMMIT" \
             --expected-version "$EXPECTED_VERSION" \
             --expected-tag "$EXPECTED_TAG" \
+            --expected-deployment-id "$EXPECTED_DEPLOYMENT_ID" \
+            --expected-deployment-sha256 "$EXPECTED_DEPLOYMENT_SHA256" \
             --github-output "$GITHUB_OUTPUT"

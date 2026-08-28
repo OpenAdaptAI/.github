@@ -73,7 +73,7 @@ TARGET_CONTRACTS = {
         "claim_scope": "production_desktop",
         "repository": "OpenAdaptAI/openadapt-desktop",
         "repository_id": "1171291730",
-        "release_kind": "package",
+        "release_kind": "hybrid",
         "artifacts": {
             "cyclonedx-sbom": (
                 "application/vnd.cyclonedx+json",
@@ -918,11 +918,14 @@ def validate_release(value: Any, *, now: datetime | None = None) -> dict[str, An
     staging = validate_staging(release_admission["publication_staging"])
     if release_admission["publication_staging_sha256"] != staging_digest(staging):
         raise TrustError("publication staging digest is invalid")
+    expected_staging_tag = release["tag"] or (
+        f"v0.0.0-deployment.{release['deployment_id']}"
+    )
     if (
         staging["repository"] != release["source_repository"]
         or staging["repository_id"] != release["source_repository_id"]
         or staging["target_commitish"] != release["source_commit"]
-        or staging["tag"] != release["tag"]
+        or staging["tag"] != expected_staging_tag
     ):
         raise TrustError("publication staging differs from the release candidate")
     bound_fields = (

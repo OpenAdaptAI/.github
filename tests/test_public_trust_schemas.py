@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import unittest
 from pathlib import Path
@@ -618,6 +619,95 @@ class PublicTrustSchemaTests(unittest.TestCase):
             ).read_text(encoding="utf-8")
         )
         Draft202012Validator(schema, registry=registry).validate(fixture)
+
+    def test_release_verification_fixture_binds_all_product_target_identities(
+        self,
+    ) -> None:
+        resources = []
+        for path in SCHEMA_ROOT.glob("*.schema.json"):
+            value = json.loads(path.read_text(encoding="utf-8"))
+            resources.append((value["$id"], Resource.from_contents(value)))
+        registry = Registry().with_resources(resources)
+        schema = json.loads(
+            (
+                SCHEMA_ROOT / "qualification-release-verification-receipt.schema.json"
+            ).read_text(encoding="utf-8")
+        )
+        validator = Draft202012Validator(schema, registry=registry)
+        fixture = json.loads(
+            (
+                ROOT
+                / "tests"
+                / "fixtures"
+                / "remote-safe-synthetic-flow-release-verification.json"
+            ).read_text(encoding="utf-8")
+        )
+        targets = {
+            "agent": (
+                "production_agent",
+                "OpenAdaptAI/openadapt-agent",
+                "1136136670",
+                True,
+            ),
+            "capture": (
+                "production_capture",
+                "OpenAdaptAI/openadapt-capture",
+                "1115283835",
+                True,
+            ),
+            "cloud": (
+                "production_cloud",
+                "OpenAdaptAI/openadapt-cloud",
+                "1300570990",
+                False,
+            ),
+            "desktop": (
+                "production_desktop",
+                "OpenAdaptAI/openadapt-desktop",
+                "1171291730",
+                True,
+            ),
+            "docs": (
+                "production_docs",
+                "OpenAdaptAI/openadapt-ops",
+                "1172011294",
+                False,
+            ),
+            "flow": (
+                "production_flow",
+                "OpenAdaptAI/openadapt-flow",
+                "1291376938",
+                True,
+            ),
+            "openadapt": (
+                "production_openadapt",
+                "OpenAdaptAI/OpenAdapt",
+                "627024850",
+                True,
+            ),
+        }
+        for target, (claim, repository, repository_id, packaged) in targets.items():
+            with self.subTest(target=target):
+                candidate = copy.deepcopy(fixture)
+                candidate.update(
+                    target=target,
+                    claim_scope=claim,
+                    source_repository=repository,
+                    source_repository_id=repository_id,
+                    version="1.35.0" if packaged else None,
+                    tag="v1.35.0" if packaged else None,
+                )
+                self.assertTrue(validator.is_valid(candidate))
+                wrong_claim = copy.deepcopy(candidate)
+                wrong_claim["claim_scope"] = "production_flow"
+                if target != "flow":
+                    self.assertFalse(validator.is_valid(wrong_claim))
+                wrong_repository = copy.deepcopy(candidate)
+                wrong_repository["source_repository"] = "OpenAdaptAI/wrong"
+                self.assertFalse(validator.is_valid(wrong_repository))
+                wrong_shape = copy.deepcopy(candidate)
+                wrong_shape["version"] = None if packaged else "1.35.0"
+                self.assertFalse(validator.is_valid(wrong_shape))
 
     def test_every_schema_parses_and_declared_objects_are_closed(self) -> None:
         paths = sorted(SCHEMA_ROOT.glob("*.schema.json"))
