@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import copy
 import hashlib
+import json
 import sys
 import tempfile
 import unittest
@@ -598,6 +599,28 @@ def rotation_fixture() -> tuple[dict, dict, dict, dict]:
 
 
 class ProductionTrustTests(unittest.TestCase):
+    def test_release_target_contracts_match_the_canonical_policy(self) -> None:
+        policy = json.loads(
+            (ROOT / "production-lifecycle-policy.json").read_text(encoding="utf-8")
+        )
+        targets = {item["id"]: item for item in policy["targets"]}
+        self.assertEqual(set(targets), set(trust.TARGET_CONTRACTS))
+        self.assertEqual(trust.ADMISSION_GATE_TARGETS, ("flow",))
+        self.assertTrue(set(trust.ADMISSION_GATE_TARGETS) <= set(trust.TARGETS))
+        for target, contract in trust.TARGET_CONTRACTS.items():
+            with self.subTest(target=target):
+                policy_target = targets[target]
+                self.assertEqual(policy_target["claim_scope"], contract["claim_scope"])
+                self.assertEqual(
+                    policy_target["source_repository"], contract["repository"]
+                )
+                self.assertEqual(
+                    policy_target["source_repository_id"], contract["repository_id"]
+                )
+                self.assertEqual(
+                    policy_target["release_kind"], contract["release_kind"]
+                )
+
     def test_decision_receipt_requires_active_registered_signature(self) -> None:
         receipt, signer_registry, key = decision_receipt_fixture()
         self.assertEqual(
@@ -905,6 +928,23 @@ class ProductionTrustTests(unittest.TestCase):
         ]
         with self.assertRaisesRegex(trust.TrustError, "bypass"):
             trust.validate_release(invalid)
+
+    def test_release_refuses_noncanonical_or_output_injecting_package_identity(
+        self,
+    ) -> None:
+        for version, tag in (
+            ("1.0.0\ntarget=cloud", "v1.0.0"),
+            ("1.0.0", "v1.0.1"),
+            ("01.0.0", "v01.0.0"),
+        ):
+            with self.subTest(version=version, tag=tag):
+                invalid = release_admission()
+                invalid["release"]["version"] = version
+                invalid["release"]["tag"] = tag
+                with self.assertRaisesRegex(
+                    trust.TrustError, "package version or tag"
+                ):
+                    trust.validate_release(invalid)
 
     def test_local_artifact_inventory_refuses_extra_file(self) -> None:
         value = release_admission()

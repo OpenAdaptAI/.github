@@ -34,6 +34,9 @@ RELEASE_TAG = re.compile(
 )
 
 TARGETS = ("agent", "capture", "cloud", "desktop", "docs", "flow", "openadapt")
+# Sequential work order (STATUS.md 2026-08-27): admit Flow first. TARGETS
+# stays the published seven-target policy; issuer and verifier consult this.
+ADMISSION_GATE_TARGETS = ("flow",)
 TARGET_CONTRACTS = {
     "agent": {
         "claim_scope": "production_agent",
@@ -73,7 +76,7 @@ TARGET_CONTRACTS = {
         "claim_scope": "production_desktop",
         "repository": "OpenAdaptAI/openadapt-desktop",
         "repository_id": "1171291730",
-        "release_kind": "package",
+        "release_kind": "hybrid",
         "artifacts": {
             "cyclonedx-sbom": (
                 "application/vnd.cyclonedx+json",
@@ -840,13 +843,17 @@ def validate_release(value: Any, *, now: datetime | None = None) -> dict[str, An
         or HEX40.fullmatch(release["source_commit"]) is None
     ):
         raise TrustError("release source commit must be exact")
+    if release["kind"] != "deployment" and (
+        not isinstance(release["version"], str)
+        or BUNDLE_VERSION.fullmatch(release["version"]) is None
+        or not isinstance(release["tag"], str)
+        or RELEASE_TAG.fullmatch(release["tag"]) is None
+        or release["tag"] != f"v{release['version']}"
+    ):
+        raise TrustError("release package version or tag is invalid")
     if release["kind"] == "package":
         if (
-            not isinstance(release["version"], str)
-            or not release["version"]
-            or not isinstance(release["tag"], str)
-            or not release["tag"]
-            or release["deployment_id"] is not None
+            release["deployment_id"] is not None
             or release["deployment_sha256"] is not None
         ):
             raise TrustError("package release identity fields are invalid")
@@ -859,13 +866,6 @@ def validate_release(value: Any, *, now: datetime | None = None) -> dict[str, An
             raise TrustError("deployment release identity fields are invalid")
         require_digest(release["deployment_sha256"], "deployment digest")
     else:
-        if (
-            not isinstance(release["version"], str)
-            or not release["version"]
-            or not isinstance(release["tag"], str)
-            or not release["tag"]
-        ):
-            raise TrustError("hybrid package identity fields are invalid")
         require_decimal_id(release["deployment_id"], "deployment id")
         require_digest(release["deployment_sha256"], "deployment digest")
     artifacts = validate_artifacts(
@@ -918,11 +918,14 @@ def validate_release(value: Any, *, now: datetime | None = None) -> dict[str, An
     staging = validate_staging(release_admission["publication_staging"])
     if release_admission["publication_staging_sha256"] != staging_digest(staging):
         raise TrustError("publication staging digest is invalid")
+    expected_staging_tag = release["tag"] or (
+        f"v0.0.0-deployment.{release['deployment_id']}"
+    )
     if (
         staging["repository"] != release["source_repository"]
         or staging["repository_id"] != release["source_repository_id"]
         or staging["target_commitish"] != release["source_commit"]
-        or staging["tag"] != release["tag"]
+        or staging["tag"] != expected_staging_tag
     ):
         raise TrustError("publication staging differs from the release candidate")
     bound_fields = (

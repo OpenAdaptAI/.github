@@ -668,11 +668,18 @@ def issue_release_admission(
     if summary_evidence["reference"]["registry_source_commit"] != source_commit:
         raise IssuerError("acceptance summary is not in the issuer source registry")
     summary = summary_evidence["value"]
+    target = summary.get("target")
+    target_contract = (
+        trust.TARGET_CONTRACTS.get(target) if isinstance(target, str) else None
+    )
     if (
-        summary.get("target") != "flow"
-        or summary.get("claim_scope") != "production_flow"
+        target not in trust.ADMISSION_GATE_TARGETS
+        or target_contract is None
+        or summary.get("claim_scope") != target_contract["claim_scope"]
     ):
-        raise IssuerError("release issuer accepts only the Flow production target")
+        raise IssuerError(
+            "release issuer accepts only the current admission-gate target"
+        )
     manifest_evidence = resolver.resolve(
         summary["production_acceptance_manifest_reference"],
         kind="production-acceptance-manifest",

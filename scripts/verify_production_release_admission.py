@@ -26,6 +26,9 @@ POLICY_PATH = ROOT / "production-evidence-policy.json"
 VERIFICATION_RECEIPT_DOMAIN = (
     b"OpenAdapt qualification release verification receipt v1\0"
 )
+VERIFICATION_RECEIPT_V2_DOMAIN = (
+    b"OpenAdapt qualification release verification receipt v2\0"
+)
 
 
 def load_json_argument(value: str) -> Any:
@@ -209,12 +212,73 @@ def verification_receipt(
         "registry_head_sha256": admission_reference["registry_head_sha256"],
         "trust_state_source_commit": trust_state_source_commit,
     }
+    receipt_domain = VERIFICATION_RECEIPT_DOMAIN
+    if admission["target"] != "flow":
+        receipt.update(
+            schema_version=(
+                "openadapt.qualification-release-verification-receipt/v2"
+            ),
+            release_kind=admission["release"]["kind"],
+            deployment_id=admission["release"]["deployment_id"],
+            deployment_sha256=admission["release"]["deployment_sha256"],
+        )
+        receipt_domain = VERIFICATION_RECEIPT_V2_DOMAIN
     projection = dict(receipt)
     projection.pop("verification_id_sha256")
     receipt["verification_id_sha256"] = trust.digest_bytes(
-        VERIFICATION_RECEIPT_DOMAIN, projection
+        receipt_domain, projection
     )
     return receipt
+
+
+def caller_release_identity(
+    args: argparse.Namespace, release: dict[str, Any], *, target: str
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Close the caller's expected package, deployment, or hybrid identity."""
+
+    optional = {
+        "version": args.expected_version or None,
+        "tag": args.expected_tag or None,
+        "deployment_id": args.expected_deployment_id or None,
+        "deployment_sha256": args.expected_deployment_sha256 or None,
+    }
+    kind = release["kind"]
+    if kind == "package" and (
+        optional["version"] is None
+        or optional["tag"] is None
+        or optional["deployment_id"] is not None
+        or optional["deployment_sha256"] is not None
+    ):
+        raise trust.TrustError("caller package identity expectations are incomplete")
+    if kind == "deployment" and (
+        optional["version"] is not None
+        or optional["tag"] is not None
+        or optional["deployment_id"] is None
+        or optional["deployment_sha256"] is None
+    ):
+        raise trust.TrustError(
+            "caller deployment identity expectations are incomplete"
+        )
+    if kind == "hybrid" and any(value is None for value in optional.values()):
+        raise trust.TrustError("caller hybrid identity expectations are incomplete")
+    expected = {
+        "target": target,
+        "repository": args.expected_repository,
+        "repository_id": args.expected_repository_id,
+        "source_commit": args.expected_source_commit,
+        **optional,
+    }
+    actual = {
+        "target": target,
+        "repository": release["source_repository"],
+        "repository_id": release["source_repository_id"],
+        "source_commit": release["source_commit"],
+        "version": release["version"],
+        "tag": release["tag"],
+        "deployment_id": release["deployment_id"],
+        "deployment_sha256": release["deployment_sha256"],
+    }
+    return expected, actual
 
 
 def verify_bytes(raw: bytes, reference: dict[str, Any], label: str) -> Any:
@@ -658,8 +722,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--expected-repository", required=True)
     parser.add_argument("--expected-repository-id", required=True)
     parser.add_argument("--expected-source-commit", required=True)
-    parser.add_argument("--expected-version", required=True)
-    parser.add_argument("--expected-tag", required=True)
+    parser.add_argument("--expected-version", default="")
+    parser.add_argument("--expected-tag", default="")
+    parser.add_argument("--expected-deployment-id", default="")
+    parser.add_argument("--expected-deployment-sha256", default="")
     parser.add_argument("--github-output")
     args = parser.parse_args(argv)
     try:
@@ -689,13 +755,16 @@ def main(argv: list[str] | None = None) -> int:
         )
         now = datetime.now(timezone.utc)
         admission = trust.validate_release(admission_value)
+        target_contract = trust.TARGET_CONTRACTS.get(admission["target"])
         if (
-            admission["target"] != "flow"
-            or admission["claim_scope"] != "production_flow"
+            admission["target"] not in trust.ADMISSION_GATE_TARGETS
             or admission["evidence_class"] != "remote-safe-synthetic"
+            or target_contract is None
+            or admission["claim_scope"] != target_contract["claim_scope"]
         ):
             raise trust.TrustError(
-                "release verifier accepts only remote-safe synthetic Flow evidence"
+                "release verifier accepts only remote-safe synthetic evidence "
+                "for the current admission-gate target"
             )
         if admission[
             "signer_registry_sha256"
@@ -806,22 +875,10 @@ def main(argv: list[str] | None = None) -> int:
             if (subject_kind, subject_id) in revoked:
                 raise trust.TrustError(f"{subject_kind} is revoked")
         release = admission["release"]
-        expected = {
-            "target": args.expected_target,
-            "repository": args.expected_repository,
-            "repository_id": args.expected_repository_id,
-            "source_commit": args.expected_source_commit,
-            "version": args.expected_version,
-            "tag": args.expected_tag,
-        }
-        actual = {
-            "target": admission["target"],
-            "repository": release["source_repository"],
-            "repository_id": release["source_repository_id"],
-            "source_commit": release["source_commit"],
-            "version": release["version"],
-            "tag": release["tag"],
-        }
+        expected, actual = caller_release_identity(
+            args, release, target=args.expected_target
+        )
+        actual["target"] = admission["target"]
         if actual != expected:
             raise trust.TrustError("release identity differs from caller expectations")
         if (
@@ -856,6 +913,10 @@ def main(argv: list[str] | None = None) -> int:
             ).decode("utf-8"),
             "publication_staging_sha256": admission["publication_staging_sha256"],
             "draft_release_id": admission["publication_staging"]["draft_release_id"],
+            "version": release["version"] or "",
+            "tag": release["tag"] or "",
+            "deployment_id": release["deployment_id"] or "",
+            "deployment_sha256": release["deployment_sha256"] or "",
             "authority_state_sha256": admission["authority_state_sha256"],
             "revocation_state_sha256": admission["revocation_state_sha256"],
             "signer_registry_sha256": admission["signer_registry_sha256"],

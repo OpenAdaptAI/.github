@@ -223,6 +223,27 @@ class GovernanceWorkflowContractTests(unittest.TestCase):
             for action, ref in pattern.findall(path.read_text(encoding="utf-8")):
                 self.assertRegex(ref, r"^[0-9a-f]{40}$", f"{path.name}: {action}")
 
+    def test_release_verifier_closes_all_release_identity_shapes(self) -> None:
+        content = _read(
+            ".github/workflows/verify-production-release-admission.yml"
+        )
+        for field in (
+            "expected_version",
+            "expected_tag",
+            "expected_deployment_id",
+            "expected_deployment_sha256",
+        ):
+            self.assertIn(f"      {field}:", content)
+        for flag in (
+            "--expected-version",
+            "--expected-tag",
+            "--expected-deployment-id",
+            "--expected-deployment-sha256",
+        ):
+            self.assertIn(flag, content)
+        for output in ("version", "tag", "deployment_id", "deployment_sha256"):
+            self.assertIn(f"      {output}:\n", content)
+
 
 class LifecycleCandidateTests(unittest.TestCase):
     SOURCE_COMMIT = "a" * 40

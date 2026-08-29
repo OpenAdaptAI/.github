@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import unittest
 from pathlib import Path
@@ -584,6 +585,47 @@ EXPECTED_TOP_LEVEL_FIELDS = {
         "registry_head_sha256",
         "trust_state_source_commit",
     },
+    "qualification-release-verification-receipt-v2.schema.json": {
+        "schema_version",
+        "verification_id_sha256",
+        "verdict",
+        "evidence_class",
+        "target",
+        "claim_scope",
+        "admission_object_sha256",
+        "admission_bundle_object_sha256",
+        "admission_id_sha256",
+        "release_sha256",
+        "artifact_inventory_sha256",
+        "release_identity",
+        "release_kind",
+        "source_repository",
+        "source_repository_id",
+        "source_commit",
+        "version",
+        "tag",
+        "deployment_id",
+        "deployment_sha256",
+        "draft_release_id",
+        "publication_staging_sha256",
+        "authority_state_sha256",
+        "revocation_state_sha256",
+        "signer_registry_sha256",
+        "acceptance_summary_object_sha256",
+        "acceptance_manifest_object_sha256",
+        "decision_receipt_object_sha256",
+        "qualification_admission_object_sha256",
+        "qualification_admission_id_sha256",
+        "workflow_version_id_sha256",
+        "workflow_bundle_sha256",
+        "admitted_runtime_sha256",
+        "verified_at",
+        "expires_at",
+        "registry_source_commit",
+        "registry_revision",
+        "registry_head_sha256",
+        "trust_state_source_commit",
+    },
 }
 
 
@@ -618,6 +660,114 @@ class PublicTrustSchemaTests(unittest.TestCase):
             ).read_text(encoding="utf-8")
         )
         Draft202012Validator(schema, registry=registry).validate(fixture)
+
+    def test_release_verification_fixture_binds_all_product_target_identities(
+        self,
+    ) -> None:
+        resources = []
+        for path in SCHEMA_ROOT.glob("*.schema.json"):
+            value = json.loads(path.read_text(encoding="utf-8"))
+            resources.append((value["$id"], Resource.from_contents(value)))
+        registry = Registry().with_resources(resources)
+        schema = json.loads(
+            (
+                SCHEMA_ROOT
+                / "qualification-release-verification-receipt-v2.schema.json"
+            ).read_text(encoding="utf-8")
+        )
+        validator = Draft202012Validator(schema, registry=registry)
+        fixture = json.loads(
+            (
+                ROOT
+                / "tests"
+                / "fixtures"
+                / "remote-safe-synthetic-flow-release-verification.json"
+            ).read_text(encoding="utf-8")
+        )
+        fixture.update(
+            schema_version=(
+                "openadapt.qualification-release-verification-receipt/v2"
+            ),
+            release_kind="package",
+            deployment_id=None,
+            deployment_sha256=None,
+        )
+        targets = {
+            "agent": (
+                "production_agent",
+                "OpenAdaptAI/openadapt-agent",
+                "1136136670",
+                "package",
+            ),
+            "capture": (
+                "production_capture",
+                "OpenAdaptAI/openadapt-capture",
+                "1115283835",
+                "package",
+            ),
+            "cloud": (
+                "production_cloud",
+                "OpenAdaptAI/openadapt-cloud",
+                "1300570990",
+                "deployment",
+            ),
+            "desktop": (
+                "production_desktop",
+                "OpenAdaptAI/openadapt-desktop",
+                "1171291730",
+                "hybrid",
+            ),
+            "docs": (
+                "production_docs",
+                "OpenAdaptAI/openadapt-ops",
+                "1172011294",
+                "deployment",
+            ),
+            "flow": (
+                "production_flow",
+                "OpenAdaptAI/openadapt-flow",
+                "1291376938",
+                "package",
+            ),
+            "openadapt": (
+                "production_openadapt",
+                "OpenAdaptAI/OpenAdapt",
+                "627024850",
+                "package",
+            ),
+        }
+        for target, (claim, repository, repository_id, release_kind) in targets.items():
+            with self.subTest(target=target):
+                candidate = copy.deepcopy(fixture)
+                packaged = release_kind in {"package", "hybrid"}
+                deployed = release_kind in {"deployment", "hybrid"}
+                candidate.update(
+                    target=target,
+                    claim_scope=claim,
+                    source_repository=repository,
+                    source_repository_id=repository_id,
+                    release_kind=release_kind,
+                    version="1.35.0" if packaged else None,
+                    tag="v1.35.0" if packaged else None,
+                    deployment_id="42" if deployed else None,
+                    deployment_sha256=(
+                        "sha256:" + "4" * 64 if deployed else None
+                    ),
+                )
+                self.assertTrue(validator.is_valid(candidate))
+                wrong_claim = copy.deepcopy(candidate)
+                wrong_claim["claim_scope"] = "production_flow"
+                if target != "flow":
+                    self.assertFalse(validator.is_valid(wrong_claim))
+                wrong_repository = copy.deepcopy(candidate)
+                wrong_repository["source_repository"] = "OpenAdaptAI/wrong"
+                self.assertFalse(validator.is_valid(wrong_repository))
+                wrong_shape = copy.deepcopy(candidate)
+                wrong_shape["version"] = None if packaged else "1.35.0"
+                self.assertFalse(validator.is_valid(wrong_shape))
+                wrong_deployment = copy.deepcopy(candidate)
+                wrong_deployment["deployment_id"] = None if deployed else "42"
+                self.assertFalse(validator.is_valid(wrong_deployment))
 
     def test_every_schema_parses_and_declared_objects_are_closed(self) -> None:
         paths = sorted(SCHEMA_ROOT.glob("*.schema.json"))
