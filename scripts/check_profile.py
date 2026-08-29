@@ -41,9 +41,7 @@ REQUIRED_PROFILE_LINKS = {
 REQUIRED_PROFILE_MARKERS = {
     "## Product Surfaces",
     "## Research and Labs",
-    "A Production run also requires a separate active admission for the exact "
-    "workflow.",
-    "more than 1.6k stars",
+    "Qualification is per workflow, not a blanket Production claim.",
 }
 
 EXPECTED_PINNED_REPOSITORIES = (
@@ -192,6 +190,13 @@ def main() -> int:
             errors.append(
                 "profile/README.md must link the machine lifecycle record instead "
                 "of repeating target state labels"
+            )
+
+    for path in (PROFILE, ROOT / "README.md"):
+        text = path.read_text(encoding="utf-8")
+        if "1.6k" in text or "1.6k+" in text:
+            errors.append(
+                f"{path.relative_to(ROOT)} still flexes GitHub star count"
             )
 
     lifecycle_doc_text = LIFECYCLE_DOC.read_text(encoding="utf-8")

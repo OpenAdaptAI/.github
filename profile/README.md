@@ -18,9 +18,8 @@ too consequential to hand to a free-form computer-use agent on every run.
 [Read the docs](https://docs.openadapt.ai) ·
 [Visit openadapt.ai](https://openadapt.ai/)
 
-The flagship [`OpenAdapt`](https://github.com/OpenAdaptAI/OpenAdapt) repository
-has more than 1.6k stars, reflecting interest in the overall OpenAdapt project;
-the canonical current engine is
+The installer is [`OpenAdapt`](https://github.com/OpenAdaptAI/OpenAdapt).
+The canonical engine is
 [`openadapt-flow`](https://github.com/OpenAdaptAI/openadapt-flow).
 
 ## Start Locally
@@ -90,12 +89,6 @@ before extrapolating either result.
 | `agent` | [`openadapt-agent`](https://github.com/OpenAdaptAI/openadapt-agent) exposes governed Flow workflows as local MCP tools and Agent Skills. |
 | `docs` | [`docs.openadapt.ai`](https://docs.openadapt.ai) is the canonical documentation site. [`openadapt-ops`](https://github.com/OpenAdaptAI/openadapt-ops) is its **Support** publishing source. |
 
-The [machine-readable Production record](https://docs.openadapt.ai/production-lifecycle.json)
-derives each current state from the signed admission ledger for that exact
-release or deployment.
-A Production run also requires a separate active admission for the exact
-workflow.
-
 [`openadapt-evals`](https://github.com/OpenAdaptAI/openadapt-evals) is a
 Research repository. Runnable references live in
 [`openadapt-flow/docs/showcase`](https://github.com/OpenAdaptAI/openadapt-flow/tree/main/docs/showcase),
@@ -103,14 +96,9 @@ with methods and evidence under
 [`benchmark`](https://github.com/OpenAdaptAI/openadapt-flow/tree/main/benchmark).
 
 These targets form one product across browser, Windows, macOS, Linux, RDP, and
-Citrix/VDI. The execution surfaces share one qualification contract and retain
-environment-specific bindings and evidence. Qualification stays specific to
-the workflow, application, environment, identity contract, and effect verifier.
-
-A runnable workflow can still lack certification. Review its identity coverage,
-postconditions, system-of-record effects, policy, and published
-[limits](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/docs/LIMITS.md)
-before you use it for consequential work.
+Citrix/VDI. Qualification is per workflow, not a blanket Production claim.
+Current signed admissions are in the
+[live record](https://docs.openadapt.ai/production-lifecycle.json).
 
 ## Research and Labs
 
