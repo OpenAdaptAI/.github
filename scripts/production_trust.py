@@ -34,6 +34,9 @@ RELEASE_TAG = re.compile(
 )
 
 TARGETS = ("agent", "capture", "cloud", "desktop", "docs", "flow", "openadapt")
+# Sequential work order (STATUS.md 2026-08-27): admit Flow first. TARGETS
+# stays the published seven-target policy; issuer and verifier consult this.
+ADMISSION_GATE_TARGETS = ("flow",)
 TARGET_CONTRACTS = {
     "agent": {
         "claim_scope": "production_agent",

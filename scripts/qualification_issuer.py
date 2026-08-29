@@ -673,10 +673,13 @@ def issue_release_admission(
         trust.TARGET_CONTRACTS.get(target) if isinstance(target, str) else None
     )
     if (
-        target_contract is None
+        target not in trust.ADMISSION_GATE_TARGETS
+        or target_contract is None
         or summary.get("claim_scope") != target_contract["claim_scope"]
     ):
-        raise IssuerError("release target or claim scope differs from policy")
+        raise IssuerError(
+            "release issuer accepts only the current admission-gate target"
+        )
     manifest_evidence = resolver.resolve(
         summary["production_acceptance_manifest_reference"],
         kind="production-acceptance-manifest",

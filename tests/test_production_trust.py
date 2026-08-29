@@ -605,6 +605,8 @@ class ProductionTrustTests(unittest.TestCase):
         )
         targets = {item["id"]: item for item in policy["targets"]}
         self.assertEqual(set(targets), set(trust.TARGET_CONTRACTS))
+        self.assertEqual(trust.ADMISSION_GATE_TARGETS, ("flow",))
+        self.assertTrue(set(trust.ADMISSION_GATE_TARGETS) <= set(trust.TARGETS))
         for target, contract in trust.TARGET_CONTRACTS.items():
             with self.subTest(target=target):
                 policy_target = targets[target]

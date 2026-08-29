@@ -757,13 +757,14 @@ def main(argv: list[str] | None = None) -> int:
         admission = trust.validate_release(admission_value)
         target_contract = trust.TARGET_CONTRACTS.get(admission["target"])
         if (
-            admission["evidence_class"] != "remote-safe-synthetic"
+            admission["target"] not in trust.ADMISSION_GATE_TARGETS
+            or admission["evidence_class"] != "remote-safe-synthetic"
             or target_contract is None
             or admission["claim_scope"] != target_contract["claim_scope"]
         ):
             raise trust.TrustError(
-                "release verifier accepts only a policy-bound remote-safe "
-                "synthetic product target"
+                "release verifier accepts only remote-safe synthetic evidence "
+                "for the current admission-gate target"
             )
         if admission[
             "signer_registry_sha256"

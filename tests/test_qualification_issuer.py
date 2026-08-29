@@ -1289,7 +1289,8 @@ class QualificationIssuerTests(unittest.TestCase):
                 consumer=RecordingConsumer(),
             )
 
-    def test_release_admission_accepts_every_policy_target_with_full_chain(self) -> None:
+    def test_release_admission_accepts_flow_and_refuses_other_targets(self) -> None:
+        self.assertEqual(trust.ADMISSION_GATE_TARGETS, ("flow",))
         for target in trust.TARGETS:
             with self.subTest(target=target):
                 fixture = trust_fixture()
@@ -1307,6 +1308,18 @@ class QualificationIssuerTests(unittest.TestCase):
                     resolver,
                     target=target,
                 )
+                if target not in trust.ADMISSION_GATE_TARGETS:
+                    with self.assertRaisesRegex(
+                        issuer.IssuerError, "current admission-gate target"
+                    ):
+                        issuer.issue_release_admission(
+                            request,
+                            resolver=resolver,
+                            issuer_source_commit=RELEASE_REGISTRY_COMMIT,
+                            now=NOW,
+                            consumer=RecordingConsumer(),
+                        )
+                    continue
                 release = issuer.issue_release_admission(
                     request,
                     resolver=resolver,
@@ -1349,7 +1362,12 @@ class QualificationIssuerTests(unittest.TestCase):
                     verified_at=NOW,
                     trust_state_source_commit=RELEASE_REGISTRY_COMMIT,
                 )
-                self.assertEqual(verification["target"], target)
+                self.assertEqual(verification["target"], "flow")
+                self.assertEqual(
+                    verification["schema_version"],
+                    "openadapt.qualification-release-verification-receipt/v1",
+                )
+                self.assertNotIn("deployment_id", verification)
                 self.assertEqual(
                     verification["source_repository"], contract["repository"]
                 )
@@ -1357,37 +1375,6 @@ class QualificationIssuerTests(unittest.TestCase):
                     verification["workflow_bundle_sha256"],
                     workflow_admission["bundle_sha256"],
                 )
-                if target == "flow":
-                    self.assertEqual(
-                        verification["schema_version"],
-                        "openadapt.qualification-release-verification-receipt/v1",
-                    )
-                    self.assertNotIn("deployment_id", verification)
-                else:
-                    self.assertEqual(
-                        verification["schema_version"],
-                        "openadapt.qualification-release-verification-receipt/v2",
-                    )
-                    self.assertEqual(
-                        verification["release_kind"], release["release"]["kind"]
-                    )
-                    self.assertEqual(
-                        verification["deployment_id"],
-                        release["release"]["deployment_id"],
-                    )
-                    self.assertEqual(
-                        verification["deployment_sha256"],
-                        release["release"]["deployment_sha256"],
-                    )
-                    projection = dict(verification)
-                    verification_id = projection.pop("verification_id_sha256")
-                    self.assertEqual(
-                        verification_id,
-                        trust.digest_bytes(
-                            release_verifier.VERIFICATION_RECEIPT_V2_DOMAIN,
-                            projection,
-                        ),
-                    )
 
     def test_verifier_closes_package_deployment_and_hybrid_caller_identity(
         self,
