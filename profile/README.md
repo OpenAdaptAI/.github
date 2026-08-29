@@ -3,10 +3,11 @@
 **Automate the UI-only work your APIs can't reach.**
 
 OpenAdapt compiles demonstrations into governed workflows across browser,
-native desktop, RDP, and Citrix. Healthy runs execute deterministically and
-make no model calls. Consequential actions are identity-gated, results are
-checked against the workflow's evidence contract, and uncertainty halts for
-review instead of being reported as success.
+native desktop, RDP, and Citrix. The default healthy path executes
+deterministically and makes no generative-model API calls. Consequential
+actions are identity-gated, results are checked against the workflow's
+evidence contract, and uncertainty halts for review instead of being reported
+as success.
 
 OpenAdapt is for repeated work trapped behind browser, desktop, and
 virtual-desktop interfaces: too visual or variable for brittle selectors, but
@@ -70,9 +71,10 @@ that is independent of every arm:
   reconciliation, never reported as success.
   [Methodology and caveats](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/benchmark/effect_e2e/EFFECT_E2E.md).
 
-Zero model calls on a healthy run means no model-API charge on that run; it
-excludes authoring, review, maintenance, and infrastructure, and it is not a
-production-reliability or clinical-safety claim. Read the
+The recorded zero model API calls mean no generative-model API charge for that
+benchmark run. The figure excludes authoring, review, maintenance, and
+infrastructure, and it is not a production-reliability or clinical-safety
+claim. Read the
 [limits](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/docs/LIMITS.md)
 before extrapolating either result.
 

@@ -18,10 +18,11 @@ LIFECYCLE_DATA = ROOT / "repository-lifecycle.yml"
 MARKDOWN_FILES = (ROOT / "README.md", ROOT / "LAUNCH_PLAN.md", LIFECYCLE_DOC, PROFILE)
 CANONICAL_TRUTH = (
     "OpenAdapt compiles demonstrations into governed workflows across browser, "
-    "native desktop, RDP, and Citrix. Healthy runs execute deterministically "
-    "and make no model calls. Consequential actions are identity-gated, results "
-    "are checked against the workflow's evidence contract, and uncertainty "
-    "halts for review instead of being reported as success."
+    "native desktop, RDP, and Citrix. The default healthy path executes "
+    "deterministically and makes no generative-model API calls. Consequential "
+    "actions are identity-gated, results are checked against the workflow's "
+    "evidence contract, and uncertainty halts for review instead of being "
+    "reported as success."
 )
 REQUIRED_PROFILE_LINKS = {
     "https://github.com/OpenAdaptAI/OpenAdapt",
