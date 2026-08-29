@@ -1,12 +1,13 @@
-# OpenAdapt.AI
+# OpenAdapt
 
 **Automate the UI-only work your APIs can't reach.**
 
 OpenAdapt compiles demonstrations into governed workflows across browser,
-native desktop, RDP, and Citrix. Healthy runs execute deterministically and
-make no model calls. Consequential actions are identity-gated, results are
-checked against the workflow's evidence contract, and uncertainty halts for
-review instead of being reported as success.
+native desktop, RDP, and Citrix. The default healthy path executes
+deterministically and makes no generative-model API calls. Consequential
+actions are identity-gated, results are checked against the workflow's
+evidence contract, and uncertainty halts for review instead of being reported
+as success.
 
 OpenAdapt is for repeated work trapped behind browser, desktop, and
 virtual-desktop interfaces: too visual or variable for brittle selectors, but
@@ -17,9 +18,8 @@ too consequential to hand to a free-form computer-use agent on every run.
 [Read the docs](https://docs.openadapt.ai) ·
 [Visit openadapt.ai](https://openadapt.ai/)
 
-The flagship [`OpenAdapt`](https://github.com/OpenAdaptAI/OpenAdapt) repository
-has more than 1.6k stars, reflecting interest in the overall OpenAdapt project;
-the canonical current engine is
+The installer is [`OpenAdapt`](https://github.com/OpenAdaptAI/OpenAdapt).
+The canonical engine is
 [`openadapt-flow`](https://github.com/OpenAdaptAI/openadapt-flow).
 
 ## Start Locally
@@ -48,9 +48,12 @@ that is independent of every arm:
   form, and the replayer had already halted at step 17 rather than press on.
   Small sample on a shared, daily-resetting demo — not CI-reproducible.
   [Methodology and caveats](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/benchmark/openemr/BENCHMARK.md).
-- **CI-reproducible control** (bundled MockMed task): both arms passed every
-  run (100/100 compiled, 20/20 agent), so the result is cost and latency, not
-  success rate — 4.9s p50 with zero model calls versus 37.5s p50 for the agent.
+- **Historical MockMed control** (bundled task): retained rows marked 100/100
+  compiled runs and 20/20 agent runs successful under the 2026-07-08 OCR
+  check. The final frames were not retained, so the current verifier cannot
+  rescore those outcomes. Use these rows only for latency and estimated model
+  API charge comparison. The compiled arm recorded 4.9s p50 and $0 per run in
+  model API charges; the agent arm recorded 37.5s p50 and about $0.27 per run.
   [Methodology and caveats](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/benchmark/BENCHMARK.md).
 - **Independent effect verification** (fault-injection study, 90 runs per arm,
   end to end through the real replayer into an on-disk SQLite system of record,
@@ -67,28 +70,24 @@ that is independent of every arm:
   reconciliation, never reported as success.
   [Methodology and caveats](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/benchmark/effect_e2e/EFFECT_E2E.md).
 
-Zero model calls on a healthy run means no model-API charge on that run; it
-excludes authoring, review, maintenance, and infrastructure, and it is not a
-production-reliability or clinical-safety claim. Read the
+The recorded zero model API calls mean no generative-model API charge for that
+benchmark run. The figure excludes authoring, review, maintenance, and
+infrastructure, and it is not a production-reliability or clinical-safety
+claim. Read the
 [limits](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/docs/LIMITS.md)
 before extrapolating either result.
 
 ## Product Surfaces
 
-The signed admission ledger has no active records. Each product target is
-therefore **not actively admitted**. A target shows Production only while its
-exact release or deployment has an active, signed, expiring, and revocable
-admission.
-
-| Target | Current state | Role |
-|---|---|---|
-| `openadapt` | **Not actively admitted** | [`OpenAdapt`](https://github.com/OpenAdaptAI/OpenAdapt) installs the unified CLI. |
-| `flow` | **Not actively admitted** | [`openadapt-flow`](https://github.com/OpenAdaptAI/openadapt-flow) is the canonical compiler and governed runtime. |
-| `cloud` | **Not actively admitted** | [`app.openadapt.ai`](https://app.openadapt.ai/) provides the control plane for managed browser and customer-controlled execution. Its implementation repository is private. |
-| `desktop` | **Not actively admitted** | [`openadapt-desktop`](https://github.com/OpenAdaptAI/openadapt-desktop) provides local recording, qualification, execution, evidence review, and governed repair. |
-| `capture` | **Not actively admitted** | [`openadapt-capture`](https://github.com/OpenAdaptAI/openadapt-capture) records native screen, input, timing, and window-scoped evidence for Desktop and Flow. |
-| `agent` | **Not actively admitted** | [`openadapt-agent`](https://github.com/OpenAdaptAI/openadapt-agent) exposes governed Flow workflows as local MCP tools and Agent Skills. |
-| `docs` | **Not actively admitted** | [`docs.openadapt.ai`](https://docs.openadapt.ai) is the canonical documentation site. [`openadapt-ops`](https://github.com/OpenAdaptAI/openadapt-ops) is its **Support** publishing source. |
+| Target | Role |
+|---|---|
+| `openadapt` | [`OpenAdapt`](https://github.com/OpenAdaptAI/OpenAdapt) installs the unified CLI. |
+| `flow` | [`openadapt-flow`](https://github.com/OpenAdaptAI/openadapt-flow) is the canonical compiler and governed runtime. |
+| `cloud` | [`app.openadapt.ai`](https://app.openadapt.ai/) provides the control plane for managed browser and customer-controlled execution. Its implementation repository is private. |
+| `desktop` | [`openadapt-desktop`](https://github.com/OpenAdaptAI/openadapt-desktop) provides local recording, qualification, execution, evidence review, and governed repair. |
+| `capture` | [`openadapt-capture`](https://github.com/OpenAdaptAI/openadapt-capture) records native screen, input, timing, and window-scoped evidence for Desktop and Flow. |
+| `agent` | [`openadapt-agent`](https://github.com/OpenAdaptAI/openadapt-agent) exposes governed Flow workflows as local MCP tools and Agent Skills. |
+| `docs` | [`docs.openadapt.ai`](https://docs.openadapt.ai) is the canonical documentation site. [`openadapt-ops`](https://github.com/OpenAdaptAI/openadapt-ops) is its **Support** publishing source. |
 
 [`openadapt-evals`](https://github.com/OpenAdaptAI/openadapt-evals) is a
 Research repository. Runnable references live in
@@ -97,14 +96,9 @@ with methods and evidence under
 [`benchmark`](https://github.com/OpenAdaptAI/openadapt-flow/tree/main/benchmark).
 
 These targets form one product across browser, Windows, macOS, Linux, RDP, and
-Citrix/VDI. The execution surfaces share one qualification contract and retain
-environment-specific bindings and evidence. Qualification stays specific to
-the workflow, application, environment, identity contract, and effect verifier.
-
-A runnable workflow can still lack certification. Review its identity coverage,
-postconditions, system-of-record effects, policy, and published
-[limits](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/docs/LIMITS.md)
-before you use it for consequential work.
+Citrix/VDI. Qualification is per workflow, not a blanket Production claim.
+Current signed admissions are in the
+[live record](https://docs.openadapt.ai/production-lifecycle.json).
 
 ## Research and Labs
 
@@ -128,4 +122,4 @@ launcher changes belong in [`OpenAdapt`](https://github.com/OpenAdaptAI/OpenAdap
 Use each repository's issues for scoped work, or visit
 [`openadapt.ai`](https://openadapt.ai/) for deployment inquiries.
 
-Unless a repository says otherwise, OpenAdapt.AI code is MIT licensed.
+Unless a repository says otherwise, OpenAdapt code is MIT licensed.

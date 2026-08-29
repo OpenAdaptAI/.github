@@ -17,9 +17,9 @@ Organization owners should apply these settings after this branch is merged:
 2. Apply the exact `repository_descriptions` values from that file. They keep
    the Desktop, native Capture, and agent-bridge descriptions aligned with the
    lifecycle registry.
-3. Pin the exact `pinned_repositories` list. It keeps the 1.6k+ stars correctly
-   attached to the overall `OpenAdapt` project while putting the canonical
-   engine and Desktop cockpit beside it.
+3. Pin the exact `pinned_repositories` list so visitors see the product
+   surface: the flagship installer, the Flow engine, Desktop, Capture, Agent,
+   and evals.
 4. The Cloud implementation repository is private and cannot be a public
    organization pin. The documentation implementation is a public Support
    repository and remains reachable through the docs link instead of occupying

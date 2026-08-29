@@ -448,7 +448,7 @@ class PublishedRegistryTests(unittest.TestCase):
     def test_every_published_figure_is_bound_or_recorded(self) -> None:
         code, out, _ = run(ROOT, "--allow-recorded-drift")
         self.assertEqual(code, 0)
-        self.assertIn("Bound 15 published figures", out)
+        self.assertIn("Bound 17 published figures", out)
 
     def test_the_published_surfaces_cover_both_front_pages(self) -> None:
         registry = claims.load_registry(ROOT / "benchmark-claims.json")

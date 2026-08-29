@@ -15,15 +15,32 @@ public_metadata:
     - openadapt-agent
     - openadapt-evals
   repository_descriptions:
+    .github: >-
+      Organization profile and shared community files for OpenAdapt.
+    OpenAdapt: >-
+      Installer and unified CLI for OpenAdapt. The compiler and governed
+      runtime live in openadapt-flow.
+    openadapt-flow: >-
+      Compiler and governed runtime for demonstrated GUI workflows, with
+      explicit identity, policy, and result checks.
+    openadapt-web: >-
+      Source for openadapt.ai, including product pages, evidence, pricing, and
+      workflow qualification.
+    openadapt-ops: >-
+      Source for docs.openadapt.ai, with checks and runbooks that keep the
+      documentation current.
+    openadapt-cloud: >-
+      Proprietary hosted control plane for workflow qualification, deployment,
+      attended operation, and governed repair.
     openadapt-desktop: >-
-      Desktop cockpit for recording, qualification, local execution, evidence,
-      and governed repair across OpenAdapt workflows.
+      Desktop application for local workflow authoring, operation, evidence
+      review, and governed repair.
     openadapt-capture: >-
-      Native screen, input, timing, and window-scoped recording for OpenAdapt
-      Desktop and Flow.
+      Native desktop recorder that keeps screen, input, timing, and
+      window-scoped evidence synchronized.
     openadapt-agent: >-
-      Local bridge exposing governed OpenAdapt workflows as MCP tools and Agent
-      Skills; halts remain halts.
+      Local bridge that exposes governed OpenAdapt workflows to MCP clients and
+      Agent Skills.
 lifecycle:
   production: []
   support:
