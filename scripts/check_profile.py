@@ -35,10 +35,13 @@ REQUIRED_PROFILE_LINKS = {
     "https://openadapt.ai/",
     "https://app.openadapt.ai/",
     "https://docs.openadapt.ai",
+    "https://docs.openadapt.ai/production-lifecycle.json",
 }
 REQUIRED_PROFILE_MARKERS = {
     "## Product Surfaces",
     "## Research and Labs",
+    "A Production run also requires a separate active admission for the exact "
+    "workflow.",
     "more than 1.6k stars",
 }
 
@@ -51,6 +54,7 @@ EXPECTED_PINNED_REPOSITORIES = (
     "openadapt-evals",
 )
 LINK_RE = re.compile(r"!?\[[^\]]+\]\(([^\s)]+)(?:\s+[^)]*)?\)")
+PROFILE_TARGET_ROW_RE = re.compile(r"^\| `([a-z]+)` \|\s*(.*?)\s*\|$")
 LIFECYCLE_GROUP_RE = re.compile(r"^  ([a-z_]+):(?: \[\])?$")
 LIFECYCLE_REPOSITORY_RE = re.compile(r"^    - (\S+)$")
 EXPECTED_LIFECYCLE_GROUPS = {
@@ -117,11 +121,14 @@ def main() -> int:
     profile_text = PROFILE.read_text(encoding="utf-8")
     normalized_profile = " ".join(profile_text.split())
 
+    if not profile_text.startswith("# OpenAdapt\n"):
+        errors.append("profile/README.md must use OpenAdapt as its title")
+
     if CANONICAL_TRUTH not in normalized_profile:
         errors.append("profile/README.md is missing the canonical product truth")
 
     for marker in REQUIRED_PROFILE_MARKERS:
-        if marker not in profile_text:
+        if marker not in normalized_profile:
             errors.append(f"profile/README.md is missing required marker: {marker}")
 
     canonical_quickstart = (
@@ -150,6 +157,43 @@ def main() -> int:
     policy = json.loads(
         (ROOT / "production-lifecycle-policy.json").read_text(encoding="utf-8")
     )
+    expected_profile_targets = tuple(target["id"] for target in policy["targets"])
+    product_section_parts = profile_text.split("## Product Surfaces\n", maxsplit=1)
+    if len(product_section_parts) != 2:
+        errors.append("profile/README.md is missing the Product Surfaces section")
+    else:
+        product_section = product_section_parts[1].split("\n## ", maxsplit=1)[0]
+        profile_target_rows = [
+            match.groups()
+            for line in product_section.splitlines()
+            if (match := PROFILE_TARGET_ROW_RE.fullmatch(line))
+        ]
+        profile_targets = tuple(target for target, _role in profile_target_rows)
+        if (
+            len(profile_targets) != len(expected_profile_targets)
+            or set(profile_targets) != set(expected_profile_targets)
+        ):
+            errors.append(
+                "profile/README.md product roles do not match the seven target "
+                f"contract: {profile_targets}"
+            )
+        empty_roles = [
+            target for target, role in profile_target_rows if not role.strip()
+        ]
+        if empty_roles:
+            errors.append(
+                f"profile/README.md has empty product roles: {empty_roles}"
+            )
+        if (
+            "Current state" in product_section
+            or "Not actively admitted" in product_section
+        ):
+            errors.append(
+                "profile/README.md must link the machine lifecycle record instead "
+                "of repeating target state labels"
+            )
+
+    lifecycle_doc_text = LIFECYCLE_DOC.read_text(encoding="utf-8")
     for target in policy["targets"]:
         target_id = target["id"]
         state = (
@@ -158,15 +202,11 @@ def main() -> int:
             else "Not actively admitted"
         )
         marker = f"| `{target_id}` | **{state}** |"
-        for path, text in (
-            (PROFILE, profile_text),
-            (LIFECYCLE_DOC, LIFECYCLE_DOC.read_text(encoding="utf-8")),
-        ):
-            if marker not in text:
-                errors.append(
-                    f"{path.relative_to(ROOT)} does not match the derived state for "
-                    f"target {target_id}: {state}"
-                )
+        if marker not in lifecycle_doc_text:
+            errors.append(
+                f"{LIFECYCLE_DOC.relative_to(ROOT)} does not match the derived state "
+                f"for target {target_id}: {state}"
+            )
 
     lifecycle_text = LIFECYCLE_DATA.read_text(encoding="utf-8")
     public_metadata_text = lifecycle_text.split("lifecycle:\n", maxsplit=1)[0]
@@ -244,7 +284,7 @@ def main() -> int:
                     f"expected {expected_group!r}"
                 )
 
-    public_operations_text = lifecycle_text + LIFECYCLE_DOC.read_text(encoding="utf-8")
+    public_operations_text = lifecycle_text + lifecycle_doc_text
     leaked_markers = sorted(
         marker
         for marker in FORBIDDEN_PUBLIC_OPERATIONS_MARKERS

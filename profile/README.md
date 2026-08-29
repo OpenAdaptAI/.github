@@ -1,4 +1,4 @@
-# OpenAdapt.AI
+# OpenAdapt
 
 **Automate the UI-only work your APIs can't reach.**
 
@@ -75,20 +75,21 @@ before extrapolating either result.
 
 ## Product Surfaces
 
-The signed admission ledger has no active records. Each product target is
-therefore **not actively admitted**. A target shows Production only while its
-exact release or deployment has an active, signed, expiring, and revocable
-admission.
+| Target | Role |
+|---|---|
+| `openadapt` | [`OpenAdapt`](https://github.com/OpenAdaptAI/OpenAdapt) installs the unified CLI. |
+| `flow` | [`openadapt-flow`](https://github.com/OpenAdaptAI/openadapt-flow) is the canonical compiler and governed runtime. |
+| `cloud` | [`app.openadapt.ai`](https://app.openadapt.ai/) provides the control plane for managed browser and customer-controlled execution. Its implementation repository is private. |
+| `desktop` | [`openadapt-desktop`](https://github.com/OpenAdaptAI/openadapt-desktop) provides local recording, qualification, execution, evidence review, and governed repair. |
+| `capture` | [`openadapt-capture`](https://github.com/OpenAdaptAI/openadapt-capture) records native screen, input, timing, and window-scoped evidence for Desktop and Flow. |
+| `agent` | [`openadapt-agent`](https://github.com/OpenAdaptAI/openadapt-agent) exposes governed Flow workflows as local MCP tools and Agent Skills. |
+| `docs` | [`docs.openadapt.ai`](https://docs.openadapt.ai) is the canonical documentation site. [`openadapt-ops`](https://github.com/OpenAdaptAI/openadapt-ops) is its **Support** publishing source. |
 
-| Target | Current state | Role |
-|---|---|---|
-| `openadapt` | **Not actively admitted** | [`OpenAdapt`](https://github.com/OpenAdaptAI/OpenAdapt) installs the unified CLI. |
-| `flow` | **Not actively admitted** | [`openadapt-flow`](https://github.com/OpenAdaptAI/openadapt-flow) is the canonical compiler and governed runtime. |
-| `cloud` | **Not actively admitted** | [`app.openadapt.ai`](https://app.openadapt.ai/) provides the control plane for managed browser and customer-controlled execution. Its implementation repository is private. |
-| `desktop` | **Not actively admitted** | [`openadapt-desktop`](https://github.com/OpenAdaptAI/openadapt-desktop) provides local recording, qualification, execution, evidence review, and governed repair. |
-| `capture` | **Not actively admitted** | [`openadapt-capture`](https://github.com/OpenAdaptAI/openadapt-capture) records native screen, input, timing, and window-scoped evidence for Desktop and Flow. |
-| `agent` | **Not actively admitted** | [`openadapt-agent`](https://github.com/OpenAdaptAI/openadapt-agent) exposes governed Flow workflows as local MCP tools and Agent Skills. |
-| `docs` | **Not actively admitted** | [`docs.openadapt.ai`](https://docs.openadapt.ai) is the canonical documentation site. [`openadapt-ops`](https://github.com/OpenAdaptAI/openadapt-ops) is its **Support** publishing source. |
+The [machine-readable Production record](https://docs.openadapt.ai/production-lifecycle.json)
+derives each current state from the signed admission ledger for that exact
+release or deployment.
+A Production run also requires a separate active admission for the exact
+workflow.
 
 [`openadapt-evals`](https://github.com/OpenAdaptAI/openadapt-evals) is a
 Research repository. Runnable references live in
@@ -128,4 +129,4 @@ launcher changes belong in [`OpenAdapt`](https://github.com/OpenAdaptAI/OpenAdap
 Use each repository's issues for scoped work, or visit
 [`openadapt.ai`](https://openadapt.ai/) for deployment inquiries.
 
-Unless a repository says otherwise, OpenAdapt.AI code is MIT licensed.
+Unless a repository says otherwise, OpenAdapt code is MIT licensed.
