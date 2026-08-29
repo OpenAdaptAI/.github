@@ -48,9 +48,12 @@ that is independent of every arm:
   form, and the replayer had already halted at step 17 rather than press on.
   Small sample on a shared, daily-resetting demo — not CI-reproducible.
   [Methodology and caveats](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/benchmark/openemr/BENCHMARK.md).
-- **CI-reproducible control** (bundled MockMed task): both arms passed every
-  run (100/100 compiled, 20/20 agent), so the result is cost and latency, not
-  success rate — 4.9s p50 with zero model calls versus 37.5s p50 for the agent.
+- **Historical MockMed control** (bundled task): retained rows marked 100/100
+  compiled runs and 20/20 agent runs successful under the 2026-07-08 OCR
+  check. The final frames were not retained, so the current verifier cannot
+  rescore those outcomes. Use these rows only for latency and estimated model
+  API charge comparison. The compiled arm recorded 4.9s p50 and $0 per run in
+  model API charges; the agent arm recorded 37.5s p50 and about $0.27 per run.
   [Methodology and caveats](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/benchmark/BENCHMARK.md).
 - **Independent effect verification** (fault-injection study, 90 runs per arm,
   end to end through the real replayer into an on-disk SQLite system of record,
