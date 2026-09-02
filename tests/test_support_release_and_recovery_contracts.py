@@ -208,6 +208,7 @@ def support_admission() -> dict:
     ]
     staging = {
         "schema_version": "openadapt.production-release-staging-evidence/v1",
+        "publication_mode": "draft-before-tag",
         "repository": "OpenAdaptAI/openadapt-tray",
         "repository_id": "1136122737",
         "draft_release_id": "20",
@@ -220,6 +221,7 @@ def support_admission() -> dict:
         "release_app_bot_user_id": "321543906",
         "release_author_login": "openadapt-release[bot]",
         "assets": staged_assets,
+        "pypi_files": None,
         "immutable_releases": {"enabled": True, "enforced_by_owner": False},
         "immutable_releases_sha256": sha("placeholder"),
         "tag_rulesets": tag_rulesets(),

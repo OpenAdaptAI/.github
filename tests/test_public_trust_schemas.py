@@ -885,6 +885,16 @@ class PublicTrustSchemaTests(unittest.TestCase):
             ],
             2,
         )
+        self.assertEqual(
+            schema["$defs"]["publication_staging"]["properties"]["publication_mode"][
+                "enum"
+            ],
+            ["draft-before-tag", "already-published-pypi"],
+        )
+        self.assertIn(
+            "publication_mode",
+            schema["$defs"]["publication_staging"]["required"],
+        )
 
     def test_verification_policy_keeps_sigstore_and_freezes_future_kms_profile(
         self,

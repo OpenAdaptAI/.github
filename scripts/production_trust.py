@@ -190,6 +190,36 @@ STAGING_DOMAIN = b"OpenAdapt production release staging evidence v1\0"
 TAG_RULESETS_DOMAIN = b"OpenAdapt production release tag rulesets v1\0"
 IMMUTABLE_RELEASES_DOMAIN = b"OpenAdapt production immutable releases response v1\0"
 TAG_REF_STATE_DOMAIN = b"OpenAdapt production release tag ref state v1\0"
+PUBLICATION_MODE_DRAFT_BEFORE_TAG = "draft-before-tag"
+PUBLICATION_MODE_ALREADY_PUBLISHED_PYPI = "already-published-pypi"
+PYPI_PACKAGETYPES = {
+    "python-sdist": "sdist",
+    "python-wheel": "bdist_wheel",
+}
+STAGING_FIELDS = {
+    "schema_version",
+    "publication_mode",
+    "repository",
+    "repository_id",
+    "draft_release_id",
+    "tag",
+    "target_commitish",
+    "draft",
+    "prerelease",
+    "release_app_id",
+    "release_app_installation_id",
+    "release_app_bot_user_id",
+    "release_author_login",
+    "assets",
+    "pypi_files",
+    "immutable_releases",
+    "immutable_releases_sha256",
+    "tag_rulesets",
+    "tag_rulesets_sha256",
+    "tag_ref_state",
+    "tag_ref_state_sha256",
+    "observed_at",
+}
 PUBLICATION_RECOVERY_AUTHORIZATION_DOMAIN = (
     b"OpenAdapt production publication recovery authorization v2\0"
 )
@@ -647,33 +677,83 @@ def validate_tag_rulesets(
     return value
 
 
+def pypi_files_from_assets(assets: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    files: list[dict[str, Any]] = []
+    for asset in assets:
+        destinations = asset.get("publish_destinations")
+        if not isinstance(destinations, list) or "pypi" not in destinations:
+            continue
+        kind = asset.get("kind")
+        packagetype = PYPI_PACKAGETYPES.get(kind) if isinstance(kind, str) else None
+        if packagetype is None:
+            raise TrustError(f"{kind} cannot publish to PyPI")
+        files.append(
+            {
+                "filename": asset["name"],
+                "packagetype": packagetype,
+                "sha256": asset["sha256"],
+                "size_bytes": asset["size_bytes"],
+                "yanked": False,
+            }
+        )
+    return sorted(files, key=lambda item: (item["filename"], item["sha256"]))
+
+
+def validate_pypi_files(
+    value: Any, assets: Sequence[Mapping[str, Any]]
+) -> list[dict[str, Any]]:
+    if not isinstance(value, list) or not value:
+        raise TrustError("already-published-pypi staging requires observed PyPI files")
+    files: list[dict[str, Any]] = []
+    names: set[str] = set()
+    for index, item_value in enumerate(value):
+        item = closed(
+            item_value,
+            {"filename", "packagetype", "sha256", "size_bytes", "yanked"},
+            f"pypi file {index}",
+        )
+        filename = item["filename"]
+        if (
+            not isinstance(filename, str)
+            or not filename
+            or filename != Path(filename).name
+            or "/" in filename
+            or "\\" in filename
+        ):
+            raise TrustError(f"pypi file {index} name is unsafe")
+        if filename in names:
+            raise TrustError("pypi file names must be unique")
+        names.add(filename)
+        if item["packagetype"] not in {"sdist", "bdist_wheel"}:
+            raise TrustError(f"pypi file {index} packagetype is invalid")
+        require_digest(item["sha256"], f"pypi file {index} digest")
+        require_positive_int(item["size_bytes"], f"pypi file {index} size")
+        if item["yanked"] is not False:
+            raise TrustError("yanked PyPI files cannot admit a release")
+        files.append(item)
+    if files != sorted(files, key=lambda item: (item["filename"], item["sha256"])):
+        raise TrustError("pypi files must be sorted")
+    expected = pypi_files_from_assets(assets)
+    if not expected:
+        raise TrustError("already-published-pypi staging requires pypi-destination artifacts")
+    if files != expected:
+        raise TrustError("observed PyPI files differ from pypi-destination artifacts")
+    return files
+
+
 def validate_staging(value: Any) -> dict[str, Any]:
-    staging = closed(
-        value,
-        {
-            "schema_version",
-            "repository",
-            "repository_id",
-            "draft_release_id",
-            "tag",
-            "target_commitish",
-            "draft",
-            "prerelease",
-            "release_app_id",
-            "release_app_installation_id",
-            "release_app_bot_user_id",
-            "release_author_login",
-            "assets",
-            "immutable_releases",
-            "immutable_releases_sha256",
-            "tag_rulesets",
-            "tag_rulesets_sha256",
-            "tag_ref_state",
-            "tag_ref_state_sha256",
-            "observed_at",
-        },
-        "publication staging",
-    )
+    staging = closed(value, STAGING_FIELDS, "publication staging")
+    mode = staging["publication_mode"]
+    if mode == PUBLICATION_MODE_DRAFT_BEFORE_TAG:
+        tag_exists = False
+        draft_required = True
+        if staging["pypi_files"] is not None:
+            raise TrustError("draft-before-tag staging must not include PyPI files")
+    elif mode == PUBLICATION_MODE_ALREADY_PUBLISHED_PYPI:
+        tag_exists = True
+        draft_required = False
+    else:
+        raise TrustError("publication staging mode is not supported")
     if staging["schema_version"] != "openadapt.production-release-staging-evidence/v1":
         raise TrustError("publication staging schema is not supported")
     for field in (
@@ -685,7 +765,7 @@ def validate_staging(value: Any) -> dict[str, Any]:
     ):
         require_decimal_id(staging[field], f"publication staging {field}")
     if (
-        staging["draft"] is not True
+        staging["draft"] is not draft_required
         or staging["prerelease"] is not False
         or staging["release_app_id"] != "4730708"
         or staging["release_app_installation_id"] != "156835568"
@@ -707,7 +787,15 @@ def validate_staging(value: Any) -> dict[str, Any]:
     ):
         raise TrustError("immutable releases response digest is invalid")
     tag_ref_state = closed(staging["tag_ref_state"], {"ref", "exists"}, "tag ref state")
-    if tag_ref_state != {"ref": f"refs/tags/{staging['tag']}", "exists": False}:
+    expected_tag_ref_state = {
+        "ref": f"refs/tags/{staging['tag']}",
+        "exists": tag_exists,
+    }
+    if tag_ref_state != expected_tag_ref_state:
+        if mode == PUBLICATION_MODE_ALREADY_PUBLISHED_PYPI:
+            raise TrustError(
+                "already-published-pypi staging requires the release tag to exist"
+            )
         raise TrustError("release tag must not exist when the draft is staged")
     if staging["tag_ref_state_sha256"] != digest_bytes(
         TAG_REF_STATE_DOMAIN, tag_ref_state
@@ -768,6 +856,8 @@ def validate_staging(value: Any) -> dict[str, Any]:
         ids.add(asset["asset_id"])
     if assets != sorted(assets, key=lambda item: (item["name"], item["asset_id"])):
         raise TrustError("staged assets must be sorted")
+    if mode == PUBLICATION_MODE_ALREADY_PUBLISHED_PYPI:
+        validate_pypi_files(staging["pypi_files"], assets)
     validate_tag_rulesets(
         staging["tag_rulesets"],
         repository=staging["repository"],
