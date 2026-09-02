@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 import unittest
@@ -146,6 +147,70 @@ class SoftwareEd25519Tests(unittest.TestCase):
         with mock.patch("sys.stdout"):
             code = software.main(["interface"])
         self.assertEqual(code, 0)
+
+    def test_local_candidate_is_unpublished_and_has_no_registry_clock(self) -> None:
+        import public_trust_kms as public_trust
+
+        private_key = Ed25519PrivateKey.generate()
+        unsigned = software.unsigned_local_registry_candidate(
+            public_material_value=software.public_material(private_key),
+            revision=1,
+        )
+        self.assertEqual(unsigned["activation_state"], "not-installed")
+        self.assertEqual(unsigned["clock"], "unset")
+        self.assertNotIn("generated_at", unsigned)
+        self.assertNotIn("expires_at", unsigned)
+        self.assertNotIn("proposed_registry", unsigned)
+        signed = software.sign_local_registry_candidate(
+            unsigned, private_key=private_key
+        )
+        verified = software.verify_local_registry_candidate(signed)
+        self.assertEqual(verified["signature_key_id"], unsigned["qualification_signer"]["key_id"])
+        self.assertTrue(verified["qualification_signer"]["key_id"].startswith("qa-ed25519-"))
+        self.assertTrue(
+            verified["public_trust_signer"]["key_id"].startswith("oa-public-trust-ed25519-")
+        )
+        self.assertEqual(
+            verified["qualification_signer"]["public_key"],
+            verified["public_trust_signer"]["public_key"],
+        )
+        public_trust.validate_public_signer(verified["public_trust_signer"])
+        with self.assertRaisesRegex(software.SoftwareEd25519Error, "registry clock"):
+            software.sign_local_registry_candidate(
+                {**unsigned, "clock": "2026-09-02T12:00:00Z"},
+                private_key=private_key,
+            )
+
+    def test_local_candidate_cli_from_pem_file(self) -> None:
+        import io
+
+        private_key = Ed25519PrivateKey.generate()
+        pem = software.private_key_pem(private_key)
+        with tempfile.TemporaryDirectory() as directory:
+            pem_path = Path(directory) / "key.pem"
+            pem_path.write_bytes(pem)
+            stdout = io.StringIO()
+            with mock.patch("sys.stdout", stdout):
+                code = software.main(
+                    ["local-candidate", "--revision", "1", "--pem-file", str(pem_path)]
+                )
+        self.assertEqual(code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["activation_state"], "not-installed")
+        self.assertEqual(payload["clock"], "unset")
+        self.assertNotIn("generated_at", payload)
+        self.assertNotIn("expires_at", payload)
+        software.verify_local_registry_candidate(payload)
+
+    def test_local_candidate_refuses_mismatched_key(self) -> None:
+        first = Ed25519PrivateKey.generate()
+        second = Ed25519PrivateKey.generate()
+        unsigned = software.unsigned_local_registry_candidate(
+            public_material_value=software.public_material(first),
+            revision=1,
+        )
+        with self.assertRaisesRegex(software.SoftwareEd25519Error, "does not match"):
+            software.sign_local_registry_candidate(unsigned, private_key=second)
 
 
 if __name__ == "__main__":

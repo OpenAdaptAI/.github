@@ -8,6 +8,11 @@ secret after it is set, so the Keychain copy is the only restore path.
 The issuer workflows stay inactive until the founder provisions the key and a
 later change arms them. An agent must not mint this trust root: run `provision`
 on the founder's Mac.
+
+``local-candidate`` builds an unpublished, Keychain-signed registry candidate
+with ``activation_state=not-installed`` and ``clock=unset``. It does not write
+``generated_at`` or ``expires_at``, so it cannot start the seven-day live
+registry clock. Do not copy its output onto ``main``.
 """
 
 from __future__ import annotations
@@ -25,6 +30,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
+from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey,
@@ -45,6 +51,13 @@ GITHUB_SECRET_NAME = "OPENADAPT_QUALIFICATION_ED25519_PRIVATE_KEY"
 KEYCHAIN_SERVICE = "openadapt-qualification-ed25519"
 SPKI_PREFIX = bytes.fromhex("302a300506032b6570032100")
 DECISION_USAGE = "qualification-evidence-decision-receipt"
+LOCAL_CANDIDATE_SCHEMA = (
+    "openadapt.qualification-signer-registry-local-candidate/v1"
+)
+LOCAL_CANDIDATE_DOMAIN = (
+    b"OpenAdapt qualification software Ed25519 local registry candidate v1\0"
+)
+INTERFACE_DOMAIN = b"OpenAdapt qualification software Ed25519 interface v1\0"
 
 
 class SoftwareEd25519Error(ValueError):
@@ -170,12 +183,132 @@ def signer_registry_candidate(
         "activation_state": "not-installed",
         "custody": list(interface["custody"]),
         "interface_sha256": "sha256:"
-        + hashlib.sha256(
-            b"OpenAdapt qualification software Ed25519 interface v1\0"
-            + canonical(interface)
-        ).hexdigest(),
+        + hashlib.sha256(INTERFACE_DOMAIN + canonical(interface)).hexdigest(),
         "proposed_registry": proposed_registry,
     }
+
+
+def _decode_raw_public_key(public_key: str) -> bytes:
+    if not isinstance(public_key, str) or "=" in public_key:
+        raise SoftwareEd25519Error("public key must be canonical unpadded base64url")
+    try:
+        raw = base64.urlsafe_b64decode(public_key + "=" * (-len(public_key) % 4))
+    except (ValueError, binascii.Error) as exc:
+        raise SoftwareEd25519Error("public key is not valid base64url") from exc
+    if len(raw) != 32:
+        raise SoftwareEd25519Error("public key must encode 32 Ed25519 bytes")
+    if base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=") != public_key:
+        raise SoftwareEd25519Error("public key must be canonical unpadded base64url")
+    return raw
+
+
+def unsigned_local_registry_candidate(
+    *,
+    public_material_value: Mapping[str, str],
+    revision: int,
+) -> dict[str, Any]:
+    """Build an unpublished candidate with no registry clock.
+
+    The result is not a live signer registry. It omits ``generated_at`` and
+    ``expires_at`` so copying it onto ``main`` cannot start a seven-day
+    window. A later publish step must stamp those fields at publish time.
+    """
+
+    if isinstance(revision, bool) or not isinstance(revision, int) or revision < 1:
+        raise SoftwareEd25519Error("registry revision must be a positive integer")
+    import public_trust_kms as public_trust
+
+    inner = signer_from_public_material(public_material_value)
+    try:
+        public_key = Ed25519PublicKey.from_public_bytes(
+            _decode_raw_public_key(public_material_value["public_key"])
+        )
+    except (KeyError, ValueError) as exc:
+        raise SoftwareEd25519Error("public material is not a valid Ed25519 key") from exc
+    outer = public_trust.software_public_signer(public_key)
+    interface = interface_contract()
+    unsigned = {
+        "schema_version": LOCAL_CANDIDATE_SCHEMA,
+        "activation_state": "not-installed",
+        "clock": "unset",
+        "custody": list(interface["custody"]),
+        "interface_sha256": "sha256:"
+        + hashlib.sha256(INTERFACE_DOMAIN + canonical(interface)).hexdigest(),
+        "revision": revision,
+        "qualification_signer": inner,
+        "public_trust_signer": outer,
+    }
+    for forbidden in ("generated_at", "expires_at", "proposed_registry", "signature"):
+        if forbidden in unsigned:
+            raise SoftwareEd25519Error("local candidate must not start the registry clock")
+    return unsigned
+
+
+def sign_local_registry_candidate(
+    unsigned: Mapping[str, Any],
+    *,
+    private_key: Ed25519PrivateKey,
+) -> dict[str, Any]:
+    """Keychain-sign one unsigned local candidate. Do not publish the result."""
+
+    if unsigned.get("schema_version") != LOCAL_CANDIDATE_SCHEMA:
+        raise SoftwareEd25519Error("local candidate schema is not supported")
+    if unsigned.get("activation_state") != "not-installed":
+        raise SoftwareEd25519Error("local candidate activation_state must be not-installed")
+    if unsigned.get("clock") != "unset":
+        raise SoftwareEd25519Error("local candidate must not start the registry clock")
+    for forbidden in ("generated_at", "expires_at", "signature", "proposed_registry"):
+        if forbidden in unsigned:
+            raise SoftwareEd25519Error(f"local candidate must omit {forbidden}")
+    material = public_material(private_key)
+    inner = unsigned.get("qualification_signer")
+    if not isinstance(inner, dict) or inner.get("key_id") != material["key_id"]:
+        raise SoftwareEd25519Error(
+            "Keychain public half does not match the unsigned candidate"
+        )
+    payload = LOCAL_CANDIDATE_DOMAIN + canonical(unsigned)
+    signed = dict(unsigned)
+    signed["signature"] = base64.b64encode(private_key.sign(payload)).decode("ascii")
+    signed["signature_key_id"] = material["key_id"]
+    return signed
+
+
+def verify_local_registry_candidate(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Verify a Keychain-signed local candidate without installing it."""
+
+    if value.get("schema_version") != LOCAL_CANDIDATE_SCHEMA:
+        raise SoftwareEd25519Error("local candidate schema is not supported")
+    if value.get("activation_state") != "not-installed":
+        raise SoftwareEd25519Error("local candidate activation_state must be not-installed")
+    if value.get("clock") != "unset":
+        raise SoftwareEd25519Error("local candidate must not start the registry clock")
+    for forbidden in ("generated_at", "expires_at", "proposed_registry"):
+        if forbidden in value:
+            raise SoftwareEd25519Error(f"local candidate must omit {forbidden}")
+    signature_b64 = value.get("signature")
+    key_id = value.get("signature_key_id")
+    inner = value.get("qualification_signer")
+    if not isinstance(signature_b64, str) or not isinstance(key_id, str):
+        raise SoftwareEd25519Error("local candidate signature is absent")
+    if not isinstance(inner, dict) or inner.get("key_id") != key_id:
+        raise SoftwareEd25519Error("local candidate signature key id does not match")
+    try:
+        signature = base64.b64decode(signature_b64, validate=True)
+        public_key = Ed25519PublicKey.from_public_bytes(
+            _decode_raw_public_key(inner["public_key"])
+        )
+    except (KeyError, ValueError, binascii.Error) as exc:
+        raise SoftwareEd25519Error("local candidate signature material is invalid") from exc
+    unsigned = {
+        field: value[field]
+        for field in value
+        if field not in {"signature", "signature_key_id"}
+    }
+    try:
+        public_key.verify(signature, LOCAL_CANDIDATE_DOMAIN + canonical(unsigned))
+    except InvalidSignature as exc:
+        raise SoftwareEd25519Error("local candidate signature verification failed") from exc
+    return dict(value)
 
 
 def sign_receipt(
@@ -403,6 +536,11 @@ def main(argv: list[str] | None = None) -> int:
     registry_parser.add_argument("--generated-at", required=True)
     registry_parser.add_argument("--expires-at", required=True)
 
+    local_parser = subparsers.add_parser("local-candidate")
+    local_parser.add_argument("--revision", required=True, type=int)
+    local_parser.add_argument("--pem-file")
+    local_parser.add_argument("--from-keychain", action="store_true")
+
     sign_parser = subparsers.add_parser("sign")
     sign_parser.add_argument("--receipt", required=True)
     sign_parser.add_argument("--signer-registry", required=True)
@@ -430,6 +568,24 @@ def main(argv: list[str] | None = None) -> int:
                 revision=args.revision,
                 generated_at=_parse_timestamp(args.generated_at),
                 expires_at=_parse_timestamp(args.expires_at),
+            )
+        elif args.command == "local-candidate":
+            sources = [args.pem_file, args.from_keychain]
+            if sum(bool(item) for item in sources) != 1:
+                raise SoftwareEd25519Error(
+                    "choose one private key source: --pem-file or --from-keychain"
+                )
+            private_key = load_private_key_from_sources(
+                pem_file=Path(args.pem_file) if args.pem_file else None,
+                use_keychain=args.from_keychain,
+                use_env=False,
+            )
+            unsigned = unsigned_local_registry_candidate(
+                public_material_value=public_material(private_key),
+                revision=args.revision,
+            )
+            result = verify_local_registry_candidate(
+                sign_local_registry_candidate(unsigned, private_key=private_key)
             )
         elif args.command == "sign":
             sources = [args.pem_file, args.from_env, args.from_keychain]
