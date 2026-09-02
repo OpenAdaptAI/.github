@@ -15,7 +15,8 @@
     "embedded_signatures",
     "message_signature",
     "sigstore",
-    "public_trust_dsse"
+    "public_trust_dsse",
+    "public_trust_software_ed25519"
   ],
   "properties": {
     "schema_version": {"const": "openadapt.production-evidence-verification-policy/v1"},
@@ -34,7 +35,8 @@
     },
     "message_signature": {"$ref": "#/$defs/message_signature"},
     "sigstore": {"$ref": "#/$defs/sigstore"},
-    "public_trust_dsse": {"$ref": "#/$defs/public_trust_dsse"}
+    "public_trust_dsse": {"$ref": "#/$defs/public_trust_dsse"},
+    "public_trust_software_ed25519": {"$ref": "#/$defs/public_trust_software_ed25519"}
   },
   "$defs": {
     "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
@@ -158,6 +160,63 @@
         "key_source": {"const": "active-qualification-signer-registry-v2"},
         "offline_verification_required": {"const": true},
         "alias_allowed": {"const": false},
+        "activation_state": {"const": "inactive-until-all-consumers-pin-exact-verifier"},
+        "allowed_kinds": {
+          "type": "array",
+          "minItems": 17,
+          "maxItems": 17,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "production-acceptance-manifest",
+              "production-acceptance-summary",
+              "production-cloud-deploy-authorization",
+              "production-cloud-deployment-result",
+              "production-current-default",
+              "production-deployment-observation",
+              "production-lifecycle-checkpoint",
+              "qualification-admission",
+              "qualification-authority-state-receipt",
+              "qualification-campaign-permit",
+              "qualification-campaign-permit-policy",
+              "qualification-campaign-permit-receipt",
+              "qualification-campaign-permit-request",
+              "qualification-evidence-decision-receipt",
+              "qualification-release",
+              "qualification-revocation-state-receipt",
+              "support-release-admission"
+            ]
+          }
+        }
+      }
+    },
+    "public_trust_software_ed25519": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile", "bundle_media_type", "statement_schema_version",
+        "statement_media_type", "signature_encoding", "algorithm", "key_origin",
+        "key_id_prefix", "github_secret_name", "keychain_service",
+        "signing_workflow", "signing_environment", "key_source",
+        "offline_verification_required", "aws_required", "activation_state",
+        "allowed_kinds"
+      ],
+      "properties": {
+        "profile": {"const": "software-ed25519-dsse-v1"},
+        "bundle_media_type": {"const": "application/vnd.dev.sigstore.bundle.v0.3+json"},
+        "statement_schema_version": {"const": "openadapt.production-public-trust-signing-statement/v1"},
+        "statement_media_type": {"const": "application/vnd.openadapt.production-public-trust-signing-statement+json;version=1"},
+        "signature_encoding": {"const": "raw-64-base64-rfc4648-padded"},
+        "algorithm": {"const": "ed25519"},
+        "key_origin": {"const": "software"},
+        "key_id_prefix": {"const": "oa-public-trust-ed25519-"},
+        "github_secret_name": {"const": "OPENADAPT_QUALIFICATION_ED25519_PRIVATE_KEY"},
+        "keychain_service": {"const": "openadapt-qualification-ed25519"},
+        "signing_workflow": {"const": "https://github.com/OpenAdaptAI/.github/.github/workflows/sign-production-evidence-software.yml@refs/heads/main"},
+        "signing_environment": {"const": "synthetic-qualification-evidence-decision"},
+        "key_source": {"const": "active-qualification-signer-registry-v2"},
+        "offline_verification_required": {"const": true},
+        "aws_required": {"const": false},
         "activation_state": {"const": "inactive-until-all-consumers-pin-exact-verifier"},
         "allowed_kinds": {
           "type": "array",

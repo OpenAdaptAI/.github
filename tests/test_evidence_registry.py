@@ -13,6 +13,7 @@ from pathlib import Path
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -417,6 +418,28 @@ class EvidenceRegistryTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(registry.EvidenceRegistryError, "ARN"):
             registry.validate_signer_registry(alias)
+
+    def test_signer_registry_accepts_software_ed25519_public_trust_profile(self) -> None:
+        private_key = Ed25519PrivateKey.from_private_bytes(bytes([7]) * 32)
+        signer = kms.software_public_signer(
+            private_key.public_key(), allowed_kinds=["qualification-release"]
+        )
+        value = {
+            "schema_version": registry.SIGNER_REGISTRY_SCHEMA,
+            "revision": 1,
+            "generated_at": "2026-08-27T00:00:00Z",
+            "expires_at": "2026-09-03T00:00:00Z",
+            "signers": [signer],
+        }
+        self.assertEqual(registry.validate_signer_registry(value), value)
+        aws_origin = copy.deepcopy(value)
+        aws_origin["signers"][0]["key_origin"] = "aws-kms"
+        aws_origin["signers"][0]["kms_key_arn"] = (
+            "arn:aws:kms:us-east-1:992382684924:key/"
+            "12345678-1234-4abc-8def-1234567890ab"
+        )
+        with self.assertRaises(registry.EvidenceRegistryError):
+            registry.validate_signer_registry(aws_origin)
 
     def test_signer_registry_install_is_canonical_consecutive_and_append_only(
         self,

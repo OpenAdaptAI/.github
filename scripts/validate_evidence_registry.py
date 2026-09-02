@@ -299,7 +299,10 @@ def validate_signer_registry(value: Any) -> dict[str, Any]:
         label = f"signer registry signer {index}"
         if not isinstance(signer_value, dict):
             raise EvidenceRegistryError(f"{label} must be an object")
-        if signer_value.get("algorithm") == "ecdsa-p256-sha256":
+        if signer_value.get("algorithm") == "ecdsa-p256-sha256" or (
+            signer_value.get("algorithm") == "ed25519"
+            and signer_value.get("key_origin") == "software"
+        ):
             try:
                 signer = validate_public_signer(signer_value)
             except PublicTrustKmsError as exc:

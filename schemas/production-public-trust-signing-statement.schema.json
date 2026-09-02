@@ -27,9 +27,14 @@
     "not_before": {"$ref": "#/$defs/timestamp"},
     "expires_at": {"$ref": "#/$defs/timestamp"},
     "request_id_sha256": {"$ref": "#/$defs/digest"},
-    "signing_authority": {"$ref": "#/$defs/signing_authority"},
-    "key_id": {"type": "string", "pattern": "^oa-public-trust-p256-[0-9a-f]{16}$"},
-    "signature_profile": {"const": "aws-kms-p256-dsse-v1"}
+    "signing_authority": {
+      "oneOf": [
+        {"$ref": "#/$defs/kms_signing_authority"},
+        {"$ref": "#/$defs/software_signing_authority"}
+      ]
+    },
+    "key_id": {"type": "string", "pattern": "^oa-public-trust-(p256|ed25519)-[0-9a-f]{16}$"},
+    "signature_profile": {"enum": ["aws-kms-p256-dsse-v1", "software-ed25519-dsse-v1"]}
   },
   "$defs": {
     "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
@@ -49,7 +54,7 @@
         "environment": {"type": "string", "pattern": "^[a-z][a-z0-9-]{2,63}$"}
       }
     },
-    "signing_authority": {
+    "kms_signing_authority": {
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -72,6 +77,24 @@
         "kms_signing_algorithm": {"const": "ECDSA_SHA_256"},
         "kms_message_type": {"const": "DIGEST"},
         "role_arn": {"const": "arn:aws:iam::992382684924:role/openadapt-public-trust-signer"}
+      }
+    },
+    "software_signing_authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository", "repository_id", "repository_owner_id", "workflow", "ref",
+        "source_commit", "environment", "key_origin"
+      ],
+      "properties": {
+        "repository": {"const": "OpenAdaptAI/.github"},
+        "repository_id": {"const": "858454062"},
+        "repository_owner_id": {"const": "132681217"},
+        "workflow": {"const": ".github/workflows/sign-production-evidence-software.yml"},
+        "ref": {"const": "refs/heads/main"},
+        "source_commit": {"$ref": "#/$defs/commit"},
+        "environment": {"type": "string", "pattern": "^[a-z][a-z0-9-]{2,63}$"},
+        "key_origin": {"const": "software"}
       }
     }
   }
