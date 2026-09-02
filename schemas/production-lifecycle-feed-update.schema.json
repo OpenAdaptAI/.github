@@ -39,7 +39,7 @@
     "feed_sha256": {"$ref": "#/$defs/digest"},
     "checkpoint_sha256": {"$ref": "#/$defs/digest"},
     "registry_head_sha256": {"$ref": "#/$defs/digest"},
-    "expires_at": {"$ref": "#/$defs/timestamp"},
+    "expires_at": {"oneOf": [{"$ref": "#/$defs/timestamp"}, {"type": "null"}]},
     "idempotency_key": {"type": "string", "pattern": "^lifecycle-feed-update:[0-9a-f]{64}$"}
   },
   "$defs": {

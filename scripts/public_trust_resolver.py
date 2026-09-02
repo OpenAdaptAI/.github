@@ -101,8 +101,8 @@ def verify_registered_public_trust_pair(
         raise PublicTrustResolutionError("signer registry identity is not current")
     instant = now or datetime.now(timezone.utc)
     generated_at = evidence._timestamp(registry["generated_at"], "registry generated_at")
-    expires_at = evidence._timestamp(registry["expires_at"], "registry expires_at")
-    if not generated_at <= instant < expires_at:
+    expires_at = evidence.optional_timestamp(registry["expires_at"], "registry expires_at")
+    if instant < generated_at or (expires_at is not None and instant >= expires_at):
         raise PublicTrustResolutionError("signer registry is not active")
     try:
         statement = kms.statement_from_bundle(bundle_value)

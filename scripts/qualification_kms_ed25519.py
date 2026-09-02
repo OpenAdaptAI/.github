@@ -113,7 +113,7 @@ def signer_registry_candidate(
     kms_public_key_projection: Mapping[str, Any],
     revision: int,
     generated_at: datetime,
-    expires_at: datetime,
+    expires_at: datetime | None = None,
 ) -> dict[str, Any]:
     """Build an inactive candidate from an exact KMS GetPublicKey projection."""
 
@@ -132,8 +132,8 @@ def signer_registry_candidate(
         )
     if isinstance(revision, bool) or not isinstance(revision, int) or revision < 1:
         raise KmsEd25519Error("registry revision must be a positive integer")
-    if not generated_at < expires_at <= generated_at + timedelta(days=7):
-        raise KmsEd25519Error("signer registry lifetime must be at most seven days")
+    if expires_at is not None and not generated_at < expires_at:
+        raise KmsEd25519Error("signer registry expiry must be after generated_at")
     if (
         kms_public_key_projection["KeySpec"] != KMS_KEY_SPEC
         or kms_public_key_projection["KeyUsage"] != "SIGN_VERIFY"
@@ -176,7 +176,7 @@ def signer_registry_candidate(
         "schema_version": "openadapt.qualification-signer-registry/v2",
         "revision": revision,
         "generated_at": format_timestamp(generated_at),
-        "expires_at": format_timestamp(expires_at),
+        "expires_at": None if expires_at is None else format_timestamp(expires_at),
         "signers": [signer],
     }
     try:
@@ -295,7 +295,10 @@ def main(argv: list[str] | None = None) -> int:
     registry_parser.add_argument("--kms-public-key-projection", required=True)
     registry_parser.add_argument("--revision", required=True, type=int)
     registry_parser.add_argument("--generated-at", required=True)
-    registry_parser.add_argument("--expires-at", required=True)
+    registry_parser.add_argument(
+        "--expires-at",
+        help="UTC timestamp, or omit / pass null for until-revoked",
+    )
 
     sign_parser = subparsers.add_parser("sign-request")
     sign_parser.add_argument("--receipt", required=True)
@@ -308,6 +311,12 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "interface":
             result = interface_contract()
         elif args.command == "registry-candidate":
+            expires_raw = args.expires_at
+            expires_at = None
+            if expires_raw not in (None, "", "null"):
+                expires_at = datetime.strptime(
+                    expires_raw, "%Y-%m-%dT%H:%M:%SZ"
+                ).replace(tzinfo=timezone.utc)
             result = signer_registry_candidate(
                 kms_public_key_projection=json.loads(
                     Path(args.kms_public_key_projection).read_text(encoding="utf-8")
@@ -316,9 +325,7 @@ def main(argv: list[str] | None = None) -> int:
                 generated_at=datetime.strptime(
                     args.generated_at, "%Y-%m-%dT%H:%M:%SZ"
                 ).replace(tzinfo=timezone.utc),
-                expires_at=datetime.strptime(
-                    args.expires_at, "%Y-%m-%dT%H:%M:%SZ"
-                ).replace(tzinfo=timezone.utc),
+                expires_at=expires_at,
             )
         else:
             receipt = json.loads(Path(args.receipt).read_text(encoding="utf-8"))

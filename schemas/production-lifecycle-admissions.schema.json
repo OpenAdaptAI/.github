@@ -125,7 +125,7 @@
         },
         "acceptance_evidence": {"$ref": "#/$defs/acceptanceEvidence"},
         "issued_at": {"$ref": "#/$defs/timestamp"},
-        "expires_at": {"$ref": "#/$defs/timestamp"},
+        "expires_at": {"oneOf": [{"$ref": "#/$defs/timestamp"}, {"type": "null"}]},
         "revoked_at": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/timestamp"}]}
       }
     }

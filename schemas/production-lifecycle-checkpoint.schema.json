@@ -70,7 +70,7 @@
     "revocation_state_sha256": {"$ref": "#/$defs/digest"},
     "generated_at": {"$ref": "#/$defs/timestamp"},
     "not_before": {"$ref": "#/$defs/timestamp"},
-    "expires_at": {"$ref": "#/$defs/timestamp"},
+    "expires_at": {"oneOf": [{"$ref": "#/$defs/timestamp"}, {"type": "null"}]},
     "issuer": {"$ref": "#/$defs/issuer"}
   },
   "$defs": {
@@ -221,7 +221,7 @@
         "release_admission_object_sha256": {"$ref": "#/$defs/digest"},
         "default_identity_sha256": {"$ref": "#/$defs/digest"},
         "not_before": {"$ref": "#/$defs/timestamp"},
-        "expires_at": {"$ref": "#/$defs/timestamp"},
+        "expires_at": {"oneOf": [{"$ref": "#/$defs/timestamp"}, {"type": "null"}]},
         "reason_codes": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}}
       }
     },

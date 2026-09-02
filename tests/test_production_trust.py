@@ -968,5 +968,70 @@ class ProductionTrustTests(unittest.TestCase):
             trust.validate_reference_pair(regular, bundle, kind="qualification-release")
 
 
+class UntilRevokedWindowTests(unittest.TestCase):
+    def test_null_expires_at_stays_active(self) -> None:
+        trust.validate_window(
+            {
+                "issued_at": "2026-08-27T12:00:00Z",
+                "not_before": "2026-08-27T12:00:00Z",
+                "expires_at": None,
+            },
+            now=datetime(2027, 9, 1, 12, 0, 0, tzinfo=timezone.utc),
+        )
+
+    def test_past_expires_at_is_not_active(self) -> None:
+        window = {
+            "issued_at": "2026-08-27T12:00:00Z",
+            "not_before": "2026-08-27T12:00:00Z",
+            "expires_at": "2026-08-28T12:00:00Z",
+        }
+        trust.validate_window(
+            window, now=datetime(2026, 8, 28, 11, 59, 59, tzinfo=timezone.utc)
+        )
+        with self.assertRaisesRegex(trust.TrustError, "not active"):
+            trust.validate_window(
+                window, now=datetime(2026, 8, 28, 12, 0, 0, tzinfo=timezone.utc)
+            )
+
+    def test_timestamp_beyond_thirty_days_is_accepted(self) -> None:
+        trust.validate_window(
+            {
+                "issued_at": "2026-08-27T12:00:00Z",
+                "not_before": "2026-08-27T12:00:00Z",
+                "expires_at": "2027-08-27T12:00:00Z",
+            },
+            now=datetime(2026, 8, 27, 12, 0, 0, tzinfo=timezone.utc),
+        )
+
+    def test_null_expires_at_feed_stays_current(self) -> None:
+        checkpoint_reference, checkpoint_bundle_reference = pair(
+            "production-lifecycle-checkpoint", "1", "2"
+        )
+        feed = {
+            "schema_version": "openadapt.production-lifecycle-feed/v2",
+            "repository": "OpenAdaptAI/.github",
+            "repository_id": "858454062",
+            "repository_owner_id": "132681217",
+            "ref": "refs/heads/production-lifecycle-feed",
+            "feed_revision": 1,
+            "generated_at": "2026-08-27T12:00:00Z",
+            "expires_at": None,
+            "registry_source_commit": "a" * 40,
+            "registry_revision": 3,
+            "registry_head_sha256": sha("8"),
+            "signer_registry": {},
+            "checkpoints": [
+                {
+                    "checkpoint_reference": checkpoint_reference,
+                    "checkpoint_bundle_reference": checkpoint_bundle_reference,
+                }
+            ],
+        }
+        trust.validate_feed(
+            feed,
+            now=datetime(2027, 9, 1, 12, 0, 0, tzinfo=timezone.utc),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -62,14 +62,38 @@ class SoftwareEd25519Tests(unittest.TestCase):
             ["github-environment-secret", "local-keychain-backup"],
         )
 
-    def test_registry_candidate_refuses_window_over_seven_days(self) -> None:
+    def test_registry_candidate_accepts_null_expires_at(self) -> None:
         private_key = Ed25519PrivateKey.generate()
-        with self.assertRaisesRegex(software.SoftwareEd25519Error, "seven days"):
+        candidate = software.signer_registry_candidate(
+            public_material_value=software.public_material(private_key),
+            revision=1,
+            generated_at=NOW,
+            expires_at=None,
+        )
+        registry = candidate["proposed_registry"]
+        self.assertIsNone(registry["expires_at"])
+        evidence.validate_signer_registry(registry)
+
+    def test_registry_candidate_accepts_window_over_seven_days(self) -> None:
+        private_key = Ed25519PrivateKey.generate()
+        candidate = software.signer_registry_candidate(
+            public_material_value=software.public_material(private_key),
+            revision=1,
+            generated_at=NOW,
+            expires_at=NOW + timedelta(days=8),
+        )
+        evidence.validate_signer_registry(candidate["proposed_registry"])
+
+    def test_registry_candidate_refuses_expiry_before_generated_at(self) -> None:
+        private_key = Ed25519PrivateKey.generate()
+        with self.assertRaisesRegex(
+            software.SoftwareEd25519Error, "after generated_at"
+        ):
             software.signer_registry_candidate(
                 public_material_value=software.public_material(private_key),
                 revision=1,
                 generated_at=NOW,
-                expires_at=NOW + timedelta(days=8),
+                expires_at=NOW,
             )
 
     def test_sign_receipt_round_trip(self) -> None:

@@ -307,6 +307,33 @@ def require_timestamp(value: Any, label: str) -> datetime:
         raise TrustError(f"{label} is not a calendar timestamp") from exc
 
 
+def optional_timestamp(value: Any, label: str) -> datetime | None:
+    if value is None:
+        return None
+    return require_timestamp(value, label)
+
+
+def expires_contained(
+    parent_expires: datetime | None, child_expires: datetime | None
+) -> bool:
+    """Return True when the parent window cannot outlive the child.
+
+    ``None`` means until revoked. An until-revoked parent is contained only by
+    an until-revoked child. A timestamp parent is contained by until-revoked
+    or by a later-or-equal timestamp.
+    """
+
+    if parent_expires is None:
+        return child_expires is None
+    if child_expires is None:
+        return True
+    return parent_expires <= child_expires
+
+
+def window_covers(now: datetime, *, not_before: datetime, expires: datetime | None) -> bool:
+    return not_before <= now and (expires is None or now < expires)
+
+
 def require_positive_int(value: Any, label: str, minimum: int = 1) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value < minimum:
         raise TrustError(f"{label} must be an integer of at least {minimum}")
@@ -314,14 +341,24 @@ def require_positive_int(value: Any, label: str, minimum: int = 1) -> int:
 
 
 def validate_window(
-    value: Mapping[str, Any], *, maximum: timedelta, now: datetime | None = None
+    value: Mapping[str, Any],
+    *,
+    maximum: timedelta | None = None,
+    now: datetime | None = None,
 ) -> None:
     issued = require_timestamp(value["issued_at"], "issued_at")
     not_before = require_timestamp(value["not_before"], "not_before")
-    expires = require_timestamp(value["expires_at"], "expires_at")
-    if not not_before <= issued < expires <= not_before + maximum:
+    expires = optional_timestamp(value["expires_at"], "expires_at")
+    if not not_before <= issued:
         raise TrustError("validity window is invalid")
-    if now is not None and not not_before <= now < expires:
+    if expires is not None:
+        if not issued < expires:
+            raise TrustError("validity window is invalid")
+        if maximum is not None and expires > not_before + maximum:
+            raise TrustError("validity window is invalid")
+    if now is not None and not window_covers(
+        now, not_before=not_before, expires=expires
+    ):
         raise TrustError("object is not active at the requested time")
 
 
@@ -994,7 +1031,7 @@ def validate_release(value: Any, *, now: datetime | None = None) -> dict[str, An
         or HEX40.fullmatch(issuer["source_commit"]) is None
     ):
         raise TrustError("release issuer identity differs")
-    validate_window(release_admission, maximum=timedelta(days=30), now=now)
+    validate_window(release_admission, now=now)
     validate_staging_observation_age(staging, release_admission)
     projection = dict(release_admission)
     admission_id = projection.pop("admission_id_sha256")
@@ -1650,7 +1687,7 @@ def _validate_receipt_structure(
         or HEX40.fullmatch(source_commit) is None
     ):
         raise TrustError("decision receipt issuer differs")
-    validate_window(receipt, maximum=timedelta(days=7), now=now)
+    validate_window(receipt, now=now)
     return receipt
 
 
@@ -1747,8 +1784,8 @@ def verify_embedded_signature(
         raise TrustError(str(exc)) from exc
     requested_time = now or datetime.now(timezone.utc)
     generated = evidence._timestamp(registry["generated_at"], "generated_at")
-    expires = evidence._timestamp(registry["expires_at"], "expires_at")
-    if not generated <= requested_time < expires:
+    expires = evidence.optional_timestamp(registry["expires_at"], "expires_at")
+    if not window_covers(requested_time, not_before=generated, expires=expires):
         raise TrustError("signer registry is not active")
     key_id = value.get("issuer_key_id")
     matches = [item for item in registry["signers"] if item["key_id"] == key_id]
@@ -1934,7 +1971,6 @@ def validate_authority_state(
             "not_before": state["not_before"],
             "expires_at": state["expires_at"],
         },
-        maximum=timedelta(days=7),
         now=now,
     )
     return state
@@ -2040,7 +2076,6 @@ def validate_revocation_state(
             "not_before": state["not_before"],
             "expires_at": state["expires_at"],
         },
-        maximum=timedelta(days=7),
         now=now,
     )
     return state
@@ -2266,7 +2301,7 @@ def validate_qualification_admission(
         or HEX40.fullmatch(issuer["source_commit"]) is None
     ):
         raise TrustError("qualification admission issuer differs")
-    validate_window(admission, maximum=timedelta(days=7), now=now)
+    validate_window(admission, now=now)
     projection = dict(admission)
     admission_id = projection.pop("admission_id_sha256")
     if admission_id != digest_bytes(ADMISSION_DOMAIN, projection):
@@ -2377,20 +2412,20 @@ def _validate_receipt_admission_binding(
         )
     receipt_not_before = require_timestamp(receipt["not_before"], "receipt not_before")
     receipt_issued = require_timestamp(receipt["issued_at"], "receipt issued_at")
-    receipt_expires = require_timestamp(receipt["expires_at"], "receipt expires_at")
+    receipt_expires = optional_timestamp(receipt["expires_at"], "receipt expires_at")
     admission_not_before = require_timestamp(
         admission["not_before"], "qualification admission not_before"
     )
     admission_issued = require_timestamp(
         admission["issued_at"], "qualification admission issued_at"
     )
-    admission_expires = require_timestamp(
+    admission_expires = optional_timestamp(
         admission["expires_at"], "qualification admission expires_at"
     )
     if not (
         receipt_not_before <= receipt_issued <= admission_issued
         and admission_not_before >= receipt_not_before
-        and admission_expires <= receipt_expires
+        and expires_contained(admission_expires, receipt_expires)
     ):
         raise TrustError("qualification admission validity exceeds the receipt")
     return receipt, admission
@@ -2550,10 +2585,10 @@ def validate_acceptance_manifest(
     ):
         raise TrustError("production acceptance manifest evidence bindings differ")
     validate_campaign_summary(manifest["campaign_summary"])
-    validate_window(manifest, maximum=timedelta(days=7), now=now)
+    validate_window(manifest, now=now)
     issued = require_timestamp(manifest["issued_at"], "manifest issued_at")
     not_before = require_timestamp(manifest["not_before"], "manifest not_before")
-    expires = require_timestamp(manifest["expires_at"], "manifest expires_at")
+    expires = optional_timestamp(manifest["expires_at"], "manifest expires_at")
     if (
         require_timestamp(
             manifest["publication_staging"]["observed_at"], "staging observed_at"
@@ -2565,7 +2600,9 @@ def validate_acceptance_manifest(
         if (
             not_before < require_timestamp(child["not_before"], f"{label} not_before")
             or issued < require_timestamp(child["issued_at"], f"{label} issued_at")
-            or expires > require_timestamp(child["expires_at"], f"{label} expires_at")
+            or not expires_contained(
+                expires, optional_timestamp(child["expires_at"], f"{label} expires_at")
+            )
         ):
             raise TrustError(f"manifest validity exceeds the {label}")
     return manifest
@@ -2691,17 +2728,19 @@ def validate_acceptance_summary(
             raise TrustError(
                 f"production acceptance summary {field} differs from the manifest"
             )
-    validate_window(summary, maximum=timedelta(days=7), now=now)
+    validate_window(summary, now=now)
     summary_not_before = require_timestamp(summary["not_before"], "summary not_before")
     summary_issued = require_timestamp(summary["issued_at"], "summary issued_at")
-    summary_expires = require_timestamp(summary["expires_at"], "summary expires_at")
+    summary_expires = optional_timestamp(summary["expires_at"], "summary expires_at")
     if (
         summary_not_before
         < require_timestamp(bound_manifest["not_before"], "manifest not_before")
         or summary_issued
         < require_timestamp(bound_manifest["issued_at"], "manifest issued_at")
-        or summary_expires
-        > require_timestamp(bound_manifest["expires_at"], "manifest expires_at")
+        or not expires_contained(
+            summary_expires,
+            optional_timestamp(bound_manifest["expires_at"], "manifest expires_at"),
+        )
     ):
         raise TrustError("summary validity exceeds the manifest")
     if summary["evidence_identity_sha256"] != acceptance_summary_identity(summary):
@@ -2764,14 +2803,16 @@ def validate_release_evidence_chain(
         raise TrustError("release publication policy differs from acceptance policy")
     release_not_before = require_timestamp(release["not_before"], "release not_before")
     release_issued = require_timestamp(release["issued_at"], "release issued_at")
-    release_expires = require_timestamp(release["expires_at"], "release expires_at")
+    release_expires = optional_timestamp(release["expires_at"], "release expires_at")
     if (
         release_not_before
         < require_timestamp(bound_summary["not_before"], "summary not_before")
         or release_issued
         < require_timestamp(bound_summary["issued_at"], "summary issued_at")
-        or release_expires
-        > require_timestamp(bound_summary["expires_at"], "summary expires_at")
+        or not expires_contained(
+            release_expires,
+            optional_timestamp(bound_summary["expires_at"], "summary expires_at"),
+        )
     ):
         raise TrustError("release validity exceeds its acceptance summary")
     return release
@@ -3191,7 +3232,7 @@ def validate_current_default(
         or HEX40.fullmatch(issuer["source_commit"]) is None
     ):
         raise TrustError("current default issuer differs")
-    validate_window(current, maximum=timedelta(days=7), now=now)
+    validate_window(current, now=now)
     return current
 
 
@@ -3239,7 +3280,7 @@ def validate_projection(value: Any) -> dict[str, Any]:
         ):
             require_digest(target[field], field)
         require_timestamp(target["not_before"], "target not_before")
-        require_timestamp(target["expires_at"], "target expires_at")
+        optional_timestamp(target["expires_at"], "target expires_at")
         reasons = target["reason_codes"]
         if (
             not isinstance(reasons, list)
@@ -3406,10 +3447,14 @@ def validate_checkpoint(value: Any, *, now: datetime | None = None) -> dict[str,
         raise TrustError("checkpoint lifecycle policy source differs")
     generated = require_timestamp(checkpoint["generated_at"], "checkpoint generated_at")
     not_before = require_timestamp(checkpoint["not_before"], "checkpoint not_before")
-    expires = require_timestamp(checkpoint["expires_at"], "checkpoint expires_at")
-    if not generated <= not_before < expires <= generated + timedelta(days=7):
+    expires = optional_timestamp(checkpoint["expires_at"], "checkpoint expires_at")
+    if not generated <= not_before:
         raise TrustError("checkpoint scheduled validity window is invalid")
-    if now is not None and not not_before <= now < expires:
+    if expires is not None and not not_before < expires:
+        raise TrustError("checkpoint scheduled validity window is invalid")
+    if now is not None and not window_covers(
+        now, not_before=not_before, expires=expires
+    ):
         raise TrustError("checkpoint is not active at the requested time")
     projection_without_id = dict(checkpoint)
     checkpoint_id = projection_without_id.pop("checkpoint_id_sha256")
@@ -3461,7 +3506,7 @@ def validate_checkpoint_expiry_containment(
     checkpoint_not_before = require_timestamp(
         checkpoint["not_before"], "checkpoint not_before"
     )
-    checkpoint_expires = require_timestamp(
+    checkpoint_expires = optional_timestamp(
         checkpoint["expires_at"], "checkpoint expires_at"
     )
     checkpoint_generated = require_timestamp(
@@ -3470,25 +3515,25 @@ def validate_checkpoint_expiry_containment(
     windows = [
         (
             evidence._timestamp(registry["generated_at"], "generated_at"),
-            evidence._timestamp(registry["expires_at"], "expires_at"),
+            evidence.optional_timestamp(registry["expires_at"], "expires_at"),
             evidence._timestamp(registry["generated_at"], "generated_at"),
             "signer registry",
         ),
         (
             require_timestamp(current["not_before"], "current default not_before"),
-            require_timestamp(current["expires_at"], "current default expires_at"),
+            optional_timestamp(current["expires_at"], "current default expires_at"),
             require_timestamp(current["issued_at"], "current default issued_at"),
             "current default",
         ),
         (
             require_timestamp(authority["not_before"], "authority not_before"),
-            require_timestamp(authority["expires_at"], "authority expires_at"),
+            optional_timestamp(authority["expires_at"], "authority expires_at"),
             require_timestamp(authority["observed_at"], "authority observed_at"),
             "authority state",
         ),
         (
             require_timestamp(revocation["not_before"], "revocation not_before"),
-            require_timestamp(revocation["expires_at"], "revocation expires_at"),
+            optional_timestamp(revocation["expires_at"], "revocation expires_at"),
             require_timestamp(revocation["observed_at"], "revocation observed_at"),
             "revocation state",
         ),
@@ -3496,7 +3541,7 @@ def validate_checkpoint_expiry_containment(
     windows.extend(
         (
             require_timestamp(item["not_before"], "release not_before"),
-            require_timestamp(item["expires_at"], "release expires_at"),
+            optional_timestamp(item["expires_at"], "release expires_at"),
             require_timestamp(item["issued_at"], "release issued_at"),
             f"{item['target']} release",
         )
@@ -3505,7 +3550,7 @@ def validate_checkpoint_expiry_containment(
     windows.extend(
         (
             require_timestamp(item["not_before"], "workflow not_before"),
-            require_timestamp(item["expires_at"], "workflow expires_at"),
+            optional_timestamp(item["expires_at"], "workflow expires_at"),
             require_timestamp(item["issued_at"], "workflow issued_at"),
             "workflow admission",
         )
@@ -3519,7 +3564,7 @@ def validate_checkpoint_expiry_containment(
         windows.extend(
             (
                 require_timestamp(item["not_before"], f"{label} not_before"),
-                require_timestamp(item["expires_at"], f"{label} expires_at"),
+                optional_timestamp(item["expires_at"], f"{label} expires_at"),
                 require_timestamp(item["issued_at"], f"{label} issued_at"),
                 label,
             )
@@ -3528,9 +3573,8 @@ def validate_checkpoint_expiry_containment(
     for child_not_before, child_expires, child_issued, label in windows:
         if child_issued > checkpoint_generated:
             raise TrustError(f"{label} was issued after the checkpoint")
-        if (
-            checkpoint_not_before < child_not_before
-            or checkpoint_expires > child_expires
+        if checkpoint_not_before < child_not_before or not expires_contained(
+            checkpoint_expires, child_expires
         ):
             raise TrustError(f"checkpoint validity exceeds {label} validity")
     return checkpoint
@@ -3589,10 +3633,12 @@ def validate_feed(value: Any, *, now: datetime | None = None) -> dict[str, Any]:
             kind="production-lifecycle-checkpoint",
         )
     generated = require_timestamp(feed["generated_at"], "feed generated_at")
-    expires = require_timestamp(feed["expires_at"], "feed expires_at")
-    if not generated < expires <= generated + timedelta(days=7):
+    expires = optional_timestamp(feed["expires_at"], "feed expires_at")
+    if expires is not None and not generated < expires:
         raise TrustError("feed lifetime is invalid")
-    if now is not None and not generated <= now < expires:
+    if now is not None and not window_covers(
+        now, not_before=generated, expires=expires
+    ):
         raise TrustError("feed is not current")
     return feed
 
@@ -3646,17 +3692,19 @@ def validate_feed_expiry_containment(
             raise TrustError("feed checkpoints are not one exact raw hash-chain step")
 
     generated = require_timestamp(feed["generated_at"], "feed generated_at")
-    expires = require_timestamp(feed["expires_at"], "feed expires_at")
+    expires = optional_timestamp(feed["expires_at"], "feed expires_at")
     registry_generated = evidence._timestamp(
         registry["generated_at"], "signer registry generated_at"
     )
-    registry_expires = evidence._timestamp(
+    registry_expires = evidence.optional_timestamp(
         registry["expires_at"], "signer registry expires_at"
     )
-    if generated < registry_generated or expires > registry_expires:
+    if generated < registry_generated or not expires_contained(
+        expires, registry_expires
+    ):
         raise TrustError("feed validity exceeds signer registry validity")
 
-    checkpoint_windows: list[tuple[datetime, datetime]] = []
+    checkpoint_windows: list[tuple[datetime, datetime | None]] = []
     for index, (pair, checkpoint) in enumerate(
         zip(feed["checkpoints"], resolved, strict=True)
     ):
@@ -3667,7 +3715,7 @@ def validate_feed_expiry_containment(
         checkpoint_not_before = require_timestamp(
             checkpoint["not_before"], "checkpoint not_before"
         )
-        checkpoint_expires = require_timestamp(
+        checkpoint_expires = optional_timestamp(
             checkpoint["expires_at"], "checkpoint expires_at"
         )
         checkpoint_generated = require_timestamp(
@@ -3679,11 +3727,15 @@ def validate_feed_expiry_containment(
 
     if len(checkpoint_windows) == 1:
         checkpoint_not_before, checkpoint_expires = checkpoint_windows[0]
-        if generated < checkpoint_not_before or expires > checkpoint_expires:
+        if generated < checkpoint_not_before or not expires_contained(
+            expires, checkpoint_expires
+        ):
             raise TrustError("feed validity exceeds checkpoint 0 validity")
     else:
         newer_not_before, newer_expires = checkpoint_windows[0]
         older_not_before, older_expires = checkpoint_windows[1]
+        if older_expires is None or newer_expires is None or expires is None:
+            raise TrustError("feed checkpoint handoff requires timestamps")
         if older_expires != newer_not_before:
             raise TrustError("feed checkpoint handoff has an overlap or gap")
         if not older_not_before <= generated < older_expires:
@@ -3695,7 +3747,7 @@ def validate_feed_expiry_containment(
         active = [
             index
             for index, (not_before, checkpoint_expires) in enumerate(checkpoint_windows)
-            if not_before <= now < checkpoint_expires
+            if window_covers(now, not_before=not_before, expires=checkpoint_expires)
         ]
         if len(active) != 1:
             raise TrustError("feed does not select exactly one active checkpoint")
@@ -3803,7 +3855,7 @@ def validate_feed_update(value: Any) -> dict[str, Any]:
         raise TrustError("lifecycle feed expected old commit is invalid")
     for field in ("feed_sha256", "checkpoint_sha256", "registry_head_sha256"):
         require_digest(update[field], field)
-    require_timestamp(update["expires_at"], "feed update expires_at")
+    optional_timestamp(update["expires_at"], "feed update expires_at")
     projection = dict(update)
     idempotency_key = projection.pop("idempotency_key")
     expected_key = (

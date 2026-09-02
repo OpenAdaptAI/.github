@@ -12,15 +12,15 @@ No network request occurs while the admissions list is empty.  A Production
 admission fails closed unless the referenced summary, attestation bundle, and
 evidence manifest can all be fetched, hashed, and verified.
 
-The lifecycle policy is a v2 document.  It declares the schema versions and the
-two admission windows that the signed checkpoint chain enforces, and it names
-the protected feed ref that carries live Production state.  It does not carry a
-summary authority.  For v2 objects the certificate identity that signs
-Production acceptance evidence lives in production-evidence-policy.json, keyed
-by evidence kind.  The admission ledger this module reads is the retained v1
-ledger, so its records keep the exact trust root, target map and policy
+The lifecycle policy is a v3 document.  It declares the schema versions and
+until-revoked admission validity that the signed checkpoint chain enforces, and
+it names the protected feed ref that carries live Production state.  It does
+not carry a summary authority.  For live objects the certificate identity that
+signs Production acceptance evidence lives in production-evidence-policy.json,
+keyed by evidence kind.  The admission ledger this module reads is the retained
+v1 ledger, so its records keep the exact trust root, target map and policy
 revision they were issued under; those are pinned here as module constants
-rather than read from the v2 policy file.
+rather than read from the live policy file.
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ LIFECYCLE_PATH = ROOT / "repository-lifecycle.yml"
 
 POLICY_SCHEMA = "openadapt.production-lifecycle-policy/v3"
 POLICY_DOCUMENT_SCHEMA = "schemas/production-lifecycle-policy.schema.json"
-POLICY_REVISION_MINIMUM = 3
+POLICY_REVISION_MINIMUM = 4
 ADMISSIONS_SCHEMA = "openadapt.production-lifecycle-admissions/v1"
 SUMMARY_SCHEMA = "openadapt.production-lifecycle-evidence-summary/v1"
 RELEASE_IDENTITY_SCHEMA = "openadapt.monotonic-production-release/v1"
@@ -60,18 +60,17 @@ WORKFLOW_ADMISSION_SCHEMA = "openadapt.qualification-admission/v4"
 LIFECYCLE_CHECKPOINT_SCHEMA = "openadapt.production-lifecycle-checkpoint/v2"
 LIFECYCLE_FEED_SCHEMA = "openadapt.production-lifecycle-feed/v2"
 LIFECYCLE_FEED_REF = "refs/heads/production-lifecycle-feed"
-# production_trust.validate_release enforces a 30 day window on every
-# openadapt.qualification-release/v2 object, and
-# production_trust.validate_qualification_admission enforces a 7 day window on
-# every openadapt.qualification-admission/v4 object.  The policy declares both
-# numbers; this module refuses a policy that declares a different one.
-RELEASE_ADMISSION_MAXIMUM_DAYS = 30
-WORKFLOW_ADMISSION_MAXIMUM_DAYS = 7
+# Live admissions stay valid until revoked or replaced.  The retained v1
+# admission ledger still holds timestamped release admissions issued under the
+# historical 30-day window, so that bound remains only for those records.
+RETAINED_RELEASE_ADMISSION_MAXIMUM_DAYS = 30
+RELEASE_ADMISSION_MAXIMUM_DAYS = None
+WORKFLOW_ADMISSION_MAXIMUM_DAYS = None
 # The retained v1 admission ledger holds release admissions on the production
-# channel only, so the release admission window governs its expiry, and every
-# retained record was issued under policy revision 1.  Its records and their
-# acceptance summaries carry the digest of the v1 policy document that issued
-# them, which is not the digest of the live v2 policy document.
+# channel only, so the historical release admission window governs its expiry,
+# and every retained record was issued under policy revision 1.  Its records
+# and their acceptance summaries carry the digest of the v1 policy document
+# that issued them, which is not the digest of the live policy document.
 RETAINED_POLICY_REVISION = 1
 RETAINED_POLICY_SHA256 = (
     "sha256:e1444a08ce6b16736168cce027ce9d48abb2e0e246fc0cd79c0772fa8e423e11"
@@ -379,16 +378,13 @@ def load_lifecycle(
     return _parse_group(text, "lifecycle"), _parse_group(text, "public_surfaces")
 
 
-def _admission_days(value: object, label: str, enforced: int) -> int:
-    """Validate one declared admission window against the enforced window."""
+def _admission_days(value: object, label: str) -> None:
+    """Refuse a live admission-day maximum. Validity is until revoked."""
 
-    if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= 30:
-        raise LifecycleError(f"{label} must be between 1 and 30")
-    if value != enforced:
+    if value is not None:
         raise LifecycleError(
-            f"{label} differs from the window the Production trust core enforces"
+            f"{label} must be null; admissions stay valid until revoked"
         )
-    return value
 
 
 def _validate_summary_authority(value: object) -> dict[str, Any]:
@@ -556,8 +552,8 @@ def _validate_policy(value: object) -> tuple[dict[str, Any], dict[str, Any]]:
     """Validate the v3 policy and pin the versioned admission contracts.
 
     The v3 policy states which schema versions the signed checkpoint chain
-    accepts and how long each admission kind may live.  Every target it declares
-    must agree with the Production trust contract that
+    accepts and that admissions stay valid until revoked.  Every target it
+    declares must agree with the Production trust contract that
     production_trust.validate_release applies to the matching
     openadapt.qualification-release/v2 object.
     """
@@ -568,6 +564,7 @@ def _validate_policy(value: object) -> tuple[dict[str, Any], dict[str, Any]]:
             "$schema",
             "schema_version",
             "revision",
+            "admission_validity",
             "maximum_release_admission_days",
             "maximum_workflow_admission_days",
             "object_reference_schema_version",
@@ -593,21 +590,18 @@ def _validate_policy(value: object) -> tuple[dict[str, Any], dict[str, Any]]:
             "production lifecycle policy revision must be at least "
             f"{POLICY_REVISION_MINIMUM}"
         )
-    release_days = _admission_days(
+    if policy["admission_validity"] != "until_revoked":
+        raise LifecycleError(
+            "production lifecycle policy admission_validity must be until_revoked"
+        )
+    _admission_days(
         policy["maximum_release_admission_days"],
         "maximum_release_admission_days",
-        RELEASE_ADMISSION_MAXIMUM_DAYS,
     )
-    workflow_days = _admission_days(
+    _admission_days(
         policy["maximum_workflow_admission_days"],
         "maximum_workflow_admission_days",
-        WORKFLOW_ADMISSION_MAXIMUM_DAYS,
     )
-    if workflow_days > release_days:
-        raise LifecycleError(
-            "maximum_workflow_admission_days cannot exceed "
-            "maximum_release_admission_days"
-        )
     for key, expected in (
         ("object_reference_schema_version", OBJECT_REFERENCE_SCHEMA),
         ("release_admission_schema_version", RELEASE_ADMISSION_SCHEMA),
@@ -628,7 +622,7 @@ def _validate_policy(value: object) -> tuple[dict[str, Any], dict[str, Any]]:
         targets[target_id] = target
     if set(targets) != set(EXPECTED_TARGETS):
         raise LifecycleError("production target map differs from the pinned target map")
-    return policy, _retained_admission_contract(release_days)
+    return policy, _retained_admission_contract(RETAINED_RELEASE_ADMISSION_MAXIMUM_DAYS)
 
 
 def _clean_https_url(value: object, label: str) -> str:

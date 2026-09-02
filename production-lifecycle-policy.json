@@ -1,9 +1,10 @@
 {
   "$schema": "schemas/production-lifecycle-policy.schema.json",
   "schema_version": "openadapt.production-lifecycle-policy/v3",
-  "revision": 3,
-  "maximum_release_admission_days": 30,
-  "maximum_workflow_admission_days": 7,
+  "revision": 4,
+  "admission_validity": "until_revoked",
+  "maximum_release_admission_days": null,
+  "maximum_workflow_admission_days": null,
   "object_reference_schema_version": "openadapt.production-evidence-object-reference/v2",
   "release_admission_schema_version": "openadapt.qualification-release/v2",
   "workflow_admission_schema_version": "openadapt.qualification-admission/v4",

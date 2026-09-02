@@ -234,6 +234,12 @@ def _timestamp(value: Any, label: str) -> datetime:
         raise PublicTrustKmsError(f"{label} is not a calendar timestamp") from exc
 
 
+def _optional_timestamp(value: Any, label: str) -> datetime | None:
+    if value is None:
+        return None
+    return _timestamp(value, label)
+
+
 def _canonical_base64(value: Any, label: str) -> bytes:
     if not isinstance(value, str):
         raise PublicTrustKmsError(f"{label} must be canonical padded base64")
@@ -474,10 +480,14 @@ def validate_signing_statement(
         raise PublicTrustKmsError("public-trust signature profile is invalid")
     issued_at = _timestamp(statement["issued_at"], "statement issued_at")
     not_before = _timestamp(statement["not_before"], "statement not_before")
-    expires_at = _timestamp(statement["expires_at"], "statement expires_at")
-    if not not_before <= issued_at < expires_at:
+    expires_at = _optional_timestamp(statement["expires_at"], "statement expires_at")
+    if not not_before <= issued_at:
         raise PublicTrustKmsError("public-trust statement validity is invalid")
-    if now is not None and not not_before <= now < expires_at:
+    if expires_at is not None and not issued_at < expires_at:
+        raise PublicTrustKmsError("public-trust statement validity is invalid")
+    if now is not None and (
+        now < not_before or (expires_at is not None and now >= expires_at)
+    ):
         raise PublicTrustKmsError("public-trust signing statement is not active")
     if signer is not None:
         _bind_statement_to_signer(statement, signer, authority)

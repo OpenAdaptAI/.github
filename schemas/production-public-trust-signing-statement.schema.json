@@ -25,7 +25,7 @@
     "revocation_state_sha256": {"$ref": "#/$defs/digest"},
     "issued_at": {"$ref": "#/$defs/timestamp"},
     "not_before": {"$ref": "#/$defs/timestamp"},
-    "expires_at": {"$ref": "#/$defs/timestamp"},
+    "expires_at": {"oneOf": [{"$ref": "#/$defs/timestamp"}, {"type": "null"}]},
     "request_id_sha256": {"$ref": "#/$defs/digest"},
     "signing_authority": {
       "oneOf": [
