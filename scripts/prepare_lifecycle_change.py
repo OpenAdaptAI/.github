@@ -5,6 +5,25 @@ The workflow that calls this script starts on the current ``main`` commit. It
 binds the requested change to that commit with a domain-separated idempotency
 digest, writes one candidate file, and leaves the result for normal pull
 request review.
+
+The lifecycle App private key is not in this repository. After the founder
+stores it in Keychain item ``openadapt-lifecycle-app-key``, set the GitHub
+environment secret on every environment whose workflow reads
+``secrets.OPENADAPT_LIFECYCLE_APP_PRIVATE_KEY``. Create each environment first.
+Do not generate a new App key. Do not delete the Keychain item. Confirm every
+``gh secret set`` exit status before treating the loop as done::
+
+    for E in \\
+      production-lifecycle-activation \\
+      production-release-admission \\
+      qualification-authority-state \\
+      qualification-revocation-state \\
+      production-lifecycle-feed
+    do
+      security find-generic-password -a "$USER" -s openadapt-lifecycle-app-key -w \\
+        | gh secret set OPENADAPT_LIFECYCLE_APP_PRIVATE_KEY \\
+            -R OpenAdaptAI/.github --env "$E"
+    done
 """
 
 from __future__ import annotations
