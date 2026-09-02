@@ -1,7 +1,7 @@
 {
   "$schema": "schemas/production-lifecycle-policy.schema.json",
   "schema_version": "openadapt.production-lifecycle-policy/v3",
-  "revision": 4,
+  "revision": 5,
   "admission_validity": "until_revoked",
   "maximum_release_admission_days": null,
   "maximum_workflow_admission_days": null,
@@ -13,10 +13,10 @@
   "lifecycle_feed_ref": "refs/heads/production-lifecycle-feed",
   "targets": [
     {"id":"agent","display_name":"OpenAdapt Agent","source_repository":"OpenAdaptAI/openadapt-agent","source_repository_id":"1136136670","release_kind":"package","claim_scope":"production_agent","required_artifact_kinds":["python-sdist","python-wheel"],"package_index_project":"openadapt-agent"},
-    {"id":"capture","display_name":"OpenAdapt Capture","source_repository":"OpenAdaptAI/openadapt-capture","source_repository_id":"1115283835","release_kind":"package","claim_scope":"production_capture","required_artifact_kinds":["chrome-extension-zip","python-sdist","python-wheel","spdx-sbom"],"package_index_project":"openadapt-capture"},
+    {"id":"capture","display_name":"OpenAdapt Capture","source_repository":"OpenAdaptAI/openadapt-capture","source_repository_id":"1115283835","release_kind":"package","claim_scope":"production_capture","required_artifact_kinds":["python-sdist","python-wheel"],"package_index_project":"openadapt-capture"},
     {"id":"cloud","display_name":"OpenAdapt Cloud","source_repository":"OpenAdaptAI/openadapt-cloud","source_repository_id":"1300570990","release_kind":"deployment","claim_scope":"production_cloud","required_artifact_kinds":["deployment-manifest"],"package_index_project":null},
-    {"id":"desktop","display_name":"OpenAdapt Desktop","source_repository":"OpenAdaptAI/openadapt-desktop","source_repository_id":"1171291730","release_kind":"hybrid","claim_scope":"production_desktop","required_artifact_kinds":["linux-appimage","linux-deb","macos-dmg-arm64","macos-dmg-x86-64","python-sdist","python-wheel","windows-msi","windows-nsis"],"package_index_project":"openadapt-desktop"},
-    {"id":"docs","display_name":"OpenAdapt Documentation","source_repository":"OpenAdaptAI/openadapt-ops","source_repository_id":"1172011294","release_kind":"deployment","claim_scope":"production_docs","required_artifact_kinds":["deployment-manifest","site-archive"],"package_index_project":null},
+    {"id":"desktop","display_name":"OpenAdapt Desktop","source_repository":"OpenAdaptAI/openadapt-desktop","source_repository_id":"1171291730","release_kind":"package","claim_scope":"production_desktop","required_artifact_kinds":["python-sdist","python-wheel"],"package_index_project":"openadapt-desktop"},
+    {"id":"docs","display_name":"OpenAdapt Documentation","source_repository":"OpenAdaptAI/openadapt-ops","source_repository_id":"1172011294","release_kind":"deployment","claim_scope":"production_docs","required_artifact_kinds":["deployment-manifest"],"package_index_project":null},
     {"id":"flow","display_name":"OpenAdapt Flow","source_repository":"OpenAdaptAI/openadapt-flow","source_repository_id":"1291376938","release_kind":"package","claim_scope":"production_flow","required_artifact_kinds":["python-sdist","python-wheel"],"package_index_project":"openadapt-flow"},
     {"id":"openadapt","display_name":"OpenAdapt","source_repository":"OpenAdaptAI/OpenAdapt","source_repository_id":"627024850","release_kind":"package","claim_scope":"production_openadapt","required_artifact_kinds":["python-sdist","python-wheel"],"package_index_project":"openadapt"}
   ]

@@ -252,14 +252,6 @@ def rulesets() -> list[dict]:
 def release_admission() -> dict:
     artifacts = [
         {
-            "name": "openadapt-capture-extension-1.0.0.zip",
-            "kind": "chrome-extension-zip",
-            "sha256": sha("1"),
-            "size_bytes": 4,
-            "media_type": "application/zip",
-            "publish_destinations": ["github-release"],
-        },
-        {
             "name": "openadapt_capture-1.0.0.tar.gz",
             "kind": "python-sdist",
             "sha256": sha("2"),
@@ -274,14 +266,6 @@ def release_admission() -> dict:
             "size_bytes": 4,
             "media_type": "application/zip",
             "publish_destinations": ["github-release", "pypi"],
-        },
-        {
-            "name": "openadapt-capture-1.0.0.spdx.json",
-            "kind": "spdx-sbom",
-            "sha256": sha("4"),
-            "size_bytes": 4,
-            "media_type": "application/spdx+json",
-            "publish_destinations": ["github-release"],
         },
     ]
     normalized_rulesets = rulesets()
@@ -406,15 +390,16 @@ def release_admission() -> dict:
 
 def refresh_release_admission(value: dict) -> dict:
     staging = value["publication_staging"]
-    staging["immutable_releases_sha256"] = trust.digest_bytes(
-        trust.IMMUTABLE_RELEASES_DOMAIN, staging["immutable_releases"]
-    )
-    staging["tag_rulesets_sha256"] = trust.digest_bytes(
-        trust.TAG_RULESETS_DOMAIN, staging["tag_rulesets"]
-    )
-    staging["tag_ref_state_sha256"] = trust.digest_bytes(
-        trust.TAG_REF_STATE_DOMAIN, staging["tag_ref_state"]
-    )
+    if staging.get("publication_mode") != trust.PUBLICATION_MODE_ALREADY_PUBLISHED_DEPLOYMENT:
+        staging["immutable_releases_sha256"] = trust.digest_bytes(
+            trust.IMMUTABLE_RELEASES_DOMAIN, staging["immutable_releases"]
+        )
+        staging["tag_rulesets_sha256"] = trust.digest_bytes(
+            trust.TAG_RULESETS_DOMAIN, staging["tag_rulesets"]
+        )
+        staging["tag_ref_state_sha256"] = trust.digest_bytes(
+            trust.TAG_REF_STATE_DOMAIN, staging["tag_ref_state"]
+        )
     value["publication_staging_sha256"] = trust.staging_digest(staging)
     projection = dict(value)
     projection.pop("admission_id_sha256")
@@ -432,6 +417,118 @@ def already_published_pypi_release_admission() -> dict:
     staging["tag_ref_state"]["exists"] = True
     staging["pypi_files"] = trust.pypi_files_from_assets(staging["assets"])
     return refresh_release_admission(value)
+
+
+def already_published_deployment_release_admission() -> dict:
+    artifacts = [
+        {
+            "name": "openadapt-cloud-dddddddddddddddddddddddddddddddddddddddd.deployment-manifest.json",
+            "kind": "deployment-manifest",
+            "sha256": sha("c"),
+            "size_bytes": 12,
+            "media_type": (
+                "application/vnd.openadapt.production-deployment-manifest+json;version=1"
+            ),
+            "publish_destinations": ["deployment"],
+        }
+    ]
+    staging = {
+        "schema_version": "openadapt.production-release-staging-evidence/v1",
+        "publication_mode": trust.PUBLICATION_MODE_ALREADY_PUBLISHED_DEPLOYMENT,
+        "repository": "OpenAdaptAI/openadapt-cloud",
+        "repository_id": "1300570990",
+        "tag": "v0.0.0-deployment.33570255673",
+        "target_commitish": "d" * 40,
+        "draft": False,
+        "prerelease": False,
+        "assets": [
+            {
+                "asset_id": None,
+                "name": artifacts[0]["name"],
+                "kind": artifacts[0]["kind"],
+                "sha256": artifacts[0]["sha256"],
+                "size_bytes": artifacts[0]["size_bytes"],
+                "media_type": artifacts[0]["media_type"],
+                "publish_destinations": artifacts[0]["publish_destinations"],
+                "uploader_id": None,
+                "uploader_login": None,
+            }
+        ],
+        "pypi_files": None,
+        "deployment_id": "33570255673",
+        "deployment_url": "https://app.openadapt.ai",
+        "observed_at": "2026-08-27T12:00:00Z",
+    }
+    release = {
+        "schema_version": "openadapt.production-release-candidate/v1",
+        "kind": "deployment",
+        "source_repository": "OpenAdaptAI/openadapt-cloud",
+        "source_repository_id": "1300570990",
+        "source_commit": "d" * 40,
+        "version": None,
+        "tag": None,
+        "deployment_id": "33570255673",
+        "deployment_sha256": sha("c"),
+        "artifacts": artifacts,
+    }
+    summary, summary_bundle = pair("production-acceptance-summary", "2", "3")
+    value = {
+        "schema_version": "openadapt.qualification-release/v2",
+        "admission_id_sha256": sha("0"),
+        "evidence_class": "remote-safe-synthetic",
+        "target": "cloud",
+        "verdict": "accepted",
+        "claim_scope": "production_cloud",
+        "release_identity": {
+            "schema_version": "openadapt.monotonic-production-release/v1",
+            "channel": "production",
+            "sequence": 1,
+            "previous_admission_sha256": None,
+        },
+        "release": release,
+        "release_sha256": trust.digest_bytes(
+            trust.RELEASE_DOMAIN,
+            {
+                "target": "cloud",
+                "claim_scope": "production_cloud",
+                "release": release,
+            },
+        ),
+        "artifact_inventory_sha256": trust.digest_bytes(
+            trust.ARTIFACT_INVENTORY_DOMAIN,
+            {
+                "target": "cloud",
+                "claim_scope": "production_cloud",
+                "artifacts": artifacts,
+            },
+        ),
+        "publication_staging": staging,
+        "publication_staging_sha256": trust.staging_digest(staging),
+        "production_acceptance_summary_reference": summary,
+        "production_acceptance_summary_bundle_reference": summary_bundle,
+        "authority_state_sha256": sha("4"),
+        "revocation_state_sha256": sha("5"),
+        "signer_registry_sha256": sha("6"),
+        "publication_policy_sha256": sha("7"),
+        "issued_at": "2026-08-27T12:00:00Z",
+        "not_before": "2026-08-27T12:00:00Z",
+        "expires_at": "2026-09-03T12:00:00Z",
+        "issuer": {
+            "repository": "OpenAdaptAI/.github",
+            "repository_id": "858454062",
+            "repository_owner_id": "132681217",
+            "workflow": ".github/workflows/issue-production-release-admission.yml",
+            "ref": "refs/heads/main",
+            "source_commit": "c" * 40,
+            "environment": "production-release-admission",
+        },
+    }
+    projection = dict(value)
+    projection.pop("admission_id_sha256")
+    value["admission_id_sha256"] = trust.digest_bytes(
+        trust.RELEASE_ADMISSION_DOMAIN, projection
+    )
+    return value
 
 
 def cloud_handoff() -> dict:
@@ -637,8 +734,8 @@ class ProductionTrustTests(unittest.TestCase):
         )
         targets = {item["id"]: item for item in policy["targets"]}
         self.assertEqual(set(targets), set(trust.TARGET_CONTRACTS))
-        self.assertEqual(trust.ADMISSION_GATE_TARGETS, ("flow",))
-        self.assertTrue(set(trust.ADMISSION_GATE_TARGETS) <= set(trust.TARGETS))
+        self.assertEqual(trust.ADMISSION_GATE_TARGETS, trust.TARGETS)
+        self.assertEqual(set(trust.ADMISSION_GATE_TARGETS), set(trust.TARGETS))
         for target, contract in trust.TARGET_CONTRACTS.items():
             with self.subTest(target=target):
                 policy_target = targets[target]
@@ -983,6 +1080,34 @@ class ProductionTrustTests(unittest.TestCase):
         value["publication_staging"]["pypi_files"][0]["sha256"] = sha("9")
         refresh_release_admission(value)
         with self.assertRaisesRegex(trust.TrustError, "observed PyPI files differ"):
+            trust.validate_release(value)
+
+    def test_already_published_pypi_allows_historical_non_bot_uploaders(self) -> None:
+        value = already_published_pypi_release_admission()
+        staging = value["publication_staging"]
+        staging["release_author_login"] = "abrichr"
+        for asset in staging["assets"]:
+            asset["uploader_id"] = "774615"
+            asset["uploader_login"] = "abrichr"
+        refresh_release_admission(value)
+        self.assertEqual(trust.validate_release(value), value)
+
+    def test_already_published_deployment_binds_live_commit_and_url(self) -> None:
+        value = already_published_deployment_release_admission()
+        staging = value["publication_staging"]
+        self.assertEqual(
+            staging["publication_mode"],
+            trust.PUBLICATION_MODE_ALREADY_PUBLISHED_DEPLOYMENT,
+        )
+        self.assertFalse(staging["draft"])
+        self.assertIsNone(staging["pypi_files"])
+        self.assertEqual(
+            staging["deployment_url"], "https://app.openadapt.ai"
+        )
+        self.assertEqual(trust.validate_release(value), value)
+        staging["deployment_url"] = "http://app.openadapt.ai"
+        refresh_release_admission(value)
+        with self.assertRaisesRegex(trust.TrustError, "clean HTTPS URL"):
             trust.validate_release(value)
 
     def test_draft_before_tag_still_refuses_an_existing_tag_or_published_release(

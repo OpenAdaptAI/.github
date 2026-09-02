@@ -145,7 +145,7 @@ class EvidenceRegistryTests(unittest.TestCase):
         value = json.loads((ROOT / "evidence-registry.json").read_text())
         entries = registry.validate_registry(value, root=ROOT)
         kinds = [entry["kind"] for entry in entries]
-        self.assertEqual(value["revision"], 2)
+        self.assertEqual(value["revision"], 3)
         self.assertIsNotNone(value["signer_registry"])
         self.assertIn("qualification-release", kinds)
         self.assertIn("qualification-release-sigstore-bundle", kinds)

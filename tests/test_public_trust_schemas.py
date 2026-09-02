@@ -783,9 +783,16 @@ class PublicTrustSchemaTests(unittest.TestCase):
                     if node.get("type") != "object" or "properties" not in node:
                         continue
                     self.assertIs(node.get("additionalProperties"), False)
-                    self.assertEqual(
-                        set(node.get("required", [])), set(node["properties"])
-                    )
+                    required = set(node.get("required", []))
+                    properties = set(node["properties"])
+                    if any(
+                        isinstance(item, dict) and "if" in item
+                        for item in node.get("allOf", [])
+                    ):
+                        self.assertTrue(required <= properties)
+                        self.assertTrue(required)
+                    else:
+                        self.assertEqual(required, properties)
 
     def test_frozen_top_level_contracts_are_exact(self) -> None:
         for filename, expected in EXPECTED_TOP_LEVEL_FIELDS.items():
@@ -889,7 +896,11 @@ class PublicTrustSchemaTests(unittest.TestCase):
             schema["$defs"]["publication_staging"]["properties"]["publication_mode"][
                 "enum"
             ],
-            ["draft-before-tag", "already-published-pypi"],
+            [
+                "draft-before-tag",
+                "already-published-pypi",
+                "already-published-deployment",
+            ],
         )
         self.assertIn(
             "publication_mode",

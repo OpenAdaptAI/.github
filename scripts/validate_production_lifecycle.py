@@ -1460,8 +1460,9 @@ def _validate_v2_release_admission(
 ) -> dict[str, Any]:
     """Validate one registered qualification-release/v2 ledger row.
 
-    remote-safe-synthetic rows are retained and checked. They do not derive
-    seven-target Production. A MockMed production_acceptance flip is a
+    remote-safe-synthetic rows are retained and checked. One row is one
+    active target. Product-wide Production is true only when all seven
+    targets are active. A MockMed production_acceptance flip is a
     different evidence class and is not this row.
     """
 
@@ -1591,11 +1592,17 @@ def _validate_v2_release_admission(
             f"admission {index} public-trust verification failed: {exc}"
         ) from exc
     package_project = live_target["package_index_project"]
-    if not isinstance(package_project, str) or not package_project:
-        raise LifecycleError(f"admission {target_id} package project is missing")
-    _verify_live_pypi_files(
-        admission, package_index_project=package_project, fetch=fetch
-    )
+    if live_target["release_kind"] == "deployment":
+        if package_project is not None:
+            raise LifecycleError(
+                f"admission {target_id} deployment must not declare a package project"
+            )
+    else:
+        if not isinstance(package_project, str) or not package_project:
+            raise LifecycleError(f"admission {target_id} package project is missing")
+        _verify_live_pypi_files(
+            admission, package_index_project=package_project, fetch=fetch
+        )
     return admission
 
 
@@ -1912,9 +1919,9 @@ def validate(
                     f"admission {target_id} release sequence is not continuous"
                 )
             seen.append(sequence)
-            # remote-safe-synthetic is a real package admission for this
-            # target. One row is not seven-target Production. It does not
-            # flip MockMed production_acceptance.
+            # remote-safe-synthetic is a real target admission. Product-wide
+            # Production requires all seven targets. It does not flip MockMed
+            # production_acceptance.
             active[target_id] = admission_id
             continue
         admission = _closed(

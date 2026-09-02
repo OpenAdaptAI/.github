@@ -1100,9 +1100,9 @@ class PublishedPolicyTests(unittest.TestCase):
     """Bind the validator to the policy document the repository publishes."""
 
     def test_published_policy_is_accepted(self) -> None:
-        # The Flow 1.34.0 row is issued 2026-09-02T18:24:25Z. NOW is the
-        # retained v1 fixture clock and is before that instant.
-        published_now = datetime(2026, 9, 2, 19, 0, 0, tzinfo=timezone.utc)
+        # Remaining-six rows are issued 2026-09-02T19:22:47Z. Use a clock
+        # after that instant. This is not a MockMed production_acceptance flip.
+        published_now = datetime(2026, 9, 2, 19, 30, 0, tzinfo=timezone.utc)
         active = lifecycle.validate_files(ROOT, now=published_now)
         release = json.loads(
             (
@@ -1114,27 +1114,25 @@ class PublishedPolicyTests(unittest.TestCase):
         )
         self.assertEqual(release["evidence_class"], "remote-safe-synthetic")
         self.assertEqual(release["target"], "flow")
-        self.assertEqual(active, {"flow": release["admission_id_sha256"]})
-        self.assertEqual(len(lifecycle.EXPECTED_TARGETS), 7)
-        self.assertFalse(lifecycle.is_product_production(active))
+        self.assertEqual(set(active), set(lifecycle.EXPECTED_TARGETS))
+        self.assertEqual(len(active), 7)
+        self.assertEqual(active["flow"], release["admission_id_sha256"])
+        self.assertTrue(lifecycle.is_product_production(active))
 
-    def test_synthetic_flow_release_is_one_active_target_not_product_production(
+    def test_seven_synthetic_target_admissions_are_product_production(
         self,
     ) -> None:
-        published_now = datetime(2026, 9, 2, 19, 0, 0, tzinfo=timezone.utc)
+        published_now = datetime(2026, 9, 2, 19, 30, 0, tzinfo=timezone.utc)
         active = lifecycle.validate_files(ROOT, now=published_now)
-        self.assertEqual(len(active), 1)
-        self.assertIn("flow", active)
-        self.assertEqual(
-            set(lifecycle.EXPECTED_TARGETS) - set(active),
-            {"agent", "capture", "cloud", "desktop", "docs", "openadapt"},
-        )
-        self.assertFalse(lifecycle.is_product_production(active))
-        seven = {
+        self.assertEqual(len(active), 7)
+        self.assertEqual(set(active), set(lifecycle.EXPECTED_TARGETS))
+        self.assertTrue(lifecycle.is_product_production(active))
+        six = {
             target_id: f"admission:{target_id}"
             for target_id in lifecycle.EXPECTED_TARGETS
+            if target_id != "docs"
         }
-        self.assertTrue(lifecycle.is_product_production(seven))
+        self.assertFalse(lifecycle.is_product_production(six))
 
     def test_check_profile_accepts_the_published_repository(self) -> None:
         completed = subprocess.run(
