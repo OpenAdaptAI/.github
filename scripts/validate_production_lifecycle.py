@@ -245,6 +245,12 @@ EXPECTED_TARGETS = {
 }
 
 
+def is_product_production(active: Mapping[str, str]) -> bool:
+    """True only when every one of the seven targets has an active admission."""
+
+    return set(active) == set(EXPECTED_TARGETS)
+
+
 class LifecycleError(ValueError):
     """The lifecycle state is not supported by its evidence."""
 
@@ -1906,11 +1912,10 @@ def validate(
                     f"admission {target_id} release sequence is not continuous"
                 )
             seen.append(sequence)
-            # remote-safe-synthetic is a real package admission. It is not
-            # seven-target Production and it does not flip MockMed
-            # production_acceptance.
-            if admission["evidence_class"] != "remote-safe-synthetic":
-                active[target_id] = admission_id
+            # remote-safe-synthetic is a real package admission for this
+            # target. One row is not seven-target Production. It does not
+            # flip MockMed production_acceptance.
+            active[target_id] = admission_id
             continue
         admission = _closed(
             item,

@@ -80,13 +80,14 @@ revocation, release drift, an authority failure, or missing evidence produces
 the same state. The validator never restores an older admission or replaces
 the state with Beta, Experimental, or Early access.
 
-The signed ledger currently has no active admissions. These are the derived
-states:
+The signed ledger currently has one active admission, for `flow`. The other
+six targets have none. Product-wide Production requires all seven. These are
+the derived states:
 
 | Target | Current state | Role |
 |------------|-----------|------|
 | `openadapt` | **Not actively admitted** | `OpenAdapt` launcher/meta-package and unified CLI |
-| `flow` | **Not actively admitted** | `openadapt-flow` compiler and governed runtime |
+| `flow` | **Production** | `openadapt-flow` compiler and governed runtime |
 | `cloud` | **Not actively admitted** | Proprietary control plane and hosted execution surface |
 | `desktop` | **Not actively admitted** | Desktop recording, qualification, execution, evidence, and repair cockpit |
 | `capture` | **Not actively admitted** | Native screen, input, timing, window, and media capture |

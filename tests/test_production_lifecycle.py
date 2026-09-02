@@ -1103,7 +1103,38 @@ class PublishedPolicyTests(unittest.TestCase):
         # The Flow 1.34.0 row is issued 2026-09-02T18:24:25Z. NOW is the
         # retained v1 fixture clock and is before that instant.
         published_now = datetime(2026, 9, 2, 19, 0, 0, tzinfo=timezone.utc)
-        self.assertEqual(lifecycle.validate_files(ROOT, now=published_now), {})
+        active = lifecycle.validate_files(ROOT, now=published_now)
+        release = json.loads(
+            (
+                ROOT
+                / "production-evidence/objects/sha256/79/"
+                "790122a25c87e456c6e45d25ebf5cd029b21b8511265b062fd9129b74aa1dd82"
+                ".qualification-release.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(release["evidence_class"], "remote-safe-synthetic")
+        self.assertEqual(release["target"], "flow")
+        self.assertEqual(active, {"flow": release["admission_id_sha256"]})
+        self.assertEqual(len(lifecycle.EXPECTED_TARGETS), 7)
+        self.assertFalse(lifecycle.is_product_production(active))
+
+    def test_synthetic_flow_release_is_one_active_target_not_product_production(
+        self,
+    ) -> None:
+        published_now = datetime(2026, 9, 2, 19, 0, 0, tzinfo=timezone.utc)
+        active = lifecycle.validate_files(ROOT, now=published_now)
+        self.assertEqual(len(active), 1)
+        self.assertIn("flow", active)
+        self.assertEqual(
+            set(lifecycle.EXPECTED_TARGETS) - set(active),
+            {"agent", "capture", "cloud", "desktop", "docs", "openadapt"},
+        )
+        self.assertFalse(lifecycle.is_product_production(active))
+        seven = {
+            target_id: f"admission:{target_id}"
+            for target_id in lifecycle.EXPECTED_TARGETS
+        }
+        self.assertTrue(lifecycle.is_product_production(seven))
 
     def test_check_profile_accepts_the_published_repository(self) -> None:
         completed = subprocess.run(
