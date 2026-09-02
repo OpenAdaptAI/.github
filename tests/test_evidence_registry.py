@@ -143,7 +143,24 @@ class EvidenceRegistryTests(unittest.TestCase):
 
     def test_repository_registry_is_valid_v2(self) -> None:
         value = json.loads((ROOT / "evidence-registry.json").read_text())
-        self.assertEqual(registry.validate_registry(value, root=ROOT), [])
+        entries = registry.validate_registry(value, root=ROOT)
+        kinds = [entry["kind"] for entry in entries]
+        self.assertEqual(value["revision"], 2)
+        self.assertIsNotNone(value["signer_registry"])
+        self.assertIn("qualification-release", kinds)
+        self.assertIn("qualification-release-sigstore-bundle", kinds)
+        self.assertEqual(kinds[-2:], [
+            "qualification-release",
+            "qualification-release-sigstore-bundle",
+        ])
+        signer_path = ROOT / value["signer_registry"]["object_path"]
+        signer = registry.validate_signer_registry(
+            json.loads(signer_path.read_text(encoding="utf-8"))
+        )
+        self.assertIsNone(signer["expires_at"])
+        key_ids = {item["key_id"] for item in signer["signers"]}
+        self.assertIn("qa-ed25519-9cf4bca214c01d79", key_ids)
+        self.assertIn("oa-public-trust-ed25519-9cf4bca214c01d79", key_ids)
 
     def test_reference_has_exact_16_keys_and_derives_raw_url(self) -> None:
         value = reference(entry())

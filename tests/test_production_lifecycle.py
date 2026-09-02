@@ -1100,7 +1100,10 @@ class PublishedPolicyTests(unittest.TestCase):
     """Bind the validator to the policy document the repository publishes."""
 
     def test_published_policy_is_accepted(self) -> None:
-        self.assertEqual(lifecycle.validate_files(ROOT, now=NOW), {})
+        # The Flow 1.34.0 row is issued 2026-09-02T18:24:25Z. NOW is the
+        # retained v1 fixture clock and is before that instant.
+        published_now = datetime(2026, 9, 2, 19, 0, 0, tzinfo=timezone.utc)
+        self.assertEqual(lifecycle.validate_files(ROOT, now=published_now), {})
 
     def test_check_profile_accepts_the_published_repository(self) -> None:
         completed = subprocess.run(
