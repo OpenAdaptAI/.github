@@ -1,4 +1,4 @@
-name: Synthetic qualification evidence decision issuer
+name: Release admission issuer
 
 on:
   workflow_dispatch:
@@ -21,11 +21,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Verify the inactive software issuer interface and refuse issuance
+      - name: Verify the inactive release admission issuer interface and refuse issuance
         env:
           EVENT_NAME: ${{ github.event_name }}
           EXPECTED_ACTIVATION_STATE: inactive
-          EXPECTED_GITHUB_SECRET_NAME: OPENADAPT_QUALIFICATION_ED25519_PRIVATE_KEY
           REF: ${{ github.ref }}
           REPOSITORY: ${{ github.repository }}
           SOURCE_COMMIT: ${{ github.sha }}
@@ -35,7 +34,7 @@ jobs:
           test "$REF" = 'refs/heads/main'
           test "$EVENT_NAME" = 'workflow_dispatch'
           test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
-          python3 scripts/qualification_software_ed25519.py interface > "$RUNNER_TEMP/interface.json"
+          python3 scripts/qualification_issuer.py interface > "$RUNNER_TEMP/interface.json"
           INTERFACE_PATH="$RUNNER_TEMP/interface.json" python3 - <<'PY'
           import json
           import os
@@ -43,17 +42,13 @@ jobs:
 
           interface = json.loads(Path(os.environ["INTERFACE_PATH"]).read_text())
           if interface.get("activation_state") != os.environ["EXPECTED_ACTIVATION_STATE"]:
-              raise SystemExit("the software issuer interface is not inactive")
-          if interface.get("allowed_evidence_class") != "remote-safe-synthetic":
-              raise SystemExit("the software issuer evidence class differs")
-          if interface.get("aws_required") is not False:
-              raise SystemExit("the software issuer must not require AWS")
-          if interface.get("github_secret_name") != os.environ["EXPECTED_GITHUB_SECRET_NAME"]:
-              raise SystemExit("the software issuer GitHub secret name differs")
+              raise SystemExit("the release admission issuer interface is not inactive")
+          if interface.get("accepted_evidence_class") != "remote-safe-synthetic":
+              raise SystemExit("the release admission issuer evidence class differs")
           registry = json.loads(Path("evidence-registry.json").read_text())
           if registry.get("signer_registry") is not None:
               raise SystemExit("a live signer registry is present; keep this issuer refuse-closed")
           PY
-          echo '::error::The synthetic qualification decision issuer is installed but inactive.' >&2
-          echo 'The GitHub Ed25519 secret can sign only after a published signer registry exists. Keep this issuer refuse-closed until then. This path does not use KMS or OIDC.' >&2
+          echo '::error::The release admission issuer is installed but inactive.' >&2
+          echo 'The signer registry, authority state, revocation state, and shared one-use storage must exist before activation.' >&2
           exit 1
