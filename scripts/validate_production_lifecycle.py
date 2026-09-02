@@ -41,6 +41,7 @@ from typing import Any
 from urllib.parse import quote, urlsplit
 
 import production_trust
+import public_trust_resolver
 import validate_evidence_registry as evidence_registry
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -1321,6 +1322,277 @@ def _validate_manifest(
         raise LifecycleError(f"admission {target_id} retained evidence is expired")
 
 
+def _is_v2_release_reference(value: object) -> bool:
+    return (
+        isinstance(value, dict)
+        and value.get("schema_version") == OBJECT_REFERENCE_SCHEMA
+        and value.get("kind") == "qualification-release"
+    )
+
+
+def _is_v2_release_object(value: object) -> bool:
+    return (
+        isinstance(value, dict)
+        and value.get("schema_version") == RELEASE_ADMISSION_SCHEMA
+    )
+
+
+def _adjacent_bundle_entry(
+    entries: Sequence[Mapping[str, Any]], regular: Mapping[str, Any]
+) -> dict[str, Any]:
+    for index, entry in enumerate(entries):
+        if entry["registry_entry_sha256"] != regular["registry_entry_sha256"]:
+            continue
+        if index + 1 >= len(entries):
+            raise LifecycleError(
+                "qualification-release has no adjacent Sigstore bundle"
+            )
+        bundle = entries[index + 1]
+        if (
+            bundle["kind"] != f"{regular['kind']}-sigstore-bundle"
+            or bundle["subject_sha256"] != regular["object_sha256"]
+        ):
+            raise LifecycleError(
+                "qualification-release Sigstore bundle is not adjacent"
+            )
+        return dict(bundle)
+    raise LifecycleError("qualification-release is not registered")
+
+
+def _load_registered_json(
+    root: Path, entry: Mapping[str, Any], label: str
+) -> tuple[bytes, dict[str, Any]]:
+    path = root / entry["object_path"]
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        raise LifecycleError(f"{label} is missing: {exc}") from exc
+    if (
+        "sha256:" + hashlib.sha256(raw).hexdigest() != entry["object_sha256"]
+        or len(raw) != entry["size_bytes"]
+    ):
+        raise LifecycleError(f"{label} bytes differ from the registry")
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise LifecycleError(f"{label} is not JSON") from exc
+    if not isinstance(value, dict):
+        raise LifecycleError(f"{label} must be a JSON object")
+    return raw, value
+
+
+def _reference_from_entry(
+    entry: Mapping[str, Any],
+    *,
+    registry_source_commit: str,
+    registry_revision: int,
+    registry_head_sha256: str,
+) -> dict[str, Any]:
+    return {
+        "schema_version": OBJECT_REFERENCE_SCHEMA,
+        "repository": evidence_registry.REPOSITORY,
+        "repository_id": evidence_registry.REPOSITORY_ID,
+        "repository_owner_id": evidence_registry.REPOSITORY_OWNER_ID,
+        "registry_source_commit": registry_source_commit,
+        "registry_revision": registry_revision,
+        "registry_head_sha256": registry_head_sha256,
+        **entry,
+    }
+
+
+def _verify_live_pypi_files(
+    admission: Mapping[str, Any],
+    *,
+    package_index_project: str,
+    fetch: Callable[[str], bytes],
+) -> None:
+    staging = admission["publication_staging"]
+    if staging.get("publication_mode") != "already-published-pypi":
+        return
+    version = admission["release"]["version"]
+    expected = staging.get("pypi_files")
+    if not isinstance(expected, list) or not expected:
+        raise LifecycleError("already-published-pypi staging is missing PyPI files")
+    metadata_url = (
+        f"https://pypi.org/pypi/{quote(package_index_project, safe='')}/"
+        f"{quote(version, safe='')}/json"
+    )
+    metadata = _fetch_json_object(metadata_url, "PyPI release metadata", fetch)
+    if metadata.get("info", {}).get("version") != version:
+        raise LifecycleError("PyPI release metadata version differs")
+    files = metadata.get("urls")
+    if not isinstance(files, list):
+        raise LifecycleError("PyPI release metadata files are invalid")
+    for artifact in expected:
+        if not isinstance(artifact, dict):
+            raise LifecycleError("PyPI staging file is invalid")
+        filename = artifact.get("filename")
+        matches = [
+            item
+            for item in files
+            if isinstance(item, dict)
+            and item.get("filename") == filename
+            and item.get("size") == artifact.get("size_bytes")
+            and item.get("digests", {}).get("sha256")
+            == str(artifact.get("sha256", "")).removeprefix("sha256:")
+            and item.get("yanked") is False
+        ]
+        if len(matches) != 1:
+            raise LifecycleError(f"PyPI does not verify exact artifact {filename}")
+
+
+def _validate_v2_release_admission(
+    item: Mapping[str, Any],
+    *,
+    index: int,
+    root: Path,
+    registry_document: Mapping[str, Any],
+    registry_entries: Sequence[Mapping[str, Any]],
+    live_targets: Mapping[str, Mapping[str, Any]],
+    now: datetime,
+    fetch: Callable[[str], bytes],
+) -> dict[str, Any]:
+    """Validate one registered qualification-release/v2 ledger row.
+
+    remote-safe-synthetic rows are retained and checked. They do not derive
+    seven-target Production. A MockMed production_acceptance flip is a
+    different evidence class and is not this row.
+    """
+
+    if root is None:
+        raise LifecycleError("v2 admissions require the repository root")
+    if _is_v2_release_reference(item):
+        try:
+            reference = evidence_registry.validate_reference(item)
+            regular = evidence_registry.require_registered(
+                list(registry_entries),
+                reference=reference,
+                label=f"admission {index} qualification-release",
+            )
+        except evidence_registry.EvidenceRegistryError as exc:
+            raise LifecycleError(str(exc)) from exc
+        if (
+            reference["registry_revision"] != registry_document["revision"]
+            or reference["registry_head_sha256"]
+            != registry_document["registry_head_sha256"]
+        ):
+            raise LifecycleError(
+                "qualification-release reference does not bind the current registry"
+            )
+    elif _is_v2_release_object(item):
+        object_sha = "sha256:" + hashlib.sha256(
+            evidence_registry.canonical(item) + b"\n"
+        ).hexdigest()
+        matches = [
+            entry
+            for entry in registry_entries
+            if entry["kind"] == "qualification-release"
+            and entry["object_sha256"] == object_sha
+        ]
+        if len(matches) != 1:
+            raise LifecycleError(
+                "qualification-release object is not registered by digest"
+            )
+        regular = matches[0]
+        reference = _reference_from_entry(
+            regular,
+            registry_source_commit="0" * 40,
+            registry_revision=registry_document["revision"],
+            registry_head_sha256=registry_document["registry_head_sha256"],
+        )
+    else:
+        raise LifecycleError(f"admission {index} is not a qualification-release/v2 row")
+    bundle_entry = _adjacent_bundle_entry(registry_entries, regular)
+    object_raw, object_value = _load_registered_json(
+        root, regular, f"admission {index} qualification-release"
+    )
+    bundle_raw, _bundle_value = _load_registered_json(
+        root, bundle_entry, f"admission {index} qualification-release bundle"
+    )
+    try:
+        admission = production_trust.validate_release(object_value, now=now)
+    except production_trust.TrustError as exc:
+        raise LifecycleError(f"admission {index} qualification-release: {exc}") from exc
+    if _is_v2_release_object(item) and object_value != item:
+        raise LifecycleError("ledger qualification-release differs from registered bytes")
+    target_id = admission["target"]
+    live_target = live_targets.get(target_id)
+    if live_target is None:
+        raise LifecycleError(
+            f"production admission target is not eligible: {target_id!r}"
+        )
+    if admission["claim_scope"] != live_target["claim_scope"]:
+        raise LifecycleError(f"admission {target_id} claim scope differs from policy")
+    if admission["release"]["kind"] != live_target["release_kind"]:
+        raise LifecycleError(f"admission {target_id} release kind differs from policy")
+    pointer = registry_document.get("signer_registry")
+    if not isinstance(pointer, dict):
+        raise LifecycleError("v2 admissions require an installed signer registry")
+    signer_path = root / pointer["object_path"]
+    try:
+        signer_raw = signer_path.read_bytes()
+    except OSError as exc:
+        raise LifecycleError(f"signer registry is missing: {exc}") from exc
+    try:
+        signer_registry = evidence_registry.validate_signer_registry(
+            json.loads(signer_raw)
+        )
+    except (json.JSONDecodeError, evidence_registry.EvidenceRegistryError) as exc:
+        raise LifecycleError(f"signer registry is invalid: {exc}") from exc
+    if signer_registry["expires_at"] is not None:
+        raise LifecycleError("signer registry expiry must be until-revoked")
+    inner_ids = {
+        signer["key_id"]
+        for signer in signer_registry["signers"]
+        if signer.get("key_id", "").startswith("qa-ed25519-")
+    }
+    outer_ids = {
+        signer["key_id"]
+        for signer in signer_registry["signers"]
+        if signer.get("key_id", "").startswith("oa-public-trust-ed25519-")
+    }
+    if "qa-ed25519-9cf4bca214c01d79" not in inner_ids:
+        raise LifecycleError("until-revoked signer registry is missing the inner key")
+    if "oa-public-trust-ed25519-9cf4bca214c01d79" not in outer_ids:
+        raise LifecycleError("until-revoked signer registry is missing the outer key")
+    bundle_reference = _reference_from_entry(
+        bundle_entry,
+        registry_source_commit=reference["registry_source_commit"],
+        registry_revision=reference["registry_revision"],
+        registry_head_sha256=reference["registry_head_sha256"],
+    )
+    try:
+        public_trust_resolver.verify_registered_public_trust_pair(
+            object_raw=object_raw,
+            object_reference=reference
+            if _is_v2_release_reference(item)
+            else _reference_from_entry(
+                regular,
+                registry_source_commit=reference["registry_source_commit"],
+                registry_revision=reference["registry_revision"],
+                registry_head_sha256=reference["registry_head_sha256"],
+            ),
+            bundle_raw=bundle_raw,
+            bundle_reference=bundle_reference,
+            signer_registry_raw=signer_raw,
+            expected_signer_registry_sha256=admission["signer_registry_sha256"],
+            expected_authority_state_sha256=admission["authority_state_sha256"],
+            expected_revocation_state_sha256=admission["revocation_state_sha256"],
+            now=now,
+        )
+    except public_trust_resolver.PublicTrustResolutionError as exc:
+        raise LifecycleError(
+            f"admission {index} public-trust verification failed: {exc}"
+        ) from exc
+    package_project = live_target["package_index_project"]
+    if not isinstance(package_project, str) or not package_project:
+        raise LifecycleError(f"admission {target_id} package project is missing")
+    _verify_live_pypi_files(
+        admission, package_index_project=package_project, fetch=fetch
+    )
+    return admission
+
+
 def _validate_remote_summary(
     admission: Mapping[str, Any],
     release: Mapping[str, Any],
@@ -1541,12 +1813,14 @@ def validate(
         [bytes, bytes, Mapping[str, Any], str], None
     ] = _verify_attestation,
     registry_value: object | None = None,
+    root: Path | None = None,
 ) -> dict[str, str]:
     """Validate the complete lifecycle state and return target to admission IDs."""
 
     now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     policy, retained = _validate_policy(policy_value)
     targets = retained["targets"]
+    live_targets = {item["id"]: item for item in policy["targets"]}
     if retained["revision"] >= policy["revision"]:
         raise LifecycleError(
             "the retained admission revision must precede the live policy revision"
@@ -1568,7 +1842,12 @@ def validate(
     admissions_value_list = admissions_doc["admissions"]
     if not isinstance(admissions_value_list, list):
         raise LifecycleError("production lifecycle admissions must be a list")
+    has_v2 = any(
+        _is_v2_release_reference(item) or _is_v2_release_object(item)
+        for item in admissions_value_list
+    )
     registry_entries: list[dict[str, Any]] = []
+    registry_document: dict[str, Any] | None = None
     if admissions_value_list:
         # A Production admission can only reference evidence that the central
         # content-addressed registry already binds by exact digest.
@@ -1577,7 +1856,17 @@ def validate(
                 "production admissions require the central evidence registry"
             )
         try:
-            registry_entries = evidence_registry.validate_registry(registry_value)
+            if has_v2:
+                if root is None:
+                    raise LifecycleError("v2 admissions require the repository root")
+                if not isinstance(registry_value, dict):
+                    raise LifecycleError("evidence registry must be a JSON object")
+                registry_document = registry_value
+                registry_entries = evidence_registry.validate_registry(
+                    registry_value, root=root
+                )
+            else:
+                registry_entries = evidence_registry.validate_registry(registry_value)
         except evidence_registry.EvidenceRegistryError as exc:
             raise LifecycleError(f"evidence registry is invalid: {exc}") from exc
     active: dict[str, str] = {}
@@ -1588,7 +1877,41 @@ def validate(
             tuple[dict[str, Any], dict[str, Any], datetime, datetime, datetime | None]
         ],
     ] = {}
+    v2_sequences: dict[str, list[int]] = {}
     for index, item in enumerate(admissions_value_list):
+        if _is_v2_release_reference(item) or _is_v2_release_object(item):
+            if registry_document is None or root is None:
+                raise LifecycleError("v2 admissions require the evidence registry")
+            admission = _validate_v2_release_admission(
+                item,
+                index=index,
+                root=root,
+                registry_document=registry_document,
+                registry_entries=registry_entries,
+                live_targets=live_targets,
+                now=now,
+                fetch=fetch,
+            )
+            admission_id = admission["admission_id_sha256"]
+            if admission_id in admission_ids:
+                raise LifecycleError(
+                    f"production admission id is duplicate: {admission_id!r}"
+                )
+            admission_ids.add(admission_id)
+            target_id = admission["target"]
+            sequence = admission["release_identity"]["sequence"]
+            seen = v2_sequences.setdefault(target_id, [])
+            if sequence != len(seen) + 1:
+                raise LifecycleError(
+                    f"admission {target_id} release sequence is not continuous"
+                )
+            seen.append(sequence)
+            # remote-safe-synthetic is a real package admission. It is not
+            # seven-target Production and it does not flip MockMed
+            # production_acceptance.
+            if admission["evidence_class"] != "remote-safe-synthetic":
+                active[target_id] = admission_id
+            continue
         admission = _closed(
             item,
             {
@@ -1775,6 +2098,7 @@ def validate_files(root: Path = ROOT, *, now: datetime | None = None) -> dict[st
         policy_sha256=_file_digest(policy_path),
         now=now,
         registry_value=registry_value,
+        root=root,
     )
 
 

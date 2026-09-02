@@ -4,10 +4,179 @@
   "repository": "OpenAdaptAI/.github",
   "repository_id": "858454062",
   "repository_owner_id": "132681217",
-  "revision": 1,
-  "previous_registry_head_sha256": null,
-  "registry_head_sha256": "sha256:3c88a4e945f1aa51ee080f05331c0d7a36b907ad288cf8a24b2fef08b1681a97",
-  "signer_registry": null,
-  "signer_registry_history": [],
-  "entries": []
+  "revision": 2,
+  "previous_registry_head_sha256": "sha256:3c88a4e945f1aa51ee080f05331c0d7a36b907ad288cf8a24b2fef08b1681a97",
+  "registry_head_sha256": "sha256:12508b788997dcd841b7b116b512dd7c1e129192988a947952bcc2e2e8572a24",
+  "signer_registry": {
+    "schema_version": "openadapt.qualification-signer-registry-pointer/v1",
+    "object_path": "production-evidence/signer-registries/sha256/7a/7a81bf3d213c74673f3c6b5fa179234cbee534c9432aaea6ae09e455562f96b6.qualification-signer-registry.json",
+    "object_sha256": "sha256:7a81bf3d213c74673f3c6b5fa179234cbee534c9432aaea6ae09e455562f96b6",
+    "registry_identity_sha256": "sha256:e243a23243b24986ed08812e284a1bd8c4993814149f02bcba79cc520e10ca14",
+    "registry_revision": 1
+  },
+  "signer_registry_history": [
+    {
+      "schema_version": "openadapt.qualification-signer-registry-pointer/v1",
+      "object_path": "production-evidence/signer-registries/sha256/7a/7a81bf3d213c74673f3c6b5fa179234cbee534c9432aaea6ae09e455562f96b6.qualification-signer-registry.json",
+      "object_sha256": "sha256:7a81bf3d213c74673f3c6b5fa179234cbee534c9432aaea6ae09e455562f96b6",
+      "registry_identity_sha256": "sha256:e243a23243b24986ed08812e284a1bd8c4993814149f02bcba79cc520e10ca14",
+      "registry_revision": 1
+    }
+  ],
+  "entries": [
+    {
+      "kind": "qualification-authority-state-receipt",
+      "object_schema_version": "openadapt.qualification-authority-state-receipt/v2",
+      "object_path": "production-evidence/objects/sha256/a2/a22f9815ec0f7c56f7629aeabfd21d14bc6d739efcfb7f7a073ce9987e19479e.qualification-authority-state-receipt.json",
+      "object_sha256": "sha256:a22f9815ec0f7c56f7629aeabfd21d14bc6d739efcfb7f7a073ce9987e19479e",
+      "size_bytes": 1520,
+      "object_media_type": "application/vnd.openadapt.qualification-authority-state-receipt+json;version=2",
+      "semantic_identity_sha256": "sha256:df5079141df68877c4b06f05b9fb9fdf279307b7629eb1f2dce12def4bd5e2fa",
+      "subject_sha256": null,
+      "registry_entry_sha256": "sha256:d69026ffefb99b4eeb6c27db2913684138ee23f3b8923aa8ae3379e839489401"
+    },
+    {
+      "kind": "qualification-authority-state-receipt-sigstore-bundle",
+      "object_schema_version": "application/vnd.dev.sigstore.bundle.v0.3+json",
+      "object_path": "production-evidence/objects/sha256/0f/0f97c284b10f8dc0153dbab0da5deccc5069bb5609982d45b890617783687830.qualification-authority-state-receipt-sigstore-bundle.json",
+      "object_sha256": "sha256:0f97c284b10f8dc0153dbab0da5deccc5069bb5609982d45b890617783687830",
+      "size_bytes": 2809,
+      "object_media_type": "application/vnd.dev.sigstore.bundle.v0.3+json",
+      "semantic_identity_sha256": "sha256:96b1361340164f4cfc3d9f50e88868c6d36a62a085a8543ed818a4b1ba905714",
+      "subject_sha256": "sha256:a22f9815ec0f7c56f7629aeabfd21d14bc6d739efcfb7f7a073ce9987e19479e",
+      "registry_entry_sha256": "sha256:29397e66bbafd8e02e8fbbaceaf2d3c1d2892723cd396bb0d4abb1a443192592"
+    },
+    {
+      "kind": "qualification-revocation-state-receipt",
+      "object_schema_version": "openadapt.qualification-revocation-state-receipt/v1",
+      "object_path": "production-evidence/objects/sha256/18/18633b8cc243f686706606162bfa249a29733811563f63b9e68cc7c4a3507676.qualification-revocation-state-receipt.json",
+      "object_sha256": "sha256:18633b8cc243f686706606162bfa249a29733811563f63b9e68cc7c4a3507676",
+      "size_bytes": 1457,
+      "object_media_type": "application/vnd.openadapt.qualification-revocation-state-receipt+json;version=1",
+      "semantic_identity_sha256": "sha256:250ab430e467f5e584ebd2b1832976b42186b698da71d627ee1724c2b1da2457",
+      "subject_sha256": null,
+      "registry_entry_sha256": "sha256:2592f2856bbfb5e381640f050669a3dfc1b19cbc4fbf7438ce18d0df1731f722"
+    },
+    {
+      "kind": "qualification-revocation-state-receipt-sigstore-bundle",
+      "object_schema_version": "application/vnd.dev.sigstore.bundle.v0.3+json",
+      "object_path": "production-evidence/objects/sha256/4e/4e0a052726ba440c9f6a19726b004f948c36087b2702d614a398728b428dcd5f.qualification-revocation-state-receipt-sigstore-bundle.json",
+      "object_sha256": "sha256:4e0a052726ba440c9f6a19726b004f948c36087b2702d614a398728b428dcd5f",
+      "size_bytes": 2817,
+      "object_media_type": "application/vnd.dev.sigstore.bundle.v0.3+json",
+      "semantic_identity_sha256": "sha256:fcebb8e521419ea3c6aefa97885aa7153e88821e1a20617998067e921abc4d00",
+      "subject_sha256": "sha256:18633b8cc243f686706606162bfa249a29733811563f63b9e68cc7c4a3507676",
+      "registry_entry_sha256": "sha256:e4bf33edf52cf708db739746b4d99098642255380e70edc654a287c5d1aafe04"
+    },
+    {
+      "kind": "qualification-evidence-decision-receipt",
+      "object_schema_version": "openadapt.qualification-evidence-decision-receipt/v2",
+      "object_path": "production-evidence/objects/sha256/6f/6ffe691f8e40e06b73e24391d180424ed86bb289ddae001cf7b49de2e745312a.qualification-evidence-decision-receipt.json",
+      "object_sha256": "sha256:6ffe691f8e40e06b73e24391d180424ed86bb289ddae001cf7b49de2e745312a",
+      "size_bytes": 6636,
+      "object_media_type": "application/vnd.openadapt.qualification-evidence-decision-receipt+json;version=2",
+      "semantic_identity_sha256": "sha256:c18d69bdfb145139581ea6865f513179bd104cb02a64d838f93e49f96d9d3769",
+      "subject_sha256": null,
+      "registry_entry_sha256": "sha256:63d0170fb957ebd167f2650ef744d70839d0676a8cf9f8978d73aed5cffd0b27"
+    },
+    {
+      "kind": "qualification-evidence-decision-receipt-sigstore-bundle",
+      "object_schema_version": "application/vnd.dev.sigstore.bundle.v0.3+json",
+      "object_path": "production-evidence/objects/sha256/09/09eb48f80dec3cd8f7da73bfef1aed805068c0feefdbaaaa350ded1b70ba0c7d.qualification-evidence-decision-receipt-sigstore-bundle.json",
+      "object_sha256": "sha256:09eb48f80dec3cd8f7da73bfef1aed805068c0feefdbaaaa350ded1b70ba0c7d",
+      "size_bytes": 2849,
+      "object_media_type": "application/vnd.dev.sigstore.bundle.v0.3+json",
+      "semantic_identity_sha256": "sha256:21d2be624cc93f033b13eceabd7ea42b39ab6f80790c643235c80a32272545a6",
+      "subject_sha256": "sha256:6ffe691f8e40e06b73e24391d180424ed86bb289ddae001cf7b49de2e745312a",
+      "registry_entry_sha256": "sha256:40e134188beb1f1dd8bf17eaa02d84b8246ae11db7b99db68efb493f2a3d7955"
+    },
+    {
+      "kind": "qualification-admission",
+      "object_schema_version": "openadapt.qualification-admission/v4",
+      "object_path": "production-evidence/objects/sha256/dc/dcdb32a762aca87fbb1a7c9df5d346403b167ec5850d35fe47fd64d942684a04.qualification-admission.json",
+      "object_sha256": "sha256:dcdb32a762aca87fbb1a7c9df5d346403b167ec5850d35fe47fd64d942684a04",
+      "size_bytes": 8055,
+      "object_media_type": "application/vnd.openadapt.qualification-admission+json;version=4",
+      "semantic_identity_sha256": "sha256:a480d62a9c2aa5ed6061d3b0140cf908024b23e90b7535bb3c09e9da6f748e90",
+      "subject_sha256": null,
+      "registry_entry_sha256": "sha256:813040c698d3b04d39825502635f5337bcf08d5885142363fe9b16a76b4667a6"
+    },
+    {
+      "kind": "qualification-admission-sigstore-bundle",
+      "object_schema_version": "application/vnd.dev.sigstore.bundle.v0.3+json",
+      "object_path": "production-evidence/objects/sha256/17/1773f9dd2b0c3a78bf2454cfba5d038151925f4b7c5aa1a2d7ed46b5f9315c32.qualification-admission-sigstore-bundle.json",
+      "object_sha256": "sha256:1773f9dd2b0c3a78bf2454cfba5d038151925f4b7c5aa1a2d7ed46b5f9315c32",
+      "size_bytes": 2737,
+      "object_media_type": "application/vnd.dev.sigstore.bundle.v0.3+json",
+      "semantic_identity_sha256": "sha256:5bfd1cb8d71754563173aef8a5dcffff00bf8016ec5b60553d72b69dee1cb214",
+      "subject_sha256": "sha256:dcdb32a762aca87fbb1a7c9df5d346403b167ec5850d35fe47fd64d942684a04",
+      "registry_entry_sha256": "sha256:c0b5b8dd6fd24352f32896d24d276dc8256005d9eee2a97ac1a83fb576441da4"
+    },
+    {
+      "kind": "production-acceptance-manifest",
+      "object_schema_version": "openadapt.production-acceptance/v3",
+      "object_path": "production-evidence/objects/sha256/21/211651dd301699ea1394af8b8ec38d1c9c6df5045c88d9ce1ece09ca774c15ca.production-acceptance-manifest.json",
+      "object_sha256": "sha256:211651dd301699ea1394af8b8ec38d1c9c6df5045c88d9ce1ece09ca774c15ca",
+      "size_bytes": 13633,
+      "object_media_type": "application/vnd.openadapt.production-acceptance+json;version=3",
+      "semantic_identity_sha256": "sha256:2e24dd5a8f4aefba4478952c3d2d120d8d0706cf6cc4dafd74b2f21f75ce9ea5",
+      "subject_sha256": null,
+      "registry_entry_sha256": "sha256:502cb9dffb93c654258c305841e4515e933eb647edf375b8f36ee6e3f57fab8c"
+    },
+    {
+      "kind": "production-acceptance-manifest-sigstore-bundle",
+      "object_schema_version": "application/vnd.dev.sigstore.bundle.v0.3+json",
+      "object_path": "production-evidence/objects/sha256/ac/ace6aabbaf02596d26cd5d6f1406790f4fe831ca978129d50cc2285882a2630c.production-acceptance-manifest-sigstore-bundle.json",
+      "object_sha256": "sha256:ace6aabbaf02596d26cd5d6f1406790f4fe831ca978129d50cc2285882a2630c",
+      "size_bytes": 2749,
+      "object_media_type": "application/vnd.dev.sigstore.bundle.v0.3+json",
+      "semantic_identity_sha256": "sha256:1ebdadbe1754dbef6ceb987dd5a9fcf3d982c2414bd0a01e7b4c923bc46924eb",
+      "subject_sha256": "sha256:211651dd301699ea1394af8b8ec38d1c9c6df5045c88d9ce1ece09ca774c15ca",
+      "registry_entry_sha256": "sha256:15f463cf84ae49b1d5baeb053ad8e9c3a61aa4a84d1f982635e1d9bd88b17ca7"
+    },
+    {
+      "kind": "production-acceptance-summary",
+      "object_schema_version": "openadapt.production-lifecycle-evidence-summary/v3",
+      "object_path": "production-evidence/objects/sha256/38/3849fd4e2cae0d3a74964362e4850870bb68c23007d5eb818800159d3eb730d4.production-acceptance-summary.json",
+      "object_sha256": "sha256:3849fd4e2cae0d3a74964362e4850870bb68c23007d5eb818800159d3eb730d4",
+      "size_bytes": 14497,
+      "object_media_type": "application/vnd.openadapt.production-lifecycle-evidence-summary+json;version=3",
+      "semantic_identity_sha256": "sha256:cf65d1d351869c63e88d7188d1e78727994cc3f6e76c88f5643a61d168a84445",
+      "subject_sha256": null,
+      "registry_entry_sha256": "sha256:932511112a7eb5f296b752953ac184516a47f7630643ecf70955af722e78ef68"
+    },
+    {
+      "kind": "production-acceptance-summary-sigstore-bundle",
+      "object_schema_version": "application/vnd.dev.sigstore.bundle.v0.3+json",
+      "object_path": "production-evidence/objects/sha256/e9/e9ecdee1fc3458906fc91f5760d215bb5bec3591a6ed9ae0b412114e24fcf8fb.production-acceptance-summary-sigstore-bundle.json",
+      "object_sha256": "sha256:e9ecdee1fc3458906fc91f5760d215bb5bec3591a6ed9ae0b412114e24fcf8fb",
+      "size_bytes": 2789,
+      "object_media_type": "application/vnd.dev.sigstore.bundle.v0.3+json",
+      "semantic_identity_sha256": "sha256:1b5606b9f4c14edd37ec134a9c716a070832b8709e3c2f9c6f4186ff514b7c82",
+      "subject_sha256": "sha256:3849fd4e2cae0d3a74964362e4850870bb68c23007d5eb818800159d3eb730d4",
+      "registry_entry_sha256": "sha256:7dc2fcab09f705356a22b058b9e7f078596bcdefdb697bef7315510d17931549"
+    },
+    {
+      "kind": "qualification-release",
+      "object_schema_version": "openadapt.qualification-release/v2",
+      "object_path": "production-evidence/objects/sha256/79/790122a25c87e456c6e45d25ebf5cd029b21b8511265b062fd9129b74aa1dd82.qualification-release.json",
+      "object_sha256": "sha256:790122a25c87e456c6e45d25ebf5cd029b21b8511265b062fd9129b74aa1dd82",
+      "size_bytes": 7613,
+      "object_media_type": "application/vnd.openadapt.qualification-release+json;version=2",
+      "semantic_identity_sha256": "sha256:71b46fb92f831149424e7d087eb4fc754be48765bef569fa5d3130e97c2814f5",
+      "subject_sha256": null,
+      "registry_entry_sha256": "sha256:9cc63061d654347805f0f6bcae2aec428172f76399840a849c70bba8c3527c66"
+    },
+    {
+      "kind": "qualification-release-sigstore-bundle",
+      "object_schema_version": "application/vnd.dev.sigstore.bundle.v0.3+json",
+      "object_path": "production-evidence/objects/sha256/48/4804e33f847a04d35304c9948ade6ac9e736b06a1a8c9ab920da0833b7423e01.qualification-release-sigstore-bundle.json",
+      "object_sha256": "sha256:4804e33f847a04d35304c9948ade6ac9e736b06a1a8c9ab920da0833b7423e01",
+      "size_bytes": 2741,
+      "object_media_type": "application/vnd.dev.sigstore.bundle.v0.3+json",
+      "semantic_identity_sha256": "sha256:40a94e162eb69b460a12354ac8622323d95fe74277f02cab2e22e9624ed06040",
+      "subject_sha256": "sha256:790122a25c87e456c6e45d25ebf5cd029b21b8511265b062fd9129b74aa1dd82",
+      "registry_entry_sha256": "sha256:39a37bcfc95a5cc8d81d5588240b70bda4a2bd5a29f23111562c6b7a59951cba"
+    }
+  ]
 }
