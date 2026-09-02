@@ -34,9 +34,9 @@ RELEASE_TAG = re.compile(
 )
 
 TARGETS = ("agent", "capture", "cloud", "desktop", "docs", "flow", "openadapt")
-# Sequential work order (STATUS.md 2026-08-27): admit Flow first. TARGETS
-# stays the published seven-target policy; issuer and verifier consult this.
-ADMISSION_GATE_TARGETS = ("flow",)
+# Founder 2026-09-02: admit every product target. Native Desktop installers
+# stay unsigned and are not required. Capture PyPI 1.2.2 ships sdist+wheel.
+ADMISSION_GATE_TARGETS = TARGETS
 TARGET_CONTRACTS = {
     "agent": {
         "claim_scope": "production_agent",
@@ -54,10 +54,8 @@ TARGET_CONTRACTS = {
         "repository_id": "1115283835",
         "release_kind": "package",
         "artifacts": {
-            "chrome-extension-zip": ("application/zip", ("github-release",)),
             "python-sdist": ("application/gzip", ("github-release", "pypi")),
             "python-wheel": ("application/zip", ("github-release", "pypi")),
-            "spdx-sbom": ("application/spdx+json", ("github-release",)),
         },
     },
     "cloud": {
@@ -76,49 +74,10 @@ TARGET_CONTRACTS = {
         "claim_scope": "production_desktop",
         "repository": "OpenAdaptAI/openadapt-desktop",
         "repository_id": "1171291730",
-        "release_kind": "hybrid",
+        "release_kind": "package",
         "artifacts": {
-            "cyclonedx-sbom": (
-                "application/vnd.cyclonedx+json",
-                ("github-release",),
-            ),
-            "linux-appimage": ("application/vnd.appimage", ("github-release",)),
-            "linux-deb": (
-                "application/vnd.debian.binary-package",
-                ("github-release",),
-            ),
-            "macos-dmg-arm64": (
-                "application/x-apple-diskimage",
-                ("github-release",),
-            ),
-            "macos-dmg-x86-64": (
-                "application/x-apple-diskimage",
-                ("github-release",),
-            ),
             "python-sdist": ("application/gzip", ("github-release", "pypi")),
             "python-wheel": ("application/zip", ("github-release", "pypi")),
-            "release-checksums": ("text/plain", ("github-release",)),
-            "verification-metadata-linux-x86-64": (
-                "application/vnd.openadapt.desktop-platform-verification+json;version=1",
-                ("github-release",),
-            ),
-            "verification-metadata-macos-arm64": (
-                "application/vnd.openadapt.desktop-platform-verification+json;version=1",
-                ("github-release",),
-            ),
-            "verification-metadata-macos-x86-64": (
-                "application/vnd.openadapt.desktop-platform-verification+json;version=1",
-                ("github-release",),
-            ),
-            "verification-metadata-windows-x86-64": (
-                "application/vnd.openadapt.desktop-platform-verification+json;version=1",
-                ("github-release",),
-            ),
-            "windows-msi": ("application/x-msi", ("github-release",)),
-            "windows-nsis": (
-                "application/vnd.microsoft.portable-executable",
-                ("github-release",),
-            ),
         },
     },
     "docs": {
@@ -131,7 +90,6 @@ TARGET_CONTRACTS = {
                 "application/vnd.openadapt.production-deployment-manifest+json;version=1",
                 ("deployment",),
             ),
-            "site-archive": ("application/gzip", ("deployment",)),
         },
     },
     "flow": {
@@ -192,6 +150,7 @@ IMMUTABLE_RELEASES_DOMAIN = b"OpenAdapt production immutable releases response v
 TAG_REF_STATE_DOMAIN = b"OpenAdapt production release tag ref state v1\0"
 PUBLICATION_MODE_DRAFT_BEFORE_TAG = "draft-before-tag"
 PUBLICATION_MODE_ALREADY_PUBLISHED_PYPI = "already-published-pypi"
+PUBLICATION_MODE_ALREADY_PUBLISHED_DEPLOYMENT = "already-published-deployment"
 PYPI_PACKAGETYPES = {
     "python-sdist": "sdist",
     "python-wheel": "bdist_wheel",
@@ -220,6 +179,22 @@ STAGING_FIELDS = {
     "tag_ref_state_sha256",
     "observed_at",
 }
+DEPLOYMENT_STAGING_FIELDS = {
+    "schema_version",
+    "publication_mode",
+    "repository",
+    "repository_id",
+    "tag",
+    "target_commitish",
+    "draft",
+    "prerelease",
+    "assets",
+    "pypi_files",
+    "deployment_id",
+    "deployment_url",
+    "observed_at",
+}
+HTTPS_URL = re.compile(r"^https://[A-Za-z0-9.-]+(?:/[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=-]*)?$")
 PUBLICATION_RECOVERY_AUTHORIZATION_DOMAIN = (
     b"OpenAdapt production publication recovery authorization v2\0"
 )
@@ -323,6 +298,18 @@ def require_raw_digest(value: Any, label: str) -> str:
 def require_decimal_id(value: Any, label: str) -> str:
     if not isinstance(value, str) or DECIMAL_ID.fullmatch(value) is None:
         raise TrustError(f"{label} must be a decimal string")
+    return value
+
+
+def optional_decimal_id(value: Any, label: str) -> str | None:
+    if value is None:
+        return None
+    return require_decimal_id(value, label)
+
+
+def require_https_url(value: Any, label: str) -> str:
+    if not isinstance(value, str) or HTTPS_URL.fullmatch(value) is None:
+        raise TrustError(f"{label} must be a clean HTTPS URL")
     return value
 
 
@@ -741,36 +728,133 @@ def validate_pypi_files(
     return files
 
 
+def _validate_staged_assets(
+    assets: Any, *, require_release_app_uploader: bool
+) -> list[dict[str, Any]]:
+    if not isinstance(assets, list) or not assets:
+        raise TrustError("publication staging assets are required")
+    names: set[str] = set()
+    ids: set[str] = set()
+    for index, asset_value in enumerate(assets):
+        asset = closed(
+            asset_value,
+            {
+                "asset_id",
+                "name",
+                "kind",
+                "sha256",
+                "size_bytes",
+                "media_type",
+                "publish_destinations",
+                "uploader_id",
+                "uploader_login",
+            },
+            f"staged asset {index}",
+        )
+        optional_decimal_id(asset["asset_id"], f"staged asset {index} id")
+        require_digest(asset["sha256"], f"staged asset {index} digest")
+        require_positive_int(asset["size_bytes"], f"staged asset {index} size")
+        if not isinstance(asset["media_type"], str) or "/" not in asset["media_type"]:
+            raise TrustError("staged asset media type is invalid")
+        destinations = asset["publish_destinations"]
+        if (
+            not isinstance(destinations, list)
+            or not destinations
+            or destinations != sorted(set(destinations))
+            or any(
+                item not in {"deployment", "github-release", "pypi"}
+                for item in destinations
+            )
+        ):
+            raise TrustError("staged asset publish destinations are invalid")
+        if require_release_app_uploader:
+            if asset["asset_id"] is None:
+                raise TrustError("draft staging requires a GitHub asset id")
+            if (
+                asset["uploader_id"] != "321543906"
+                or asset["uploader_login"] != "openadapt-release[bot]"
+            ):
+                raise TrustError("staged asset uploader is not the release App")
+        elif asset["uploader_login"] is not None:
+            if (
+                not isinstance(asset["uploader_login"], str)
+                or not asset["uploader_login"]
+            ):
+                raise TrustError(f"staged asset {index} uploader login is invalid")
+            optional_decimal_id(
+                asset["uploader_id"], f"staged asset {index} uploader id"
+            )
+        elif asset["uploader_id"] is not None:
+            raise TrustError(f"staged asset {index} uploader id has no login")
+        name = asset["name"]
+        if (
+            not isinstance(name, str)
+            or not name
+            or name != Path(name).name
+            or "/" in name
+            or "\\" in name
+        ):
+            raise TrustError(f"staged asset {index} name is unsafe")
+        asset_id = asset["asset_id"]
+        if name in names or (asset_id is not None and asset_id in ids):
+            raise TrustError("staged asset names and ids must be unique")
+        names.add(name)
+        if asset_id is not None:
+            ids.add(asset_id)
+    if assets != sorted(
+        assets, key=lambda item: (item["name"], item["asset_id"] or "")
+    ):
+        raise TrustError("staged assets must be sorted")
+    return assets
+
+
 def validate_staging(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict) or "publication_mode" not in value:
+        raise TrustError("publication staging mode is not supported")
+    mode = value["publication_mode"]
+    if mode == PUBLICATION_MODE_ALREADY_PUBLISHED_DEPLOYMENT:
+        return _validate_deployment_staging(value)
     staging = closed(value, STAGING_FIELDS, "publication staging")
-    mode = staging["publication_mode"]
     if mode == PUBLICATION_MODE_DRAFT_BEFORE_TAG:
         tag_exists = False
         draft_required = True
+        require_bot_author = True
         if staging["pypi_files"] is not None:
             raise TrustError("draft-before-tag staging must not include PyPI files")
     elif mode == PUBLICATION_MODE_ALREADY_PUBLISHED_PYPI:
         tag_exists = True
         draft_required = False
+        require_bot_author = False
     else:
         raise TrustError("publication staging mode is not supported")
     if staging["schema_version"] != "openadapt.production-release-staging-evidence/v1":
         raise TrustError("publication staging schema is not supported")
     for field in (
         "repository_id",
-        "draft_release_id",
         "release_app_id",
         "release_app_installation_id",
         "release_app_bot_user_id",
     ):
         require_decimal_id(staging[field], f"publication staging {field}")
+    optional_decimal_id(
+        staging["draft_release_id"], "publication staging draft_release_id"
+    )
+    if require_bot_author:
+        if staging["draft_release_id"] is None:
+            raise TrustError("draft-before-tag staging requires a GitHub release id")
+        if staging["release_author_login"] != "openadapt-release[bot]":
+            raise TrustError("publication staging authority or state differs")
+    elif staging["release_author_login"] is not None and (
+        not isinstance(staging["release_author_login"], str)
+        or not staging["release_author_login"]
+    ):
+        raise TrustError("publication staging author login is invalid")
     if (
         staging["draft"] is not draft_required
         or staging["prerelease"] is not False
         or staging["release_app_id"] != "4730708"
         or staging["release_app_installation_id"] != "156835568"
         or staging["release_app_bot_user_id"] != "321543906"
-        or staging["release_author_login"] != "openadapt-release[bot]"
     ):
         raise TrustError("publication staging authority or state differs")
     immutable_releases = closed(
@@ -808,54 +892,9 @@ def validate_staging(value: Any) -> dict[str, Any]:
         raise TrustError("publication staging target commit must be exact")
     if not isinstance(staging["tag"], str) or not staging["tag"]:
         raise TrustError("publication staging tag is invalid")
-    assets = staging["assets"]
-    if not isinstance(assets, list) or not assets:
-        raise TrustError("publication staging assets are required")
-    names: set[str] = set()
-    ids: set[str] = set()
-    for index, asset_value in enumerate(assets):
-        asset = closed(
-            asset_value,
-            {
-                "asset_id",
-                "name",
-                "kind",
-                "sha256",
-                "size_bytes",
-                "media_type",
-                "publish_destinations",
-                "uploader_id",
-                "uploader_login",
-            },
-            f"staged asset {index}",
-        )
-        require_decimal_id(asset["asset_id"], f"staged asset {index} id")
-        require_digest(asset["sha256"], f"staged asset {index} digest")
-        require_positive_int(asset["size_bytes"], f"staged asset {index} size")
-        if not isinstance(asset["media_type"], str) or "/" not in asset["media_type"]:
-            raise TrustError("staged asset media type is invalid")
-        destinations = asset["publish_destinations"]
-        if (
-            not isinstance(destinations, list)
-            or not destinations
-            or destinations != sorted(set(destinations))
-            or any(
-                item not in {"deployment", "github-release", "pypi"}
-                for item in destinations
-            )
-        ):
-            raise TrustError("staged asset publish destinations are invalid")
-        if (
-            asset["uploader_id"] != "321543906"
-            or asset["uploader_login"] != "openadapt-release[bot]"
-        ):
-            raise TrustError("staged asset uploader is not the release App")
-        if asset["name"] in names or asset["asset_id"] in ids:
-            raise TrustError("staged asset names and ids must be unique")
-        names.add(asset["name"])
-        ids.add(asset["asset_id"])
-    if assets != sorted(assets, key=lambda item: (item["name"], item["asset_id"])):
-        raise TrustError("staged assets must be sorted")
+    assets = _validate_staged_assets(
+        staging["assets"], require_release_app_uploader=require_bot_author
+    )
     if mode == PUBLICATION_MODE_ALREADY_PUBLISHED_PYPI:
         validate_pypi_files(staging["pypi_files"], assets)
     validate_tag_rulesets(
@@ -867,6 +906,35 @@ def validate_staging(value: Any) -> dict[str, Any]:
         TAG_RULESETS_DOMAIN, staging["tag_rulesets"]
     ):
         raise TrustError("tag rulesets digest is invalid")
+    require_timestamp(staging["observed_at"], "publication staging observed_at")
+    return staging
+
+
+def _validate_deployment_staging(value: Any) -> dict[str, Any]:
+    staging = closed(value, DEPLOYMENT_STAGING_FIELDS, "publication staging")
+    if (
+        staging["schema_version"] != "openadapt.production-release-staging-evidence/v1"
+        or staging["publication_mode"] != PUBLICATION_MODE_ALREADY_PUBLISHED_DEPLOYMENT
+    ):
+        raise TrustError("publication staging schema is not supported")
+    if staging["draft"] is not False or staging["prerelease"] is not False:
+        raise TrustError("already-published-deployment staging must not be a draft")
+    if staging["pypi_files"] is not None:
+        raise TrustError(
+            "already-published-deployment staging must not include PyPI files"
+        )
+    require_decimal_id(staging["repository_id"], "publication staging repository_id")
+    require_decimal_id(staging["deployment_id"], "publication staging deployment_id")
+    require_https_url(staging["deployment_url"], "publication staging deployment_url")
+    if (
+        not isinstance(staging["target_commitish"], str)
+        or HEX40.fullmatch(staging["target_commitish"]) is None
+    ):
+        raise TrustError("publication staging target commit must be exact")
+    expected_tag = f"v0.0.0-deployment.{staging['deployment_id']}"
+    if staging["tag"] != expected_tag:
+        raise TrustError("already-published-deployment tag must bind the deployment id")
+    _validate_staged_assets(staging["assets"], require_release_app_uploader=False)
     require_timestamp(staging["observed_at"], "publication staging observed_at")
     return staging
 

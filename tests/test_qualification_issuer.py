@@ -1353,8 +1353,8 @@ class QualificationIssuerTests(unittest.TestCase):
                 consumer=RecordingConsumer(),
             )
 
-    def test_release_admission_accepts_flow_and_refuses_other_targets(self) -> None:
-        self.assertEqual(trust.ADMISSION_GATE_TARGETS, ("flow",))
+    def test_release_admission_accepts_every_product_target(self) -> None:
+        self.assertEqual(trust.ADMISSION_GATE_TARGETS, trust.TARGETS)
         for target in trust.TARGETS:
             with self.subTest(target=target):
                 fixture = trust_fixture()
@@ -1426,12 +1426,22 @@ class QualificationIssuerTests(unittest.TestCase):
                     verified_at=NOW,
                     trust_state_source_commit=RELEASE_REGISTRY_COMMIT,
                 )
-                self.assertEqual(verification["target"], "flow")
-                self.assertEqual(
-                    verification["schema_version"],
-                    "openadapt.qualification-release-verification-receipt/v1",
-                )
-                self.assertNotIn("deployment_id", verification)
+                self.assertEqual(verification["target"], target)
+                if target == "flow":
+                    self.assertEqual(
+                        verification["schema_version"],
+                        "openadapt.qualification-release-verification-receipt/v1",
+                    )
+                    self.assertNotIn("deployment_id", verification)
+                else:
+                    self.assertEqual(
+                        verification["schema_version"],
+                        "openadapt.qualification-release-verification-receipt/v2",
+                    )
+                    self.assertEqual(
+                        verification["deployment_id"],
+                        release["release"]["deployment_id"],
+                    )
                 self.assertEqual(
                     verification["source_repository"], contract["repository"]
                 )

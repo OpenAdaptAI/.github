@@ -1460,8 +1460,9 @@ def _validate_v2_release_admission(
 ) -> dict[str, Any]:
     """Validate one registered qualification-release/v2 ledger row.
 
-    remote-safe-synthetic rows are retained and checked. They do not derive
-    seven-target Production. A MockMed production_acceptance flip is a
+    remote-safe-synthetic rows are retained and checked. One row is one
+    active target. Product-wide Production is true only when all seven
+    targets are active. A MockMed production_acceptance flip is a
     different evidence class and is not this row.
     """
 
@@ -1477,13 +1478,30 @@ def _validate_v2_release_admission(
             )
         except evidence_registry.EvidenceRegistryError as exc:
             raise LifecycleError(str(exc)) from exc
-        if (
-            reference["registry_revision"] != registry_document["revision"]
-            or reference["registry_head_sha256"]
+        # Historical rows keep the registry snapshot they were issued
+        # against. Append-only history forbids rewriting them onto the
+        # current revision. New rows bind the current registry.
+        current_revision = registry_document["revision"]
+        bound_revision = reference["registry_revision"]
+        if bound_revision > current_revision:
+            raise LifecycleError(
+                "qualification-release reference binds a future registry revision"
+            )
+        if bound_revision == current_revision and (
+            reference["registry_head_sha256"]
             != registry_document["registry_head_sha256"]
         ):
             raise LifecycleError(
                 "qualification-release reference does not bind the current registry"
+            )
+        previous_head = registry_document.get("previous_registry_head_sha256")
+        if (
+            bound_revision == current_revision - 1
+            and previous_head is not None
+            and reference["registry_head_sha256"] != previous_head
+        ):
+            raise LifecycleError(
+                "qualification-release reference does not bind the previous registry"
             )
     elif _is_v2_release_object(item):
         object_sha = "sha256:" + hashlib.sha256(
@@ -1591,11 +1609,17 @@ def _validate_v2_release_admission(
             f"admission {index} public-trust verification failed: {exc}"
         ) from exc
     package_project = live_target["package_index_project"]
-    if not isinstance(package_project, str) or not package_project:
-        raise LifecycleError(f"admission {target_id} package project is missing")
-    _verify_live_pypi_files(
-        admission, package_index_project=package_project, fetch=fetch
-    )
+    if live_target["release_kind"] == "deployment":
+        if package_project is not None:
+            raise LifecycleError(
+                f"admission {target_id} deployment must not declare a package project"
+            )
+    else:
+        if not isinstance(package_project, str) or not package_project:
+            raise LifecycleError(f"admission {target_id} package project is missing")
+        _verify_live_pypi_files(
+            admission, package_index_project=package_project, fetch=fetch
+        )
     return admission
 
 
@@ -1912,9 +1936,9 @@ def validate(
                     f"admission {target_id} release sequence is not continuous"
                 )
             seen.append(sequence)
-            # remote-safe-synthetic is a real package admission for this
-            # target. One row is not seven-target Production. It does not
-            # flip MockMed production_acceptance.
+            # remote-safe-synthetic is a real target admission. Product-wide
+            # Production requires all seven targets. It does not flip MockMed
+            # production_acceptance.
             active[target_id] = admission_id
             continue
         admission = _closed(

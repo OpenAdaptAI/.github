@@ -158,15 +158,20 @@
         "publish_destinations", "uploader_id", "uploader_login"
       ],
       "properties": {
-        "asset_id": {"$ref": "#/$defs/decimal_id"},
+        "asset_id": {"oneOf": [{"$ref": "#/$defs/decimal_id"}, {"type": "null"}]},
         "name": {"type": "string", "pattern": "^[^/\\\\]+$", "minLength": 1, "maxLength": 255},
         "kind": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
         "sha256": {"$ref": "#/$defs/digest"},
         "size_bytes": {"type": "integer", "minimum": 1},
         "media_type": {"type": "string", "pattern": "^[^/]+/[^/]+$", "maxLength": 200},
         "publish_destinations": {"$ref": "#/$defs/publish_destinations"},
-        "uploader_id": {"const": "321543906"},
-        "uploader_login": {"const": "openadapt-release[bot]"}
+        "uploader_id": {"oneOf": [{"$ref": "#/$defs/decimal_id"}, {"type": "null"}]},
+        "uploader_login": {
+          "oneOf": [
+            {"type": "string", "minLength": 1, "maxLength": 100},
+            {"type": "null"}
+          ]
+        }
       }
     },
     "tag_conditions": {
@@ -249,20 +254,23 @@
       "additionalProperties": false,
       "required": [
         "schema_version", "publication_mode", "repository", "repository_id",
-        "draft_release_id", "tag", "target_commitish", "draft", "prerelease",
-        "release_app_id", "release_app_installation_id", "release_app_bot_user_id",
-        "release_author_login", "assets", "pypi_files", "immutable_releases",
-        "immutable_releases_sha256", "tag_rulesets", "tag_rulesets_sha256",
-        "tag_ref_state", "tag_ref_state_sha256", "observed_at"
+        "tag", "target_commitish", "draft", "prerelease", "assets", "pypi_files",
+        "observed_at"
       ],
       "properties": {
         "schema_version": {"const": "openadapt.production-release-staging-evidence/v1"},
         "publication_mode": {
-          "enum": ["draft-before-tag", "already-published-pypi"]
+          "enum": [
+            "draft-before-tag",
+            "already-published-pypi",
+            "already-published-deployment"
+          ]
         },
         "repository": {"type": "string", "pattern": "^OpenAdaptAI/[A-Za-z0-9._-]+$"},
         "repository_id": {"$ref": "#/$defs/decimal_id"},
-        "draft_release_id": {"$ref": "#/$defs/decimal_id"},
+        "draft_release_id": {
+          "oneOf": [{"$ref": "#/$defs/decimal_id"}, {"type": "null"}]
+        },
         "tag": {"type": "string", "minLength": 1, "maxLength": 120},
         "target_commitish": {"$ref": "#/$defs/commit"},
         "draft": {"type": "boolean"},
@@ -270,7 +278,18 @@
         "release_app_id": {"const": "4730708"},
         "release_app_installation_id": {"const": "156835568"},
         "release_app_bot_user_id": {"const": "321543906"},
-        "release_author_login": {"const": "openadapt-release[bot]"},
+        "release_author_login": {
+          "oneOf": [
+            {"type": "string", "minLength": 1, "maxLength": 100},
+            {"type": "null"}
+          ]
+        },
+        "deployment_id": {"$ref": "#/$defs/decimal_id"},
+        "deployment_url": {
+          "type": "string",
+          "pattern": "^https://[A-Za-z0-9.-]+(?:/.*)?$",
+          "maxLength": 300
+        },
         "assets": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/staged_asset"}},
         "pypi_files": {
           "oneOf": [
@@ -323,9 +342,17 @@
             "required": ["publication_mode"]
           },
           "then": {
+            "required": [
+              "draft_release_id", "release_app_id", "release_app_installation_id",
+              "release_app_bot_user_id", "release_author_login",
+              "immutable_releases", "immutable_releases_sha256", "tag_rulesets",
+              "tag_rulesets_sha256", "tag_ref_state", "tag_ref_state_sha256"
+            ],
             "properties": {
               "draft": {"const": true},
               "pypi_files": {"type": "null"},
+              "draft_release_id": {"$ref": "#/$defs/decimal_id"},
+              "release_author_login": {"const": "openadapt-release[bot]"},
               "tag_ref_state": {
                 "properties": {"exists": {"const": false}}
               }
@@ -338,6 +365,12 @@
             "required": ["publication_mode"]
           },
           "then": {
+            "required": [
+              "draft_release_id", "release_app_id", "release_app_installation_id",
+              "release_app_bot_user_id", "release_author_login",
+              "immutable_releases", "immutable_releases_sha256", "tag_rulesets",
+              "tag_rulesets_sha256", "tag_ref_state", "tag_ref_state_sha256"
+            ],
             "properties": {
               "draft": {"const": false},
               "pypi_files": {
@@ -349,6 +382,19 @@
               "tag_ref_state": {
                 "properties": {"exists": {"const": true}}
               }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {"publication_mode": {"const": "already-published-deployment"}},
+            "required": ["publication_mode"]
+          },
+          "then": {
+            "required": ["deployment_id", "deployment_url"],
+            "properties": {
+              "draft": {"const": false},
+              "pypi_files": {"type": "null"}
             }
           }
         }
