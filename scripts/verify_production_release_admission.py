@@ -370,11 +370,11 @@ def fetch_pair(
             raise trust.TrustError("signer registry identity differs")
         if require_active:
             now = datetime.now(timezone.utc)
-            if not (
-                evidence._timestamp(signer_value["generated_at"], "generated_at")
-                <= now
-                < evidence._timestamp(signer_value["expires_at"], "expires_at")
-            ):
+            generated = evidence._timestamp(signer_value["generated_at"], "generated_at")
+            expires = evidence.optional_timestamp(
+                signer_value["expires_at"], "expires_at"
+            )
+            if now < generated or (expires is not None and now >= expires):
                 raise trust.TrustError("current signer registry is not active")
         return signer_value
 

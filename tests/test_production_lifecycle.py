@@ -1118,7 +1118,8 @@ class PublishedPolicyTests(unittest.TestCase):
         self.assertEqual(
             lifecycle.POLICY_SCHEMA, "openadapt.production-lifecycle-policy/v3"
         )
-        self.assertGreaterEqual(policy["revision"], 3)
+        self.assertGreaterEqual(policy["revision"], 4)
+        self.assertEqual(policy["admission_validity"], "until_revoked")
         self.assertNotIn("summary_authority", policy)
         self.assertNotIn("maximum_admission_days", policy)
         self.assertEqual(
@@ -1148,12 +1149,18 @@ class PublishedPolicyTests(unittest.TestCase):
 
 
 class AdmissionWindowTests(unittest.TestCase):
-    """The two v2 maximums must be the windows the trust core enforces."""
+    """Live admissions stay valid until revoked. The retained ledger keeps 30 days."""
 
-    def test_release_maximum_governs_the_retained_expiry(self) -> None:
+    def test_live_policy_is_until_revoked(self) -> None:
         policy = load_policy()
-        self.assertEqual(policy["maximum_release_admission_days"], 30)
-        self.assertEqual(lifecycle.RELEASE_ADMISSION_MAXIMUM_DAYS, 30)
+        self.assertEqual(policy["admission_validity"], "until_revoked")
+        self.assertIsNone(policy["maximum_release_admission_days"])
+        self.assertIsNone(policy["maximum_workflow_admission_days"])
+        self.assertIsNone(lifecycle.RELEASE_ADMISSION_MAXIMUM_DAYS)
+        self.assertIsNone(lifecycle.WORKFLOW_ADMISSION_MAXIMUM_DAYS)
+
+    def test_retained_ledger_still_uses_the_historical_thirty_day_bound(self) -> None:
+        self.assertEqual(lifecycle.RETAINED_RELEASE_ADMISSION_MAXIMUM_DAYS, 30)
         admissions, _summary, remote = build_case(
             issued_at="2026-08-18T11:00:00Z",
             expires_at="2026-09-17T11:00:00Z",
@@ -1170,50 +1177,29 @@ class AdmissionWindowTests(unittest.TestCase):
         ):
             validate_case(admissions, remote)
 
-    def test_policy_maximums_stay_within_the_historical_bound(self) -> None:
-        policy = load_policy()
-        for key in (
-            "maximum_release_admission_days",
-            "maximum_workflow_admission_days",
-        ):
-            with self.subTest(key=key):
-                self.assertIsInstance(policy[key], int)
-                self.assertGreaterEqual(policy[key], 1)
-                self.assertLessEqual(policy[key], 30)
-        self.assertLessEqual(
-            policy["maximum_workflow_admission_days"],
-            policy["maximum_release_admission_days"],
-        )
-
-    def test_declared_maximums_match_the_enforced_windows(self) -> None:
-        # production_trust is the v2 trust core.  validate_release applies the
-        # release window to openadapt.qualification-release/v2 and
-        # validate_qualification_admission applies the workflow window to
-        # openadapt.qualification-admission/v4.  A drift between the declared
-        # policy numbers and those call sites must fail here.
-        policy = load_policy()
-        for function, days in (
-            (trust.validate_release, policy["maximum_release_admission_days"]),
-            (
-                trust.validate_qualification_admission,
-                policy["maximum_workflow_admission_days"],
-            ),
+    def test_trust_core_does_not_cap_admission_windows_by_day_count(self) -> None:
+        for function in (
+            trust.validate_release,
+            trust.validate_qualification_admission,
         ):
             with self.subTest(function=function.__name__):
                 source = inspect.getsource(function)
                 self.assertIn("validate_window(", source)
-                self.assertIn(f"maximum=timedelta(days={days})", source)
+                self.assertNotIn("timedelta(days=7)", source)
+                self.assertNotIn("timedelta(days=30)", source)
 
-    def test_policy_that_declares_another_maximum_is_refused(self) -> None:
-        for key in (
-            "maximum_release_admission_days",
-            "maximum_workflow_admission_days",
+    def test_policy_that_declares_an_admission_day_maximum_is_refused(self) -> None:
+        for key, value in (
+            ("maximum_release_admission_days", 3),
+            ("maximum_workflow_admission_days", 7),
+            ("maximum_release_admission_days", 31),
         ):
-            with self.subTest(key=key):
+            with self.subTest(key=key, value=value):
                 policy = load_policy()
-                policy[key] = 3
+                policy[key] = value
                 with self.assertRaisesRegex(
-                    lifecycle.LifecycleError, "the Production trust core enforces"
+                    lifecycle.LifecycleError,
+                    "must be null; admissions stay valid until revoked",
                 ):
                     lifecycle.validate(
                         policy,
@@ -1222,20 +1208,6 @@ class AdmissionWindowTests(unittest.TestCase):
                         policy_sha256=POLICY_DIGEST,
                         now=NOW,
                     )
-
-    def test_policy_maximum_outside_the_historical_bound_is_refused(self) -> None:
-        policy = load_policy()
-        policy["maximum_release_admission_days"] = 31
-        with self.assertRaisesRegex(
-            lifecycle.LifecycleError, "must be between 1 and 30"
-        ):
-            lifecycle.validate(
-                policy,
-                empty_admissions(),
-                *lifecycle.load_lifecycle(),
-                policy_sha256=POLICY_DIGEST,
-                now=NOW,
-            )
 
 
 class CertificateIdentityBindingTests(unittest.TestCase):

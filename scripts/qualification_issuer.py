@@ -313,6 +313,19 @@ def _timestamp(value: datetime) -> str:
     return value.replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _optional_timestamp_text(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    return _timestamp(value)
+
+
+def _earliest_expiry(*values: datetime | None) -> datetime | None:
+    present = [item for item in values if item is not None]
+    if not present:
+        return None
+    return min(present)
+
+
 def _request_digest(value: Mapping[str, Any]) -> str:
     return trust.digest_bytes(REQUEST_DOMAIN, value)
 
@@ -363,7 +376,7 @@ def _active_trust_state(
     authority_evidence: ResolvedEvidence,
     revocation_evidence: ResolvedEvidence,
     now: datetime,
-) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], datetime]:
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], datetime | None]:
     try:
         registry = evidence.validate_signer_registry(current_signer_registry)
     except evidence.EvidenceRegistryError as exc:
@@ -419,10 +432,10 @@ def _active_trust_state(
             in revoked
         ):
             raise IssuerError("an active signer key is revoked")
-    expiry = min(
-        evidence._timestamp(registry["expires_at"], "signer registry expires_at"),
-        trust.require_timestamp(authority["expires_at"], "authority expires_at"),
-        trust.require_timestamp(revocation["expires_at"], "revocation expires_at"),
+    expiry = _earliest_expiry(
+        evidence.optional_timestamp(registry["expires_at"], "signer registry expires_at"),
+        trust.optional_timestamp(authority["expires_at"], "authority expires_at"),
+        trust.optional_timestamp(revocation["expires_at"], "revocation expires_at"),
     )
     return registry, authority, revocation, expiry
 
@@ -582,12 +595,11 @@ def issue_workflow_admission(
         )
 
     issue_time = now.replace(microsecond=0)
-    expiry = min(
-        issue_time + timedelta(days=7),
+    expiry = _earliest_expiry(
         trust_expiry,
-        trust.require_timestamp(receipt["expires_at"], "receipt expires_at"),
+        trust.optional_timestamp(receipt["expires_at"], "receipt expires_at"),
     )
-    if expiry <= issue_time:
+    if expiry is not None and expiry <= issue_time:
         raise IssuerError("workflow admission has no positive active window")
     admission = {
         "schema_version": "openadapt.qualification-admission/v4",
@@ -619,7 +631,7 @@ def issue_workflow_admission(
         "verdict": "accepted",
         "issued_at": _timestamp(issue_time),
         "not_before": _timestamp(issue_time),
-        "expires_at": _timestamp(expiry),
+        "expires_at": _optional_timestamp_text(expiry),
         "issuer": {
             "repository": "OpenAdaptAI/.github",
             "repository_id": "858454062",
@@ -824,12 +836,11 @@ def issue_release_admission(
         )
 
     issue_time = now.replace(microsecond=0)
-    expiry = min(
-        issue_time + timedelta(days=30),
+    expiry = _earliest_expiry(
         trust_expiry,
-        trust.require_timestamp(summary["expires_at"], "summary expires_at"),
+        trust.optional_timestamp(summary["expires_at"], "summary expires_at"),
     )
-    if expiry <= issue_time:
+    if expiry is not None and expiry <= issue_time:
         raise IssuerError("release admission has no positive active window")
     release = {
         "schema_version": "openadapt.qualification-release/v2",
@@ -854,7 +865,7 @@ def issue_release_admission(
         "publication_policy_sha256": summary["acceptance_policy_sha256"],
         "issued_at": _timestamp(issue_time),
         "not_before": _timestamp(issue_time),
-        "expires_at": _timestamp(expiry),
+        "expires_at": _optional_timestamp_text(expiry),
         "issuer": {
             "repository": "OpenAdaptAI/.github",
             "repository_id": "858454062",
@@ -906,8 +917,9 @@ def interface_contract() -> dict[str, Any]:
         "release_request_schema": "openadapt.qualification-release-issue-request/v1",
         "workflow_output_schema": "openadapt.qualification-admission/v4",
         "release_output_schema": "openadapt.qualification-release/v2",
-        "workflow_maximum_lifetime_seconds": 7 * 24 * 60 * 60,
-        "release_maximum_lifetime_seconds": 30 * 24 * 60 * 60,
+        "admission_validity": "until_revoked",
+        "workflow_maximum_lifetime_seconds": None,
+        "release_maximum_lifetime_seconds": None,
         "registry_resolution": "exact-commit-registered-adjacent-bundle-verified",
         "one_use_effect": "durable-atomic-result-bound-reconciliation-required",
         "retry_policy": "reconcile-never-retry",

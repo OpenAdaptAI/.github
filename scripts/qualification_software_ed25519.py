@@ -11,8 +11,8 @@ on the founder's Mac.
 
 ``local-candidate`` builds an unpublished, Keychain-signed registry candidate
 with ``activation_state=not-installed`` and ``clock=unset``. It does not write
-``generated_at`` or ``expires_at``, so it cannot start the seven-day live
-registry clock. Do not copy its output onto ``main``.
+``generated_at`` or ``expires_at``, so it cannot start the live registry clock.
+Do not copy its output onto ``main``.
 """
 
 from __future__ import annotations
@@ -157,20 +157,20 @@ def signer_registry_candidate(
     public_material_value: Mapping[str, str],
     revision: int,
     generated_at: datetime,
-    expires_at: datetime,
+    expires_at: datetime | None = None,
 ) -> dict[str, Any]:
     """Build an inactive candidate from the founder-held public half."""
 
     if isinstance(revision, bool) or not isinstance(revision, int) or revision < 1:
         raise SoftwareEd25519Error("registry revision must be a positive integer")
-    if not generated_at < expires_at <= generated_at + timedelta(days=7):
-        raise SoftwareEd25519Error("signer registry lifetime must be at most seven days")
+    if expires_at is not None and not generated_at < expires_at:
+        raise SoftwareEd25519Error("signer registry expiry must be after generated_at")
     signer = signer_from_public_material(public_material_value)
     proposed_registry = {
         "schema_version": "openadapt.qualification-signer-registry/v2",
         "revision": revision,
         "generated_at": format_timestamp(generated_at),
-        "expires_at": format_timestamp(expires_at),
+        "expires_at": None if expires_at is None else format_timestamp(expires_at),
         "signers": [signer],
     }
     try:
@@ -210,8 +210,9 @@ def unsigned_local_registry_candidate(
     """Build an unpublished candidate with no registry clock.
 
     The result is not a live signer registry. It omits ``generated_at`` and
-    ``expires_at`` so copying it onto ``main`` cannot start a seven-day
-    window. A later publish step must stamp those fields at publish time.
+    ``expires_at`` so copying it onto ``main`` cannot start the live
+    registry clock. A later publish step must stamp those fields at publish
+    time.
     """
 
     if isinstance(revision, bool) or not isinstance(revision, int) or revision < 1:
@@ -534,7 +535,10 @@ def main(argv: list[str] | None = None) -> int:
     registry_parser.add_argument("--public-material", required=True)
     registry_parser.add_argument("--revision", required=True, type=int)
     registry_parser.add_argument("--generated-at", required=True)
-    registry_parser.add_argument("--expires-at", required=True)
+    registry_parser.add_argument(
+        "--expires-at",
+        help="UTC timestamp, or omit / pass null for until-revoked",
+    )
 
     local_parser = subparsers.add_parser("local-candidate")
     local_parser.add_argument("--revision", required=True, type=int)
@@ -561,13 +565,17 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "interface":
             result: Any = interface_contract()
         elif args.command == "registry-candidate":
+            expires_raw = args.expires_at
+            expires_at = None
+            if expires_raw not in (None, "", "null"):
+                expires_at = _parse_timestamp(expires_raw)
             result = signer_registry_candidate(
                 public_material_value=json.loads(
                     Path(args.public_material).read_text(encoding="utf-8")
                 ),
                 revision=args.revision,
                 generated_at=_parse_timestamp(args.generated_at),
-                expires_at=_parse_timestamp(args.expires_at),
+                expires_at=expires_at,
             )
         elif args.command == "local-candidate":
             sources = [args.pem_file, args.from_keychain]

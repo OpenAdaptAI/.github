@@ -17,7 +17,7 @@ import json
 import re
 import sys
 from collections.abc import Mapping
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -217,6 +217,22 @@ def _timestamp(value: Any, label: str) -> datetime:
         raise EvidenceRegistryError(f"{label} is not a calendar timestamp") from exc
 
 
+def optional_timestamp(value: Any, label: str) -> datetime | None:
+    if value is None:
+        return None
+    return _timestamp(value, label)
+
+
+def _revocation_in_lifetime(
+    generated_at: datetime, revoked_at: datetime, expires_at: datetime | None
+) -> bool:
+    if revoked_at < generated_at:
+        return False
+    if expires_at is not None and revoked_at > expires_at:
+        return False
+    return True
+
+
 def semantic_identity_digest(
     *, kind: str, object_schema_version: str, object_value: Any, object_sha256: str
 ) -> str:
@@ -286,10 +302,10 @@ def validate_signer_registry(value: Any) -> dict[str, Any]:
         raise EvidenceRegistryError("signer registry schema is not supported")
     _positive_integer(registry["revision"], "signer registry revision")
     generated_at = _timestamp(registry["generated_at"], "signer registry generated_at")
-    expires_at = _timestamp(registry["expires_at"], "signer registry expires_at")
-    if not generated_at < expires_at <= generated_at + timedelta(days=7):
+    expires_at = optional_timestamp(registry["expires_at"], "signer registry expires_at")
+    if expires_at is not None and not generated_at < expires_at:
         raise EvidenceRegistryError(
-            "signer registry lifetime must be positive and at most seven days"
+            "signer registry expiry must be after generated_at"
         )
     signers = registry["signers"]
     if not isinstance(signers, list) or not signers:
@@ -313,7 +329,7 @@ def validate_signer_registry(value: Any) -> dict[str, Any]:
             seen_ids.add(key_id)
             if signer["status"] == "revoked":
                 revoked_at = _timestamp(signer["revoked_at"], f"{label} revoked_at")
-                if not generated_at <= revoked_at <= expires_at:
+                if not _revocation_in_lifetime(generated_at, revoked_at, expires_at):
                     raise EvidenceRegistryError(
                         f"{label} revocation time is outside the registry lifetime"
                     )
@@ -460,7 +476,7 @@ def validate_signer_registry(value: Any) -> dict[str, Any]:
                 )
         elif signer["status"] == "revoked":
             revoked_at = _timestamp(signer["revoked_at"], f"{label} revoked_at")
-            if not generated_at <= revoked_at <= expires_at:
+            if not _revocation_in_lifetime(generated_at, revoked_at, expires_at):
                 raise EvidenceRegistryError(
                     f"{label} revocation time is outside the registry lifetime"
                 )

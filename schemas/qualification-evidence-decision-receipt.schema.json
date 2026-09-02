@@ -77,7 +77,7 @@
     "verdict": {"const": "ADMIT"},
     "issued_at": {"$ref": "#/$defs/timestamp"},
     "not_before": {"$ref": "#/$defs/timestamp"},
-    "expires_at": {"$ref": "#/$defs/timestamp"},
+    "expires_at": {"oneOf": [{"$ref": "#/$defs/timestamp"}, {"type": "null"}]},
     "issuer_key_id": {"type": "string", "pattern": "^qa-ed25519-[0-9a-f]{16}$"},
     "algorithm": {"const": "ed25519"},
     "signing_statement": {"$ref": "#/$defs/signing_statement"},

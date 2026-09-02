@@ -279,11 +279,16 @@ class RecordingResolver:
         return self.authority, self.revocation
 
 
-def trust_fixture(*, decision_origin: str = "aws-kms") -> dict:
+def trust_fixture(
+    *,
+    decision_origin: str = "aws-kms",
+    expires_at: datetime | None = EXPIRES,
+) -> dict:
     decision_key, _decision_raw, decision_spki = ed25519_material(1)
     authority_key, _authority_raw, _authority_spki = ed25519_material(33)
     revocation_key, _revocation_raw, _revocation_spki = ed25519_material(65)
     private_decision_key, _private_raw, _private_spki = ed25519_material(97)
+    expires_text = None if expires_at is None else utc(expires_at)
     if decision_origin == "aws-kms":
         decision_registry = kms.signer_registry_candidate(
             kms_public_key_projection={
@@ -295,7 +300,7 @@ def trust_fixture(*, decision_origin: str = "aws-kms") -> dict:
             },
             revision=1,
             generated_at=NOW,
-            expires_at=EXPIRES,
+            expires_at=expires_at,
         )
         registry = copy.deepcopy(decision_registry["proposed_registry"])
     elif decision_origin == "software":
@@ -303,7 +308,7 @@ def trust_fixture(*, decision_origin: str = "aws-kms") -> dict:
             "schema_version": "openadapt.qualification-signer-registry/v2",
             "revision": 1,
             "generated_at": utc(NOW),
-            "expires_at": utc(EXPIRES),
+            "expires_at": expires_text,
             "signers": [
                 ordinary_signer(
                     decision_key,
@@ -353,7 +358,7 @@ def trust_fixture(*, decision_origin: str = "aws-kms") -> dict:
         "evidence_authority_sha256": sha("synthetic-evidence-authority"),
         "observed_at": utc(NOW),
         "not_before": utc(NOW),
-        "expires_at": utc(EXPIRES),
+        "expires_at": expires_text,
         "issuer_key_id": registry["signers"][1]["key_id"],
         "algorithm": "ed25519",
         "signing_statement": None,
@@ -393,7 +398,7 @@ def trust_fixture(*, decision_origin: str = "aws-kms") -> dict:
         "revocations": [],
         "observed_at": utc(NOW),
         "not_before": utc(NOW),
-        "expires_at": utc(EXPIRES),
+        "expires_at": expires_text,
         "issuer_key_id": registry["signers"][2]["key_id"],
         "algorithm": "ed25519",
         "signing_statement": None,
@@ -460,7 +465,7 @@ def trust_fixture(*, decision_origin: str = "aws-kms") -> dict:
         "verdict": "ADMIT",
         "issued_at": utc(NOW),
         "not_before": utc(NOW),
-        "expires_at": utc(EXPIRES),
+        "expires_at": expires_text,
         "issuer_key_id": registry["signers"][0]["key_id"],
         "algorithm": "ed25519",
         "signing_statement": None,
@@ -498,6 +503,7 @@ def trust_fixture(*, decision_origin: str = "aws-kms") -> dict:
         "receipt": receipt,
         "receipt_ref": receipt_ref,
         "receipt_bundle_ref": receipt_bundle_ref,
+        "expires_at": expires_text,
     }
 
 
@@ -669,7 +675,7 @@ def flow_release_inputs(
         ),
         "issued_at": utc(NOW),
         "not_before": utc(NOW),
-        "expires_at": utc(EXPIRES),
+        "expires_at": fixture["expires_at"],
         "issuer": {
             "repository": "OpenAdaptAI/openadapt-evals",
             "repository_id": "1135998197",
@@ -1045,7 +1051,11 @@ class QualificationIssuerTests(unittest.TestCase):
     def test_oidc_contract_is_exact_and_inactive(self) -> None:
         contract = kms.interface_contract()
         self.assertEqual(contract["activation_state"], "inactive")
-        self.assertEqual(issuer.interface_contract()["activation_state"], "inactive")
+        issuer_contract = issuer.interface_contract()
+        self.assertEqual(issuer_contract["activation_state"], "inactive")
+        self.assertEqual(issuer_contract["admission_validity"], "until_revoked")
+        self.assertIsNone(issuer_contract["workflow_maximum_lifetime_seconds"])
+        self.assertIsNone(issuer_contract["release_maximum_lifetime_seconds"])
         self.assertEqual(contract["aws_account_id"], "992382684924")
         commit = "a" * 40
         claims = {
@@ -1107,6 +1117,41 @@ class QualificationIssuerTests(unittest.TestCase):
                 issuer_source_commit="1" * 40,
                 now=NOW,
                 consumer=consumer,
+            )
+
+    def test_null_expires_at_issues_until_revoked_admission(self) -> None:
+        fixture = trust_fixture(expires_at=None)
+        resolver = RecordingResolver(fixture)
+        admission = issuer.issue_workflow_admission(
+            workflow_request(fixture),
+            resolver=resolver,
+            issuer_source_commit="1" * 40,
+            now=NOW,
+            consumer=RecordingConsumer(),
+        )
+        self.assertIsNone(admission["expires_at"])
+        later = NOW + timedelta(days=400)
+        trust.validate_qualification_admission(admission, now=later)
+        release_request = flow_release_inputs(fixture, admission, resolver)
+        release = issuer.issue_release_admission(
+            release_request,
+            resolver=resolver,
+            issuer_source_commit="2" * 40,
+            now=NOW,
+            consumer=RecordingConsumer(),
+        )
+        self.assertIsNone(release["expires_at"])
+        trust.validate_release(release, now=later)
+
+    def test_past_expires_at_does_not_issue(self) -> None:
+        fixture = trust_fixture(expires_at=NOW + timedelta(hours=1))
+        with self.assertRaisesRegex(trust.TrustError, "not active"):
+            issuer.issue_workflow_admission(
+                workflow_request(fixture),
+                resolver=RecordingResolver(fixture),
+                issuer_source_commit="1" * 40,
+                now=NOW + timedelta(hours=2),
+                consumer=RecordingConsumer(),
             )
 
     def test_workflow_root_must_be_in_the_issuer_source_commit(self) -> None:
@@ -1283,7 +1328,6 @@ class QualificationIssuerTests(unittest.TestCase):
             [item["kind"] for item in release["release"]["artifacts"]],
             ["python-sdist", "python-wheel"],
         )
-        # The schema permits 30 days. The seven-day evidence chain contains it.
         self.assertEqual(release["expires_at"], utc(EXPIRES))
         self.assertEqual(consumer.calls[0]["operation"], "issue-qualification-release")
 

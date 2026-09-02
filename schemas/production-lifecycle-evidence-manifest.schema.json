@@ -55,7 +55,7 @@
     "signer_registry_sha256": {"$ref": "#/$defs/digest"},
     "issued_at": {"$ref": "#/$defs/timestamp"},
     "not_before": {"$ref": "#/$defs/timestamp"},
-    "expires_at": {"$ref": "#/$defs/timestamp"},
+    "expires_at": {"oneOf": [{"$ref": "#/$defs/timestamp"}, {"type": "null"}]},
     "issuer": {"$ref": "#/$defs/issuer"}
   },
   "$defs": {

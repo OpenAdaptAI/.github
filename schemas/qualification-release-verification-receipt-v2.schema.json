@@ -80,7 +80,7 @@
     "workflow_bundle_sha256": {"$ref": "#/$defs/digest"},
     "admitted_runtime_sha256": {"$ref": "#/$defs/digest"},
     "verified_at": {"$ref": "#/$defs/timestamp"},
-    "expires_at": {"$ref": "#/$defs/timestamp"},
+    "expires_at": {"oneOf": [{"$ref": "#/$defs/timestamp"}, {"type": "null"}]},
     "registry_source_commit": {"$ref": "#/$defs/commit"},
     "registry_revision": {"type": "integer", "minimum": 1},
     "registry_head_sha256": {"$ref": "#/$defs/digest"},

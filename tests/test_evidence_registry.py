@@ -319,6 +319,24 @@ class EvidenceRegistryTests(unittest.TestCase):
         with self.assertRaisesRegex(registry.EvidenceRegistryError, "bind"):
             registry.validate_signer_registry(value)
 
+    def test_signer_registry_null_expires_at_is_until_revoked(self) -> None:
+        value = signer_registry(ed25519_signer(1, "qualification-evidence-decision-receipt"))
+        value["expires_at"] = None
+        self.assertEqual(registry.validate_signer_registry(value), value)
+
+    def test_signer_registry_refuses_expiry_at_or_before_generated_at(self) -> None:
+        value = signer_registry(ed25519_signer(1, "qualification-evidence-decision-receipt"))
+        value["expires_at"] = value["generated_at"]
+        with self.assertRaisesRegex(
+            registry.EvidenceRegistryError, "after generated_at"
+        ):
+            registry.validate_signer_registry(value)
+
+    def test_signer_registry_accepts_a_timestamp_beyond_seven_days(self) -> None:
+        value = signer_registry(ed25519_signer(1, "qualification-evidence-decision-receipt"))
+        value["expires_at"] = "2027-08-27T00:00:00Z"
+        self.assertEqual(registry.validate_signer_registry(value), value)
+
     def test_recovery_receipt_uses_one_distinct_active_signer(self) -> None:
         schema = json.loads(
             (ROOT / "schemas/qualification-signer-registry.schema.json").read_text()

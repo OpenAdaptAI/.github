@@ -9,7 +9,7 @@
     "schema_version": {"const": "openadapt.qualification-signer-registry/v2"},
     "revision": {"type": "integer", "minimum": 1},
     "generated_at": {"$ref": "#/$defs/timestamp"},
-    "expires_at": {"$ref": "#/$defs/timestamp"},
+    "expires_at": {"oneOf": [{"$ref": "#/$defs/timestamp"}, {"type": "null"}]},
     "signers": {
       "type": "array",
       "minItems": 1,
