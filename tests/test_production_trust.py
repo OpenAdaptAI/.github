@@ -287,6 +287,7 @@ def release_admission() -> dict:
     normalized_rulesets = rulesets()
     staging = {
         "schema_version": "openadapt.production-release-staging-evidence/v1",
+        "publication_mode": "draft-before-tag",
         "repository": "OpenAdaptAI/openadapt-capture",
         "repository_id": "1115283835",
         "draft_release_id": "20",
@@ -314,6 +315,7 @@ def release_admission() -> dict:
                 sorted(artifacts, key=lambda item: item["name"])
             )
         ],
+        "pypi_files": None,
         "immutable_releases": {"enabled": True, "enforced_by_owner": False},
         "immutable_releases_sha256": trust.digest_bytes(
             trust.IMMUTABLE_RELEASES_DOMAIN,
@@ -400,6 +402,36 @@ def release_admission() -> dict:
         trust.RELEASE_ADMISSION_DOMAIN, projection
     )
     return value
+
+
+def refresh_release_admission(value: dict) -> dict:
+    staging = value["publication_staging"]
+    staging["immutable_releases_sha256"] = trust.digest_bytes(
+        trust.IMMUTABLE_RELEASES_DOMAIN, staging["immutable_releases"]
+    )
+    staging["tag_rulesets_sha256"] = trust.digest_bytes(
+        trust.TAG_RULESETS_DOMAIN, staging["tag_rulesets"]
+    )
+    staging["tag_ref_state_sha256"] = trust.digest_bytes(
+        trust.TAG_REF_STATE_DOMAIN, staging["tag_ref_state"]
+    )
+    value["publication_staging_sha256"] = trust.staging_digest(staging)
+    projection = dict(value)
+    projection.pop("admission_id_sha256")
+    value["admission_id_sha256"] = trust.digest_bytes(
+        trust.RELEASE_ADMISSION_DOMAIN, projection
+    )
+    return value
+
+
+def already_published_pypi_release_admission() -> dict:
+    value = release_admission()
+    staging = value["publication_staging"]
+    staging["publication_mode"] = trust.PUBLICATION_MODE_ALREADY_PUBLISHED_PYPI
+    staging["draft"] = False
+    staging["tag_ref_state"]["exists"] = True
+    staging["pypi_files"] = trust.pypi_files_from_assets(staging["assets"])
+    return refresh_release_admission(value)
 
 
 def cloud_handoff() -> dict:
@@ -928,6 +960,67 @@ class ProductionTrustTests(unittest.TestCase):
         ]
         with self.assertRaisesRegex(trust.TrustError, "bypass"):
             trust.validate_release(invalid)
+
+    def test_already_published_pypi_allows_existing_tag_without_a_draft(self) -> None:
+        value = already_published_pypi_release_admission()
+        staging = value["publication_staging"]
+        self.assertEqual(staging["publication_mode"], "already-published-pypi")
+        self.assertFalse(staging["draft"])
+        self.assertTrue(staging["tag_ref_state"]["exists"])
+        self.assertEqual(
+            [item["filename"] for item in staging["pypi_files"]],
+            [
+                "openadapt_capture-1.0.0-py3-none-any.whl",
+                "openadapt_capture-1.0.0.tar.gz",
+            ],
+        )
+        self.assertEqual(trust.validate_release(value), value)
+
+    def test_already_published_pypi_requires_pypi_sha256s_to_match_artifacts(
+        self,
+    ) -> None:
+        value = already_published_pypi_release_admission()
+        value["publication_staging"]["pypi_files"][0]["sha256"] = sha("9")
+        refresh_release_admission(value)
+        with self.assertRaisesRegex(trust.TrustError, "observed PyPI files differ"):
+            trust.validate_release(value)
+
+    def test_draft_before_tag_still_refuses_an_existing_tag_or_published_release(
+        self,
+    ) -> None:
+        existing_tag = release_admission()
+        existing_tag["publication_staging"]["tag_ref_state"]["exists"] = True
+        refresh_release_admission(existing_tag)
+        with self.assertRaisesRegex(trust.TrustError, "must not exist"):
+            trust.validate_release(existing_tag)
+        published = release_admission()
+        published["publication_staging"]["draft"] = False
+        refresh_release_admission(published)
+        with self.assertRaisesRegex(
+            trust.TrustError, "publication staging authority or state differs"
+        ):
+            trust.validate_release(published)
+        with_pypi = release_admission()
+        with_pypi["publication_staging"]["pypi_files"] = trust.pypi_files_from_assets(
+            with_pypi["publication_staging"]["assets"]
+        )
+        refresh_release_admission(with_pypi)
+        with self.assertRaisesRegex(trust.TrustError, "must not include PyPI files"):
+            trust.validate_release(with_pypi)
+
+    def test_already_published_pypi_refuses_a_draft_or_missing_tag(self) -> None:
+        draft = already_published_pypi_release_admission()
+        draft["publication_staging"]["draft"] = True
+        refresh_release_admission(draft)
+        with self.assertRaisesRegex(
+            trust.TrustError, "publication staging authority or state differs"
+        ):
+            trust.validate_release(draft)
+        missing_tag = already_published_pypi_release_admission()
+        missing_tag["publication_staging"]["tag_ref_state"]["exists"] = False
+        refresh_release_admission(missing_tag)
+        with self.assertRaisesRegex(trust.TrustError, "requires the release tag"):
+            trust.validate_release(missing_tag)
 
     def test_release_refuses_noncanonical_or_output_injecting_package_identity(
         self,

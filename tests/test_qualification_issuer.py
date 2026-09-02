@@ -585,6 +585,7 @@ def flow_release_inputs(
     ]
     staging = {
         "schema_version": "openadapt.production-release-staging-evidence/v1",
+        "publication_mode": "draft-before-tag",
         "repository": "OpenAdaptAI/openadapt-flow",
         "repository_id": "1291376938",
         "draft_release_id": "20",
@@ -607,6 +608,7 @@ def flow_release_inputs(
                 sorted(artifacts, key=lambda item: item["name"])
             )
         ],
+        "pypi_files": None,
         "immutable_releases": {"enabled": True, "enforced_by_owner": False},
         "immutable_releases_sha256": trust.digest_bytes(
             trust.IMMUTABLE_RELEASES_DOMAIN,
