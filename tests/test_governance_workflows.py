@@ -25,11 +25,15 @@ INACTIVE_ISSUER_WORKFLOWS = {
         "interface_command": "python3 scripts/qualification_issuer.py interface",
         "interface_label": "admission issuer",
     },
+    "issue-production-release-admission.yml": {
+        "interface_command": "python3 scripts/qualification_issuer.py interface",
+        "interface_label": "release admission issuer",
+    },
     "issue-synthetic-qualification-evidence-decision.yml": {
         "interface_command": (
-            "python3 scripts/qualification_kms_ed25519.py interface"
+            "python3 scripts/qualification_software_ed25519.py interface"
         ),
-        "interface_label": "KMS issuer",
+        "interface_label": "software issuer",
     },
 }
 
@@ -173,6 +177,25 @@ class GovernanceWorkflowContractTests(unittest.TestCase):
             self.assertIn("cancel-in-progress: false", content, filename)
             for marker in forbidden:
                 self.assertNotIn(marker, content, f"{filename}: {marker}")
+
+    def test_synthetic_decision_issuer_uses_software_ed25519_not_kms(self) -> None:
+        content = _read(
+            ".github/workflows/issue-synthetic-qualification-evidence-decision.yml"
+        )
+        self.assertIn(
+            "python3 scripts/qualification_software_ed25519.py interface",
+            content,
+        )
+        self.assertNotIn("qualification_kms_ed25519.py", content)
+        self.assertNotIn("KMS/OIDC", content)
+        self.assertIn("aws_required", content)
+        self.assertIn(
+            "OPENADAPT_QUALIFICATION_ED25519_PRIVATE_KEY",
+            content,
+        )
+        self.assertNotIn("${{ secrets.", content)
+        self.assertNotIn("id-token:", content)
+        self.assertIn("signer_registry", content)
 
     def test_lifecycle_workflows_are_app_only_review_paths(self) -> None:
         for filename, environment in LIFECYCLE_WORKFLOWS.items():
