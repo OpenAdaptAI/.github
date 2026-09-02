@@ -1478,13 +1478,30 @@ def _validate_v2_release_admission(
             )
         except evidence_registry.EvidenceRegistryError as exc:
             raise LifecycleError(str(exc)) from exc
-        if (
-            reference["registry_revision"] != registry_document["revision"]
-            or reference["registry_head_sha256"]
+        # Historical rows keep the registry snapshot they were issued
+        # against. Append-only history forbids rewriting them onto the
+        # current revision. New rows bind the current registry.
+        current_revision = registry_document["revision"]
+        bound_revision = reference["registry_revision"]
+        if bound_revision > current_revision:
+            raise LifecycleError(
+                "qualification-release reference binds a future registry revision"
+            )
+        if bound_revision == current_revision and (
+            reference["registry_head_sha256"]
             != registry_document["registry_head_sha256"]
         ):
             raise LifecycleError(
                 "qualification-release reference does not bind the current registry"
+            )
+        previous_head = registry_document.get("previous_registry_head_sha256")
+        if (
+            bound_revision == current_revision - 1
+            and previous_head is not None
+            and reference["registry_head_sha256"] != previous_head
+        ):
+            raise LifecycleError(
+                "qualification-release reference does not bind the previous registry"
             )
     elif _is_v2_release_object(item):
         object_sha = "sha256:" + hashlib.sha256(

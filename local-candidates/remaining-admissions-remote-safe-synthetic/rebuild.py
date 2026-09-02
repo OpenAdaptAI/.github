@@ -1376,9 +1376,19 @@ def merge_into_main(results: list[dict[str, Any]], *, registry_source_commit: st
     evidence.validate_registry(document, root=ROOT)
     registry_path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
 
-    admissions = []
+    ledger_path = ROOT / "production-lifecycle-admissions.json"
+    previous_ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+    previous_admissions = previous_ledger["admissions"]
+    existing_object_sha256s = {
+        item["object_sha256"]
+        for item in previous_admissions
+        if isinstance(item, dict) and "object_sha256" in item
+    }
+    admissions = list(previous_admissions)
     for entry in document["entries"]:
         if entry["kind"] != "qualification-release":
+            continue
+        if entry["object_sha256"] in existing_object_sha256s:
             continue
         admissions.append(
             reference_from_entry(
@@ -1396,9 +1406,7 @@ def merge_into_main(results: list[dict[str, Any]], *, registry_source_commit: st
         ),
         "admissions": admissions,
     }
-    (ROOT / "production-lifecycle-admissions.json").write_text(
-        json.dumps(ledger, indent=2) + "\n", encoding="utf-8"
-    )
+    ledger_path.write_text(json.dumps(ledger, indent=2) + "\n", encoding="utf-8")
     print(
         json.dumps(
             {
