@@ -103,6 +103,22 @@ class SoftwareEd25519Tests(unittest.TestCase):
                 material["key_id"],
             )
 
+    def test_decode_keychain_secret_accepts_hex_pem_from_macos_security(self) -> None:
+        private_key = Ed25519PrivateKey.generate()
+        pem = software.private_key_pem(private_key)
+        hexed = pem.hex().encode("ascii") + b"\n"
+        decoded = software.decode_keychain_secret(hexed)
+        loaded = software.load_private_key(decoded)
+        self.assertEqual(
+            software.public_material(loaded)["key_id"],
+            software.public_material(private_key)["key_id"],
+        )
+        plain = software.decode_keychain_secret(pem)
+        self.assertEqual(
+            software.public_material(software.load_private_key(plain))["key_id"],
+            software.public_material(private_key)["key_id"],
+        )
+
     def test_provision_refuses_existing_keychain(self) -> None:
         with mock.patch.object(
             software,

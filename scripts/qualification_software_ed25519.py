@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import binascii
 import hashlib
 import json
 import os
@@ -234,6 +235,30 @@ def _keychain_account() -> str:
     return account
 
 
+def decode_keychain_secret(raw: bytes) -> bytes:
+    """Return PEM bytes from `security -w` output.
+
+    macOS hex-encodes a generic-password value that contains newlines. The
+    GitHub secret still stores the PEM as UTF-8. Accept both forms.
+    """
+
+    text = raw.strip()
+    if not text:
+        raise SoftwareEd25519Error("Keychain backup is absent")
+    if text.startswith(b"-----BEGIN"):
+        return text + (b"" if text.endswith(b"\n") else b"\n")
+    if len(text) % 2 == 0 and all(
+        byte in b"0123456789abcdefABCDEF" for byte in text
+    ):
+        try:
+            decoded = binascii.unhexlify(text)
+        except binascii.Error as exc:
+            raise SoftwareEd25519Error("Keychain backup is not valid PEM") from exc
+        if decoded.startswith(b"-----BEGIN"):
+            return decoded if decoded.endswith(b"\n") else decoded + b"\n"
+    raise SoftwareEd25519Error("Keychain backup is not valid PEM")
+
+
 def keychain_read() -> bytes:
     result = subprocess.run(
         [
@@ -250,7 +275,7 @@ def keychain_read() -> bytes:
     )
     if result.returncode != 0 or not result.stdout.strip():
         raise SoftwareEd25519Error("Keychain backup is absent")
-    return result.stdout
+    return decode_keychain_secret(result.stdout)
 
 
 def keychain_write(pem: bytes) -> None:
