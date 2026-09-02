@@ -443,7 +443,7 @@ def _require_not_revoked(
         raise IssuerError(f"{subject_kind} is revoked")
 
 
-def _require_synthetic_kms_signer(
+def _require_synthetic_decision_signer(
     receipt: Mapping[str, Any], signer_registry: Mapping[str, Any]
 ) -> None:
     matches = [
@@ -451,12 +451,27 @@ def _require_synthetic_kms_signer(
         for signer in signer_registry["signers"]
         if signer["key_id"] == receipt["issuer_key_id"]
     ]
+    if len(matches) != 1:
+        raise IssuerError(
+            "synthetic decision receipt requires an active Ed25519 decision signer"
+        )
+    signer = matches[0]
     if (
-        len(matches) != 1
-        or matches[0].get("key_origin") != "aws-kms"
-        or matches[0].get("kms_key_arn") is None
+        signer.get("algorithm") != "ed25519"
+        or signer.get("status") != "active"
+        or "qualification-evidence-decision-receipt"
+        not in signer.get("allowed_usages", [])
     ):
-        raise IssuerError("synthetic decision receipt requires the AWS KMS signer")
+        raise IssuerError(
+            "synthetic decision receipt requires an active Ed25519 decision signer"
+        )
+    origin = signer.get("key_origin")
+    if origin == "aws-kms":
+        if signer.get("kms_key_arn") is None:
+            raise IssuerError("synthetic decision receipt requires the AWS KMS signer")
+        return
+    if origin is not None:
+        raise IssuerError("synthetic decision receipt signer origin is not supported")
 
 
 def _consume(
@@ -532,7 +547,9 @@ def issue_workflow_admission(
         raise IssuerError(
             "the synthetic issuer cannot accept private customer evidence"
         )
-    _require_synthetic_kms_signer(receipt, receipt_evidence["bound_signer_registry"])
+    _require_synthetic_decision_signer(
+        receipt, receipt_evidence["bound_signer_registry"]
+    )
     _reference_matches_resolved(
         receipt,
         receipt_evidence["reference"],
@@ -710,7 +727,9 @@ def issue_release_admission(
         raise IssuerError(
             "the synthetic issuer cannot accept private customer evidence"
         )
-    _require_synthetic_kms_signer(receipt, receipt_evidence["bound_signer_registry"])
+    _require_synthetic_decision_signer(
+        receipt, receipt_evidence["bound_signer_registry"]
+    )
     admission = trust.validate_qualification_admission(
         admission_evidence["value"], now=now
     )

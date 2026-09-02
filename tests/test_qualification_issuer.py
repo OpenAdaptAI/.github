@@ -279,24 +279,42 @@ class RecordingResolver:
         return self.authority, self.revocation
 
 
-def trust_fixture() -> dict:
+def trust_fixture(*, decision_origin: str = "aws-kms") -> dict:
     decision_key, _decision_raw, decision_spki = ed25519_material(1)
     authority_key, _authority_raw, _authority_spki = ed25519_material(33)
     revocation_key, _revocation_raw, _revocation_spki = ed25519_material(65)
     private_decision_key, _private_raw, _private_spki = ed25519_material(97)
-    decision_registry = kms.signer_registry_candidate(
-        kms_public_key_projection={
-            "KeyId": KMS_ARN,
-            "PublicKey": base64.b64encode(decision_spki).decode(),
-            "KeySpec": "ECC_NIST_EDWARDS25519",
-            "KeyUsage": "SIGN_VERIFY",
-            "SigningAlgorithms": ["ED25519_SHA_512"],
-        },
-        revision=1,
-        generated_at=NOW,
-        expires_at=EXPIRES,
-    )
-    registry = copy.deepcopy(decision_registry["proposed_registry"])
+    if decision_origin == "aws-kms":
+        decision_registry = kms.signer_registry_candidate(
+            kms_public_key_projection={
+                "KeyId": KMS_ARN,
+                "PublicKey": base64.b64encode(decision_spki).decode(),
+                "KeySpec": "ECC_NIST_EDWARDS25519",
+                "KeyUsage": "SIGN_VERIFY",
+                "SigningAlgorithms": ["ED25519_SHA_512"],
+            },
+            revision=1,
+            generated_at=NOW,
+            expires_at=EXPIRES,
+        )
+        registry = copy.deepcopy(decision_registry["proposed_registry"])
+    elif decision_origin == "software":
+        registry = {
+            "schema_version": "openadapt.qualification-signer-registry/v2",
+            "revision": 1,
+            "generated_at": utc(NOW),
+            "expires_at": utc(EXPIRES),
+            "signers": [
+                ordinary_signer(
+                    decision_key,
+                    usage="qualification-evidence-decision-receipt",
+                    repository="OpenAdaptAI/.github",
+                    workflow="issue-synthetic-qualification-evidence-decision.yml",
+                )
+            ],
+        }
+    else:
+        raise ValueError("decision_origin must be aws-kms or software")
     registry["signers"].extend(
         [
             ordinary_signer(
@@ -1603,6 +1621,33 @@ class QualificationIssuerTests(unittest.TestCase):
                 issuer.IssuerError, "stored one-use result binding differs"
             ):
                 consumer.reconcile(request_handle=values["request_handle"])
+
+    def test_software_decision_signer_issues_workflow_admission(self) -> None:
+        fixture = trust_fixture(decision_origin="software")
+        self.assertNotIn("key_origin", fixture["registry"]["signers"][0])
+        self.assertNotIn("kms_key_arn", fixture["registry"]["signers"][0])
+        admission = issuer.issue_workflow_admission(
+            workflow_request(fixture),
+            resolver=RecordingResolver(fixture),
+            issuer_source_commit=WORKFLOW_REGISTRY_COMMIT,
+            now=NOW,
+            consumer=RecordingConsumer(),
+        )
+        self.assertEqual(admission["verdict"], "accepted")
+        self.assertEqual(
+            admission["decision_receipt_reference"], fixture["receipt_ref"]
+        )
+
+    def test_software_decision_signer_helper_rejects_unknown_origin(self) -> None:
+        fixture = trust_fixture(decision_origin="software")
+        signer = dict(fixture["registry"]["signers"][0])
+        signer["key_origin"] = "unknown"
+        registry = dict(fixture["registry"])
+        registry["signers"] = [signer, *fixture["registry"]["signers"][1:]]
+        with self.assertRaisesRegex(
+            issuer.IssuerError, "signer origin is not supported"
+        ):
+            issuer._require_synthetic_decision_signer(fixture["receipt"], registry)
 
 
 if __name__ == "__main__":
