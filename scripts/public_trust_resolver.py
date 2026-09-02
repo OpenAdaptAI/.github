@@ -1,4 +1,4 @@
-"""Resolve and verify one content-addressed KMS public-trust object pair."""
+"""Resolve and verify one content-addressed public-trust object pair."""
 
 from __future__ import annotations
 
@@ -52,7 +52,7 @@ def verify_registered_public_trust_pair(
     expected_revocation_state_sha256: str,
     now: datetime | None = None,
 ) -> dict[str, Any]:
-    """Verify raw referenced object bytes and the adjacent offline KMS DSSE bundle."""
+    """Verify raw referenced object bytes and the adjacent offline DSSE bundle."""
 
     object_ref, object_value = _verify_raw_reference(
         object_raw, object_reference, label="public-trust object"
@@ -108,10 +108,17 @@ def verify_registered_public_trust_pair(
         statement = kms.statement_from_bundle(bundle_value)
     except kms.PublicTrustKmsError as exc:
         raise PublicTrustResolutionError(f"public-trust bundle is invalid: {exc}") from exc
+    profile = statement["signature_profile"]
+    if profile == kms.SIGNATURE_PROFILE:
+        expected_algorithm = "ecdsa-p256-sha256"
+    elif profile == kms.SOFTWARE_SIGNATURE_PROFILE:
+        expected_algorithm = "ed25519"
+    else:
+        raise PublicTrustResolutionError("public-trust signature profile is invalid")
     matches = [
         signer for signer in registry["signers"]
         if signer.get("key_id") == statement["key_id"]
-        and signer.get("algorithm") == "ecdsa-p256-sha256"
+        and signer.get("algorithm") == expected_algorithm
     ]
     if len(matches) != 1:
         raise PublicTrustResolutionError("public-trust bundle does not select one registry signer")

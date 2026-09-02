@@ -340,6 +340,7 @@ EXPECTED_TOP_LEVEL_FIELDS = {
         "message_signature",
         "sigstore",
         "public_trust_dsse",
+        "public_trust_software_ed25519",
     },
     "production-lifecycle-checkpoint.schema.json": {
         "schema_version",
@@ -930,6 +931,23 @@ class PublicTrustSchemaTests(unittest.TestCase):
         self.assertIs(kms["alias_allowed"], False)
         self.assertEqual(kms["allowed_kinds"], sorted(kms["allowed_kinds"]))
         self.assertEqual(len(kms["allowed_kinds"]), 17)
+        software = policy["public_trust_software_ed25519"]
+        self.assertEqual(software["profile"], "software-ed25519-dsse-v1")
+        self.assertEqual(software["algorithm"], "ed25519")
+        self.assertEqual(software["key_origin"], "software")
+        self.assertIs(software["aws_required"], False)
+        self.assertEqual(
+            software["github_secret_name"],
+            "OPENADAPT_QUALIFICATION_ED25519_PRIVATE_KEY",
+        )
+        self.assertEqual(
+            software["keychain_service"], "openadapt-qualification-ed25519"
+        )
+        self.assertEqual(
+            software["signing_environment"],
+            "synthetic-qualification-evidence-decision",
+        )
+        self.assertEqual(software["allowed_kinds"], kms["allowed_kinds"])
 
     def test_support_policy_cannot_enter_the_production_projection(self) -> None:
         policy = json.loads((ROOT / "support-release-policy.json").read_text())
