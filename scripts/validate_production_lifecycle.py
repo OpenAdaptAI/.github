@@ -13,8 +13,8 @@ admission fails closed unless the referenced summary, attestation bundle, and
 evidence manifest can all be fetched, hashed, and verified.
 
 The lifecycle policy is a v3 document.  It declares the schema versions and
-until-revoked admission validity that the signed checkpoint chain enforces, and
-it names the protected feed ref that carries live Production state.  It does
+maximum admission windows that the signed checkpoint chain enforces, and it
+names the protected feed ref that carries live Production state.  It does
 not carry a summary authority.  For live objects the certificate identity that
 signs Production acceptance evidence lives in production-evidence-policy.json,
 keyed by evidence kind.  The admission ledger this module reads is the retained
@@ -63,12 +63,12 @@ WORKFLOW_ADMISSION_SCHEMA = "openadapt.qualification-admission/v4"
 LIFECYCLE_CHECKPOINT_SCHEMA = "openadapt.production-lifecycle-checkpoint/v2"
 LIFECYCLE_FEED_SCHEMA = "openadapt.production-lifecycle-feed/v2"
 LIFECYCLE_FEED_REF = "refs/heads/production-lifecycle-feed"
-# Live admissions stay valid until revoked or replaced.  The retained v1
-# admission ledger still holds timestamped release admissions issued under the
-# historical 30-day window, so that bound remains only for those records.
+# A release admission and a workflow admission must expire. Revocation can end
+# either admission before its expiry. The retained v1 release ledger uses the
+# same 30-day maximum.
 RETAINED_RELEASE_ADMISSION_MAXIMUM_DAYS = 30
-RELEASE_ADMISSION_MAXIMUM_DAYS = None
-WORKFLOW_ADMISSION_MAXIMUM_DAYS = None
+RELEASE_ADMISSION_MAXIMUM_DAYS = 30
+WORKFLOW_ADMISSION_MAXIMUM_DAYS = 7
 # The retained v1 admission ledger holds release admissions on the production
 # channel only, so the historical release admission window governs its expiry,
 # and every retained record was issued under policy revision 1.  Its records
@@ -387,13 +387,16 @@ def load_lifecycle(
     return _parse_group(text, "lifecycle"), _parse_group(text, "public_surfaces")
 
 
-def _admission_days(value: object, label: str) -> None:
-    """Refuse a live admission-day maximum. Validity is until revoked."""
+def _admission_days(value: object, label: str, expected: int) -> int:
+    """Require the closed maximum for one expiring admission kind."""
 
-    if value is not None:
-        raise LifecycleError(
-            f"{label} must be null; admissions stay valid until revoked"
-        )
+    if (
+        not isinstance(value, int)
+        or isinstance(value, bool)
+        or value != expected
+    ):
+        raise LifecycleError(f"{label} must be {expected}")
+    return value
 
 
 def _validate_summary_authority(value: object) -> dict[str, Any]:
@@ -561,7 +564,7 @@ def _validate_policy(value: object) -> tuple[dict[str, Any], dict[str, Any]]:
     """Validate the v3 policy and pin the versioned admission contracts.
 
     The v3 policy states which schema versions the signed checkpoint chain
-    accepts and that admissions stay valid until revoked.  Every target it
+    accepts and the maximum admission windows.  Every target it
     declares must agree with the Production trust contract that
     production_trust.validate_release applies to the matching
     openadapt.qualification-release/v2 object.
@@ -573,7 +576,6 @@ def _validate_policy(value: object) -> tuple[dict[str, Any], dict[str, Any]]:
             "$schema",
             "schema_version",
             "revision",
-            "admission_validity",
             "maximum_release_admission_days",
             "maximum_workflow_admission_days",
             "object_reference_schema_version",
@@ -599,18 +601,21 @@ def _validate_policy(value: object) -> tuple[dict[str, Any], dict[str, Any]]:
             "production lifecycle policy revision must be at least "
             f"{POLICY_REVISION_MINIMUM}"
         )
-    if policy["admission_validity"] != "until_revoked":
-        raise LifecycleError(
-            "production lifecycle policy admission_validity must be until_revoked"
-        )
-    _admission_days(
+    release_days = _admission_days(
         policy["maximum_release_admission_days"],
         "maximum_release_admission_days",
+        RELEASE_ADMISSION_MAXIMUM_DAYS,
     )
-    _admission_days(
+    workflow_days = _admission_days(
         policy["maximum_workflow_admission_days"],
         "maximum_workflow_admission_days",
+        WORKFLOW_ADMISSION_MAXIMUM_DAYS,
     )
+    if workflow_days > release_days:
+        raise LifecycleError(
+            "maximum_workflow_admission_days cannot exceed "
+            "maximum_release_admission_days"
+        )
     for key, expected in (
         ("object_reference_schema_version", OBJECT_REFERENCE_SCHEMA),
         ("release_admission_schema_version", RELEASE_ADMISSION_SCHEMA),
@@ -1419,6 +1424,33 @@ def _load_registered_json(
     return raw, value
 
 
+def _has_policy_window(
+    value: Mapping[str, Any], *, label: str, maximum_days: int
+) -> bool:
+    """Keep an otherwise valid retained object inactive without an expiry."""
+
+    try:
+        issued_at = production_trust.require_timestamp(
+            value["issued_at"], f"{label} issued_at"
+        )
+    except production_trust.TrustError as exc:
+        raise LifecycleError(str(exc)) from exc
+    expires_value = value.get("expires_at")
+    if expires_value is None:
+        return False
+    try:
+        expires_at = production_trust.require_timestamp(
+            expires_value, f"{label} expires_at"
+        )
+    except production_trust.TrustError as exc:
+        raise LifecycleError(str(exc)) from exc
+    if expires_at <= issued_at or expires_at > issued_at + timedelta(
+        days=maximum_days
+    ):
+        return False
+    return True
+
+
 def _reference_from_entry(
     entry: Mapping[str, Any],
     *,
@@ -1489,7 +1521,7 @@ def _validate_v2_release_admission(
     live_targets: Mapping[str, Mapping[str, Any]],
     now: datetime,
     fetch: Callable[[str], bytes],
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], bool]:
     """Validate one registered qualification-release/v2 ledger row.
 
     remote-safe-synthetic rows are retained and checked. One row is one
@@ -1623,19 +1655,24 @@ def _validate_v2_release_admission(
         raise LifecycleError(
             f"admission {index} public-trust verification failed: {exc}"
         ) from exc
+    has_policy_window = _has_policy_window(
+        admission,
+        label=f"release admission {target_id}",
+        maximum_days=RELEASE_ADMISSION_MAXIMUM_DAYS,
+    )
     package_project = live_target["package_index_project"]
     if live_target["release_kind"] == "deployment":
         if package_project is not None:
             raise LifecycleError(
                 f"admission {target_id} deployment must not declare a package project"
             )
-    else:
+    elif has_policy_window:
         if not isinstance(package_project, str) or not package_project:
             raise LifecycleError(f"admission {target_id} package project is missing")
         _verify_live_pypi_files(
             admission, package_index_project=package_project, fetch=fetch
         )
-    return admission
+    return admission, has_policy_window
 
 
 def _authority_state_identity(
@@ -1661,7 +1698,7 @@ def _validate_v2_workflow_admission(
     registry_document: Mapping[str, Any],
     registry_entries: Sequence[Mapping[str, Any]],
     now: datetime,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], bool]:
     """Validate one registered qualification-admission/v4 ledger row.
 
     remote-safe-synthetic tutorial rows are retained and checked. One
@@ -1709,8 +1746,6 @@ def _validate_v2_workflow_admission(
         raise LifecycleError(
             f"workflow admission {index} is not the synthetic tutorial bundle"
         )
-    if admission["expires_at"] is not None:
-        raise LifecycleError(f"workflow admission {index} expiry must be until-revoked")
     if admission.get("evals_production_acceptance") is not False and (
         "evals_production_acceptance" in admission
     ):
@@ -1779,7 +1814,12 @@ def _validate_v2_workflow_admission(
         raise LifecycleError(
             f"workflow admission {index} public-trust verification failed: {exc}"
         ) from exc
-    return admission
+    has_policy_window = _has_policy_window(
+        admission,
+        label=f"workflow admission {index}",
+        maximum_days=WORKFLOW_ADMISSION_MAXIMUM_DAYS,
+    )
+    return admission, has_policy_window
 
 
 def _validate_workflow_admissions(
@@ -1790,7 +1830,7 @@ def _validate_workflow_admissions(
     registry_entries: Sequence[Mapping[str, Any]],
     now: datetime,
 ) -> list[str]:
-    """Return active workflow admission ids. Require at least one."""
+    """Return the active workflow admission ids."""
 
     document = _closed(
         value,
@@ -1811,7 +1851,7 @@ def _validate_workflow_admissions(
     for index, item in enumerate(rows):
         if not isinstance(item, dict):
             raise LifecycleError(f"workflow admission {index} must be an object")
-        admission = _validate_v2_workflow_admission(
+        admission, has_policy_window = _validate_v2_workflow_admission(
             item,
             index=index,
             root=root,
@@ -1825,12 +1865,8 @@ def _validate_workflow_admissions(
                 f"workflow admission id is duplicate: {admission_id!r}"
             )
         seen.add(admission_id)
-        active.append(admission_id)
-    if not active:
-        raise LifecycleError(
-            "at least one active workflow admission is required "
-            "(synthetic tutorial bundle)"
-        )
+        if has_policy_window:
+            active.append(admission_id)
     return active
 
 
@@ -2123,7 +2159,7 @@ def validate(
         if _is_v2_release_reference(item) or _is_v2_release_object(item):
             if registry_document is None or root is None:
                 raise LifecycleError("v2 admissions require the evidence registry")
-            admission = _validate_v2_release_admission(
+            admission, has_policy_window = _validate_v2_release_admission(
                 item,
                 index=index,
                 root=root,
@@ -2150,7 +2186,8 @@ def validate(
             # remote-safe-synthetic is a real target admission. Product-wide
             # Production requires all seven targets. It does not flip MockMed
             # production_acceptance.
-            active[target_id] = admission_id
+            if has_policy_window:
+                active[target_id] = admission_id
             continue
         admission = _closed(
             item,
@@ -2326,13 +2363,15 @@ def validate(
         workflow_value = _load_json(
             workflow_path, "production workflow admissions"
         )
-        _validate_workflow_admissions(
+        active_workflows = _validate_workflow_admissions(
             workflow_value,
             root=root,
             registry_document=registry_document,
             registry_entries=registry_entries,
             now=now,
         )
+        if not active_workflows:
+            active.clear()
     return active
 
 
@@ -2517,7 +2556,7 @@ def main() -> int:
         "Validated evidence-gated Production lifecycle: "
         f"{len(active)} active admission(s)."
     )
-    print(f"Validated {workflow_count} active workflow admission(s).")
+    print(f"Validated {workflow_count} retained workflow admission record(s).")
     return 0
 
 
