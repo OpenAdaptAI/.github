@@ -448,6 +448,12 @@ EXPECTED_TOP_LEVEL_FIELDS = {
         "lifecycle_feed_ref",
         "targets",
     },
+    "production-workflow-admissions.schema.json": {
+        "$schema",
+        "schema_version",
+        "policy_sha256",
+        "admissions",
+    },
     "production-release-artifact-inventory.schema.json": {
         "schema_version",
         "target",

@@ -47,12 +47,14 @@ import validate_evidence_registry as evidence_registry
 ROOT = Path(__file__).resolve().parents[1]
 POLICY_PATH = ROOT / "production-lifecycle-policy.json"
 ADMISSIONS_PATH = ROOT / "production-lifecycle-admissions.json"
+WORKFLOW_ADMISSIONS_PATH = ROOT / "production-workflow-admissions.json"
 LIFECYCLE_PATH = ROOT / "repository-lifecycle.yml"
 
 POLICY_SCHEMA = "openadapt.production-lifecycle-policy/v3"
 POLICY_DOCUMENT_SCHEMA = "schemas/production-lifecycle-policy.schema.json"
 POLICY_REVISION_MINIMUM = 4
 ADMISSIONS_SCHEMA = "openadapt.production-lifecycle-admissions/v1"
+WORKFLOW_ADMISSIONS_SCHEMA = "openadapt.production-workflow-admissions/v1"
 SUMMARY_SCHEMA = "openadapt.production-lifecycle-evidence-summary/v1"
 RELEASE_IDENTITY_SCHEMA = "openadapt.monotonic-production-release/v1"
 OBJECT_REFERENCE_SCHEMA = "openadapt.production-evidence-object-reference/v2"
@@ -1336,6 +1338,14 @@ def _is_v2_release_reference(value: object) -> bool:
     )
 
 
+def _is_v2_workflow_reference(value: object) -> bool:
+    return (
+        isinstance(value, dict)
+        and value.get("schema_version") == OBJECT_REFERENCE_SCHEMA
+        and value.get("kind") == "qualification-admission"
+    )
+
+
 def _is_v2_release_object(value: object) -> bool:
     return (
         isinstance(value, dict)
@@ -1343,26 +1353,48 @@ def _is_v2_release_object(value: object) -> bool:
     )
 
 
+def _bind_reference_registry_snapshot(
+    reference: Mapping[str, Any],
+    registry_document: Mapping[str, Any],
+    *,
+    label: str,
+) -> None:
+    """Historical rows keep the registry snapshot they were issued against."""
+
+    current_revision = registry_document["revision"]
+    bound_revision = reference["registry_revision"]
+    if bound_revision > current_revision:
+        raise LifecycleError(f"{label} binds a future registry revision")
+    if bound_revision == current_revision and (
+        reference["registry_head_sha256"] != registry_document["registry_head_sha256"]
+    ):
+        raise LifecycleError(f"{label} does not bind the current registry")
+    previous_head = registry_document.get("previous_registry_head_sha256")
+    if (
+        bound_revision == current_revision - 1
+        and previous_head is not None
+        and reference["registry_head_sha256"] != previous_head
+    ):
+        raise LifecycleError(f"{label} does not bind the previous registry")
+
+
 def _adjacent_bundle_entry(
     entries: Sequence[Mapping[str, Any]], regular: Mapping[str, Any]
 ) -> dict[str, Any]:
+    kind = regular["kind"]
     for index, entry in enumerate(entries):
         if entry["registry_entry_sha256"] != regular["registry_entry_sha256"]:
             continue
         if index + 1 >= len(entries):
-            raise LifecycleError(
-                "qualification-release has no adjacent Sigstore bundle"
-            )
+            raise LifecycleError(f"{kind} has no adjacent Sigstore bundle")
         bundle = entries[index + 1]
         if (
-            bundle["kind"] != f"{regular['kind']}-sigstore-bundle"
+            bundle["kind"] != f"{kind}-sigstore-bundle"
             or bundle["subject_sha256"] != regular["object_sha256"]
         ):
-            raise LifecycleError(
-                "qualification-release Sigstore bundle is not adjacent"
-            )
+            raise LifecycleError(f"{kind} Sigstore bundle is not adjacent")
         return dict(bundle)
-    raise LifecycleError("qualification-release is not registered")
+    raise LifecycleError(f"{kind} is not registered")
 
 
 def _load_registered_json(
@@ -1481,28 +1513,11 @@ def _validate_v2_release_admission(
         # Historical rows keep the registry snapshot they were issued
         # against. Append-only history forbids rewriting them onto the
         # current revision. New rows bind the current registry.
-        current_revision = registry_document["revision"]
-        bound_revision = reference["registry_revision"]
-        if bound_revision > current_revision:
-            raise LifecycleError(
-                "qualification-release reference binds a future registry revision"
-            )
-        if bound_revision == current_revision and (
-            reference["registry_head_sha256"]
-            != registry_document["registry_head_sha256"]
-        ):
-            raise LifecycleError(
-                "qualification-release reference does not bind the current registry"
-            )
-        previous_head = registry_document.get("previous_registry_head_sha256")
-        if (
-            bound_revision == current_revision - 1
-            and previous_head is not None
-            and reference["registry_head_sha256"] != previous_head
-        ):
-            raise LifecycleError(
-                "qualification-release reference does not bind the previous registry"
-            )
+        _bind_reference_registry_snapshot(
+            reference,
+            registry_document,
+            label="qualification-release reference",
+        )
     elif _is_v2_release_object(item):
         object_sha = "sha256:" + hashlib.sha256(
             evidence_registry.canonical(item) + b"\n"
@@ -1621,6 +1636,202 @@ def _validate_v2_release_admission(
             admission, package_index_project=package_project, fetch=fetch
         )
     return admission
+
+
+def _authority_state_identity(
+    registry_entries: Sequence[Mapping[str, Any]],
+) -> str:
+    matches = [
+        entry
+        for entry in registry_entries
+        if entry["kind"] == "qualification-authority-state-receipt"
+    ]
+    if len(matches) != 1:
+        raise LifecycleError(
+            "workflow admissions require exactly one authority-state receipt"
+        )
+    return matches[0]["semantic_identity_sha256"]
+
+
+def _validate_v2_workflow_admission(
+    item: Mapping[str, Any],
+    *,
+    index: int,
+    root: Path,
+    registry_document: Mapping[str, Any],
+    registry_entries: Sequence[Mapping[str, Any]],
+    now: datetime,
+) -> dict[str, Any]:
+    """Validate one registered qualification-admission/v4 ledger row.
+
+    remote-safe-synthetic tutorial rows are retained and checked. One
+    active row is enough to list a workflow admission. It does not
+    qualify a product release, and it is not a MockMed
+    production_acceptance flip.
+    """
+
+    if not _is_v2_workflow_reference(item):
+        raise LifecycleError(
+            f"workflow admission {index} is not a qualification-admission/v4 row"
+        )
+    try:
+        reference = evidence_registry.validate_reference(item)
+        regular = evidence_registry.require_registered(
+            list(registry_entries),
+            reference=reference,
+            label=f"workflow admission {index}",
+        )
+    except evidence_registry.EvidenceRegistryError as exc:
+        raise LifecycleError(str(exc)) from exc
+    _bind_reference_registry_snapshot(
+        reference,
+        registry_document,
+        label="qualification-admission reference",
+    )
+    bundle_entry = _adjacent_bundle_entry(registry_entries, regular)
+    object_raw, object_value = _load_registered_json(
+        root, regular, f"workflow admission {index}"
+    )
+    bundle_raw, _bundle_value = _load_registered_json(
+        root, bundle_entry, f"workflow admission {index} bundle"
+    )
+    try:
+        admission = production_trust.validate_qualification_admission(
+            object_value, now=now
+        )
+    except production_trust.TrustError as exc:
+        raise LifecycleError(f"workflow admission {index}: {exc}") from exc
+    if admission["evidence_class"] != "remote-safe-synthetic":
+        raise LifecycleError(
+            f"workflow admission {index} evidence class is not remote-safe-synthetic"
+        )
+    if admission["bundle_version"] != "0.0.0-synthetic":
+        raise LifecycleError(
+            f"workflow admission {index} is not the synthetic tutorial bundle"
+        )
+    if admission["expires_at"] is not None:
+        raise LifecycleError(f"workflow admission {index} expiry must be until-revoked")
+    if admission.get("evals_production_acceptance") is not False and (
+        "evals_production_acceptance" in admission
+    ):
+        raise LifecycleError(
+            f"workflow admission {index} must not claim evals production_acceptance"
+        )
+    serialized = json.dumps(admission, ensure_ascii=False)
+    if "mockmed" in serialized.lower() or "production_acceptance" in admission:
+        raise LifecycleError(
+            f"workflow admission {index} must not invent MockMed production_acceptance"
+        )
+    uncertain = admission["campaign_summary"]["uncertain_delivery"]
+    if uncertain["reconciliation_required_count"] < 3:
+        raise LifecycleError(
+            f"workflow admission {index} uncertain-delivery count is below 3"
+        )
+    pointer = registry_document.get("signer_registry")
+    if not isinstance(pointer, dict):
+        raise LifecycleError("workflow admissions require an installed signer registry")
+    signer_path = root / pointer["object_path"]
+    try:
+        signer_raw = signer_path.read_bytes()
+    except OSError as exc:
+        raise LifecycleError(f"signer registry is missing: {exc}") from exc
+    try:
+        signer_registry = evidence_registry.validate_signer_registry(
+            json.loads(signer_raw)
+        )
+    except (json.JSONDecodeError, evidence_registry.EvidenceRegistryError) as exc:
+        raise LifecycleError(f"signer registry is invalid: {exc}") from exc
+    if signer_registry["expires_at"] is not None:
+        raise LifecycleError("signer registry expiry must be until-revoked")
+    inner_ids = {
+        signer["key_id"]
+        for signer in signer_registry["signers"]
+        if signer.get("key_id", "").startswith("qa-ed25519-")
+    }
+    outer_ids = {
+        signer["key_id"]
+        for signer in signer_registry["signers"]
+        if signer.get("key_id", "").startswith("oa-public-trust-ed25519-")
+    }
+    if "qa-ed25519-9cf4bca214c01d79" not in inner_ids:
+        raise LifecycleError("until-revoked signer registry is missing the inner key")
+    if "oa-public-trust-ed25519-9cf4bca214c01d79" not in outer_ids:
+        raise LifecycleError("until-revoked signer registry is missing the outer key")
+    bundle_reference = _reference_from_entry(
+        bundle_entry,
+        registry_source_commit=reference["registry_source_commit"],
+        registry_revision=reference["registry_revision"],
+        registry_head_sha256=reference["registry_head_sha256"],
+    )
+    try:
+        public_trust_resolver.verify_registered_public_trust_pair(
+            object_raw=object_raw,
+            object_reference=reference,
+            bundle_raw=bundle_raw,
+            bundle_reference=bundle_reference,
+            signer_registry_raw=signer_raw,
+            expected_signer_registry_sha256=admission["signer_registry_sha256"],
+            expected_authority_state_sha256=_authority_state_identity(registry_entries),
+            expected_revocation_state_sha256=admission["revocation_state_sha256"],
+            now=now,
+        )
+    except public_trust_resolver.PublicTrustResolutionError as exc:
+        raise LifecycleError(
+            f"workflow admission {index} public-trust verification failed: {exc}"
+        ) from exc
+    return admission
+
+
+def _validate_workflow_admissions(
+    value: object,
+    *,
+    root: Path,
+    registry_document: Mapping[str, Any],
+    registry_entries: Sequence[Mapping[str, Any]],
+    now: datetime,
+) -> list[str]:
+    """Return active workflow admission ids. Require at least one."""
+
+    document = _closed(
+        value,
+        {"$schema", "schema_version", "policy_sha256", "admissions"},
+        "production workflow admissions",
+    )
+    if document["schema_version"] != WORKFLOW_ADMISSIONS_SCHEMA:
+        raise LifecycleError("production workflow admissions schema is not supported")
+    if document["$schema"] != "schemas/production-workflow-admissions.schema.json":
+        raise LifecycleError("production workflow admissions document schema differs")
+    if document["policy_sha256"] != RETAINED_POLICY_SHA256:
+        raise LifecycleError("production workflow admissions policy digest differs")
+    rows = document["admissions"]
+    if not isinstance(rows, list):
+        raise LifecycleError("production workflow admissions must be a list")
+    active: list[str] = []
+    seen: set[str] = set()
+    for index, item in enumerate(rows):
+        if not isinstance(item, dict):
+            raise LifecycleError(f"workflow admission {index} must be an object")
+        admission = _validate_v2_workflow_admission(
+            item,
+            index=index,
+            root=root,
+            registry_document=registry_document,
+            registry_entries=registry_entries,
+            now=now,
+        )
+        admission_id = admission["admission_id_sha256"]
+        if admission_id in seen:
+            raise LifecycleError(
+                f"workflow admission id is duplicate: {admission_id!r}"
+            )
+        seen.add(admission_id)
+        active.append(admission_id)
+    if not active:
+        raise LifecycleError(
+            "at least one active workflow admission is required "
+            "(synthetic tutorial bundle)"
+        )
+    return active
 
 
 def _validate_remote_summary(
@@ -2106,6 +2317,22 @@ def validate(
                 f"target {target_id} has static lifecycle membership {memberships}; "
                 "derive its state only from active admissions"
             )
+    if root is not None:
+        if registry_document is None:
+            raise LifecycleError("workflow admissions require the evidence registry")
+        workflow_path = root / WORKFLOW_ADMISSIONS_PATH.name
+        if not workflow_path.exists():
+            raise LifecycleError("production workflow admissions ledger is missing")
+        workflow_value = _load_json(
+            workflow_path, "production workflow admissions"
+        )
+        _validate_workflow_admissions(
+            workflow_value,
+            root=root,
+            registry_document=registry_document,
+            registry_entries=registry_entries,
+            now=now,
+        )
     return active
 
 
@@ -2141,6 +2368,23 @@ def validate_history_document(value: object, label: str) -> None:
     )
     if document["schema_version"] != ADMISSIONS_SCHEMA:
         raise LifecycleError(f"{label} schema is not supported")
+    _digest(document["policy_sha256"], f"{label} policy digest")
+    if not isinstance(document["admissions"], list):
+        raise LifecycleError(f"{label} admissions must be a list")
+
+
+def validate_workflow_history_document(value: object, label: str) -> None:
+    """Validate one workflow-admission ledger document without its objects."""
+
+    document = _closed(
+        value,
+        {"$schema", "schema_version", "policy_sha256", "admissions"},
+        label,
+    )
+    if document["schema_version"] != WORKFLOW_ADMISSIONS_SCHEMA:
+        raise LifecycleError(f"{label} schema is not supported")
+    if document["$schema"] != "schemas/production-workflow-admissions.schema.json":
+        raise LifecycleError(f"{label} document schema differs")
     _digest(document["policy_sha256"], f"{label} policy digest")
     if not isinstance(document["admissions"], list):
         raise LifecycleError(f"{label} admissions must be a list")
@@ -2190,6 +2434,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--previous-admissions", type=Path)
+    parser.add_argument("--previous-workflow-admissions", type=Path)
     parser.add_argument(
         "--history-only",
         action="store_true",
@@ -2213,7 +2458,30 @@ def main() -> int:
             validate_history_document(previous, "previous Production admission history")
             validate_history_document(current, "current Production admission history")
             validate_append_only_history(previous, current)
+            workflow_path = args.root / WORKFLOW_ADMISSIONS_PATH.name
+            if workflow_path.exists():
+                if args.previous_workflow_admissions is None:
+                    parser.error(
+                        "a workflow-admission ledger requires "
+                        "--previous-workflow-admissions"
+                    )
+                previous_workflow = _load_json(
+                    args.previous_workflow_admissions,
+                    "previous Production workflow admissions",
+                )
+                current_workflow = _load_json(
+                    workflow_path, "current Production workflow admissions"
+                )
+                validate_workflow_history_document(
+                    previous_workflow, "previous Production workflow admission history"
+                )
+                validate_workflow_history_document(
+                    current_workflow, "current Production workflow admission history"
+                )
+                validate_append_only_history(previous_workflow, current_workflow)
             print("Validated retained v1 Production admission history.")
+            if workflow_path.exists():
+                print("Validated Production workflow admission history.")
             return 0
         active = validate_files(args.root)
         if args.previous_admissions is not None:
@@ -2225,13 +2493,31 @@ def main() -> int:
                 "current Production lifecycle admissions",
             )
             validate_append_only_history(previous, current)
+        if args.previous_workflow_admissions is not None:
+            previous_workflow = _load_json(
+                args.previous_workflow_admissions,
+                "previous Production workflow admissions",
+            )
+            current_workflow = _load_json(
+                args.root / WORKFLOW_ADMISSIONS_PATH.name,
+                "current Production workflow admissions",
+            )
+            validate_append_only_history(previous_workflow, current_workflow)
     except LifecycleError as exc:
         print(f"REFUSED: {exc}")
         return 1
+    workflow_count = 0
+    workflow_path = args.root / WORKFLOW_ADMISSIONS_PATH.name
+    if workflow_path.exists():
+        workflow_doc = _load_json(workflow_path, "production workflow admissions")
+        rows = workflow_doc.get("admissions")
+        if isinstance(rows, list):
+            workflow_count = len(rows)
     print(
         "Validated evidence-gated Production lifecycle: "
         f"{len(active)} active admission(s)."
     )
+    print(f"Validated {workflow_count} active workflow admission(s).")
     return 0
 
 
