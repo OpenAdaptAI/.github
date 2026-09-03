@@ -437,6 +437,7 @@ EXPECTED_TOP_LEVEL_FIELDS = {
         "$schema",
         "schema_version",
         "revision",
+        "admission_validity",
         "maximum_release_admission_days",
         "maximum_workflow_admission_days",
         "object_reference_schema_version",

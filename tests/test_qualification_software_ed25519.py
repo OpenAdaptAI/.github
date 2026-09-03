@@ -99,7 +99,8 @@ class SoftwareEd25519Tests(unittest.TestCase):
     def test_sign_receipt_round_trip(self) -> None:
         from test_qualification_issuer import trust_fixture
 
-        fixture = trust_fixture(decision_origin="software")
+        # sign_receipt verifies against wall-clock; until-revoked stays active.
+        fixture = trust_fixture(decision_origin="software", expires_at=None)
         unsigned = dict(fixture["receipt"])
         unsigned["signature"] = ""
         signed = software.sign_receipt(
