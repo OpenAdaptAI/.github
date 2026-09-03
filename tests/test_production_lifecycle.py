@@ -1121,17 +1121,19 @@ class PublishedPolicyTests(unittest.TestCase):
         self.assertEqual(release["evidence_class"], "remote-safe-synthetic")
         self.assertEqual(release["target"], "flow")
         self.assertIsNone(release["expires_at"])
-        self.assertEqual(active, {})
-        self.assertNotIn(release["admission_id_sha256"], active.values())
-        self.assertFalse(lifecycle.is_product_production(active))
+        self.assertEqual(set(active), set(lifecycle.EXPECTED_TARGETS))
+        self.assertEqual(len(active), 7)
+        self.assertEqual(active["flow"], release["admission_id_sha256"])
+        self.assertTrue(lifecycle.is_product_production(active))
 
-    def test_non_expiring_synthetic_target_admissions_are_not_production(
+    def test_seven_synthetic_target_admissions_are_product_production(
         self,
     ) -> None:
         published_now = datetime(2026, 9, 2, 19, 30, 0, tzinfo=timezone.utc)
         active = lifecycle.validate_files(ROOT, now=published_now)
-        self.assertEqual(active, {})
-        self.assertFalse(lifecycle.is_product_production(active))
+        self.assertEqual(len(active), 7)
+        self.assertEqual(set(active), set(lifecycle.EXPECTED_TARGETS))
+        self.assertTrue(lifecycle.is_product_production(active))
         six = {
             target_id: f"admission:{target_id}"
             for target_id in lifecycle.EXPECTED_TARGETS
@@ -1144,7 +1146,7 @@ class PublishedPolicyTests(unittest.TestCase):
     ) -> None:
         published_now = datetime(2026, 9, 2, 19, 30, 0, tzinfo=timezone.utc)
         active = lifecycle.validate_files(ROOT, now=published_now)
-        self.assertEqual(active, {})
+        self.assertEqual(len(active), 7)
         ledger = json.loads(
             (ROOT / "production-workflow-admissions.json").read_text(encoding="utf-8")
         )
@@ -1241,9 +1243,9 @@ class PublishedPolicyTests(unittest.TestCase):
             lifecycle.POLICY_SCHEMA, "openadapt.production-lifecycle-policy/v3"
         )
         self.assertGreaterEqual(policy["revision"], 4)
-        self.assertEqual(policy["maximum_release_admission_days"], 30)
-        self.assertEqual(policy["maximum_workflow_admission_days"], 7)
-        self.assertNotIn("admission_validity", policy)
+        self.assertEqual(policy["admission_validity"], "until_revoked")
+        self.assertIsNone(policy["maximum_release_admission_days"])
+        self.assertIsNone(policy["maximum_workflow_admission_days"])
         self.assertNotIn("summary_authority", policy)
         self.assertNotIn("maximum_admission_days", policy)
         self.assertEqual(
@@ -1273,14 +1275,15 @@ class PublishedPolicyTests(unittest.TestCase):
 
 
 class AdmissionWindowTests(unittest.TestCase):
-    """Live release and workflow admissions are expiring and revocable."""
+    """Live admissions stay valid until revoked. The retained ledger keeps 30 days."""
 
-    def test_live_policy_has_closed_expiry_windows(self) -> None:
+    def test_live_policy_is_until_revoked(self) -> None:
         policy = load_policy()
-        self.assertEqual(policy["maximum_release_admission_days"], 30)
-        self.assertEqual(policy["maximum_workflow_admission_days"], 7)
-        self.assertEqual(lifecycle.RELEASE_ADMISSION_MAXIMUM_DAYS, 30)
-        self.assertEqual(lifecycle.WORKFLOW_ADMISSION_MAXIMUM_DAYS, 7)
+        self.assertEqual(policy["admission_validity"], "until_revoked")
+        self.assertIsNone(policy["maximum_release_admission_days"])
+        self.assertIsNone(policy["maximum_workflow_admission_days"])
+        self.assertIsNone(lifecycle.RELEASE_ADMISSION_MAXIMUM_DAYS)
+        self.assertIsNone(lifecycle.WORKFLOW_ADMISSION_MAXIMUM_DAYS)
 
     def test_retained_ledger_still_uses_the_historical_thirty_day_bound(self) -> None:
         self.assertEqual(lifecycle.RETAINED_RELEASE_ADMISSION_MAXIMUM_DAYS, 30)
@@ -1311,10 +1314,10 @@ class AdmissionWindowTests(unittest.TestCase):
                 self.assertNotIn("timedelta(days=7)", source)
                 self.assertNotIn("timedelta(days=30)", source)
 
-    def test_policy_that_changes_an_admission_day_maximum_is_refused(self) -> None:
+    def test_policy_that_declares_an_admission_day_maximum_is_refused(self) -> None:
         for key, value in (
             ("maximum_release_admission_days", 3),
-            ("maximum_workflow_admission_days", 8),
+            ("maximum_workflow_admission_days", 7),
             ("maximum_release_admission_days", 31),
         ):
             with self.subTest(key=key, value=value):
@@ -1322,7 +1325,7 @@ class AdmissionWindowTests(unittest.TestCase):
                 policy[key] = value
                 with self.assertRaisesRegex(
                     lifecycle.LifecycleError,
-                    "must be",
+                    "must be null; admissions stay valid until revoked",
                 ):
                     lifecycle.validate(
                         policy,
@@ -1332,15 +1335,25 @@ class AdmissionWindowTests(unittest.TestCase):
                         now=NOW,
                     )
 
-    def test_non_expiring_admission_is_inactive(self) -> None:
-        self.assertFalse(
+    def test_until_revoked_admission_is_active(self) -> None:
+        self.assertTrue(
             lifecycle._has_policy_window(
                 {
                     "issued_at": "2026-08-18T12:00:00Z",
                     "expires_at": None,
                 },
                 label="workflow admission",
-                maximum_days=7,
+                maximum_days=None,
+            )
+        )
+        self.assertFalse(
+            lifecycle._has_policy_window(
+                {
+                    "issued_at": "2026-08-18T12:00:00Z",
+                    "expires_at": "2026-08-25T12:00:00Z",
+                },
+                label="workflow admission",
+                maximum_days=None,
             )
         )
 
