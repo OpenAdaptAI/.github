@@ -103,6 +103,7 @@ class GovernanceWorkflowContractTests(unittest.TestCase):
         )[1].split("      - name:", 1)[0]
         self.assertIn("--history-only", rollback_step)
         self.assertIn("--previous-admissions", rollback_step)
+        self.assertIn("--previous-workflow-admissions", rollback_step)
         self.assertNotIn("previous-production-lifecycle-policy", rollback_step)
 
     def test_profile_dispatch_refuses_the_lifecycle_app_in_every_job(self) -> None:

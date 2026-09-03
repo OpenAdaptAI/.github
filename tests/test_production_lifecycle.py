@@ -1094,6 +1094,12 @@ class ProductionLifecycleTests(unittest.TestCase):
     def test_schema_files_are_valid_json(self) -> None:
         for path in sorted((ROOT / "schemas").glob("production-lifecycle-*.json")):
             self.assertIsInstance(json.loads(path.read_text(encoding="utf-8")), dict)
+        workflow_schema = (
+            ROOT / "schemas" / "production-workflow-admissions.schema.json"
+        )
+        self.assertIsInstance(
+            json.loads(workflow_schema.read_text(encoding="utf-8")), dict
+        )
 
 
 class PublishedPolicyTests(unittest.TestCase):
@@ -1133,6 +1139,91 @@ class PublishedPolicyTests(unittest.TestCase):
             if target_id != "docs"
         }
         self.assertFalse(lifecycle.is_product_production(six))
+
+    def test_published_workflow_ledger_lists_synthetic_tutorial_admissions(
+        self,
+    ) -> None:
+        published_now = datetime(2026, 9, 2, 19, 30, 0, tzinfo=timezone.utc)
+        active = lifecycle.validate_files(ROOT, now=published_now)
+        self.assertEqual(len(active), 7)
+        ledger = json.loads(
+            (ROOT / "production-workflow-admissions.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            ledger["schema_version"], "openadapt.production-workflow-admissions/v1"
+        )
+        self.assertEqual(ledger["policy_sha256"], lifecycle.RETAINED_POLICY_SHA256)
+        self.assertEqual(len(ledger["admissions"]), 7)
+        kinds = {row["kind"] for row in ledger["admissions"]}
+        self.assertEqual(kinds, {"qualification-admission"})
+        tutorial = json.loads(
+            (
+                ROOT
+                / "production-evidence/objects/sha256/dc/"
+                "dcdb32a762aca87fbb1a7c9df5d346403b167ec5850d35fe47fd64d942684a04"
+                ".qualification-admission.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(tutorial["evidence_class"], "remote-safe-synthetic")
+        self.assertEqual(tutorial["bundle_version"], "0.0.0-synthetic")
+        self.assertEqual(tutorial["verdict"], "accepted")
+        self.assertIsNone(tutorial["expires_at"])
+        self.assertNotIn("evals_production_acceptance", tutorial)
+        self.assertNotIn("production_acceptance", tutorial)
+        self.assertEqual(
+            tutorial["campaign_summary"]["uncertain_delivery"][
+                "reconciliation_required_count"
+            ],
+            3,
+        )
+        self.assertEqual(
+            ledger["admissions"][0]["object_sha256"],
+            "sha256:dcdb32a762aca87fbb1a7c9df5d346403b167ec5850d35fe47fd64d942684a04",
+        )
+        encoded = json.dumps(ledger) + json.dumps(tutorial)
+        self.assertNotIn("mockmed", encoded.lower())
+
+    def test_release_ledger_keeps_the_flow_object_reference(self) -> None:
+        ledger = json.loads(
+            (ROOT / "production-lifecycle-admissions.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(len(ledger["admissions"]), 7)
+        flow = ledger["admissions"][0]
+        self.assertEqual(flow["kind"], "qualification-release")
+        self.assertEqual(
+            flow["registry_source_commit"],
+            "6e28818a94e057cae99dcc2c76d02b9137f87076",
+        )
+        self.assertEqual(flow["registry_revision"], 2)
+        self.assertEqual(
+            flow["object_sha256"],
+            "sha256:790122a25c87e456c6e45d25ebf5cd029b21b8511265b062fd9129b74aa1dd82",
+        )
+
+    def test_workflow_history_gate_allows_empty_to_append(self) -> None:
+        current = json.loads(
+            (ROOT / "production-workflow-admissions.json").read_text(encoding="utf-8")
+        )
+        previous = {
+            "$schema": "schemas/production-workflow-admissions.schema.json",
+            "schema_version": "openadapt.production-workflow-admissions/v1",
+            "policy_sha256": lifecycle.RETAINED_POLICY_SHA256,
+            "admissions": [],
+        }
+        lifecycle.validate_workflow_history_document(
+            previous, "previous Production workflow admission history"
+        )
+        lifecycle.validate_workflow_history_document(
+            current, "current Production workflow admission history"
+        )
+        lifecycle.validate_append_only_history(previous, current)
+
+    def test_workflow_history_gate_refuses_truncation(self) -> None:
+        current = json.loads(
+            (ROOT / "production-workflow-admissions.json").read_text(encoding="utf-8")
+        )
+        with self.assertRaisesRegex(lifecycle.LifecycleError, "cannot remove"):
+            lifecycle.validate_append_only_history(current, {"admissions": []})
 
     def test_check_profile_accepts_the_published_repository(self) -> None:
         completed = subprocess.run(

@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/OpenAdaptAI/.github/blob/main/schemas/production-workflow-admissions.schema.json",
+  "title": "OpenAdapt Production workflow admissions",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schema_version", "policy_sha256", "admissions"],
+  "properties": {
+    "$schema": {"const": "schemas/production-workflow-admissions.schema.json"},
+    "schema_version": {"const": "openadapt.production-workflow-admissions/v1"},
+    "policy_sha256": {"$ref": "#/$defs/digest"},
+    "admissions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/qualificationAdmissionReference"}
+    }
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "qualificationAdmissionReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "repository",
+        "repository_id",
+        "repository_owner_id",
+        "registry_source_commit",
+        "registry_revision",
+        "registry_head_sha256",
+        "registry_entry_sha256",
+        "kind",
+        "object_schema_version",
+        "object_path",
+        "object_sha256",
+        "size_bytes",
+        "object_media_type",
+        "semantic_identity_sha256",
+        "subject_sha256"
+      ],
+      "properties": {
+        "schema_version": {"const": "openadapt.production-evidence-object-reference/v2"},
+        "repository": {"const": "OpenAdaptAI/.github"},
+        "repository_id": {"const": "858454062"},
+        "repository_owner_id": {"const": "132681217"},
+        "registry_source_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "registry_revision": {"type": "integer", "minimum": 1},
+        "registry_head_sha256": {"$ref": "#/$defs/digest"},
+        "registry_entry_sha256": {"$ref": "#/$defs/digest"},
+        "kind": {"const": "qualification-admission"},
+        "object_schema_version": {"const": "openadapt.qualification-admission/v4"},
+        "object_path": {
+          "type": "string",
+          "pattern": "^production-evidence/objects/sha256/[0-9a-f]{2}/[0-9a-f]{64}\\.qualification-admission\\.json$"
+        },
+        "object_sha256": {"$ref": "#/$defs/digest"},
+        "size_bytes": {"type": "integer", "minimum": 1},
+        "object_media_type": {
+          "const": "application/vnd.openadapt.qualification-admission+json;version=4"
+        },
+        "semantic_identity_sha256": {"$ref": "#/$defs/digest"},
+        "subject_sha256": {"type": "null"}
+      }
+    }
+  }
+}

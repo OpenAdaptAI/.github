@@ -65,6 +65,15 @@ expired, revoked, or mismatched qualification. A new workflow version or a
 change to a bound input requires a new qualification. A Production runtime must
 accept only these exact qualified workflow identities.
 
+A Production run needs an active workflow admission for one exact sealed
+bundle. Product release admissions do not qualify a workflow. The dedicated
+append-only ledger is
+[`production-workflow-admissions.json`](production-workflow-admissions.json).
+It lists signed `qualification-admission` objects. The current rows are
+remote-safe-synthetic tutorial bundles (`0.0.0-synthetic`). They do not set
+MockMed `production_acceptance`. The GitHub admission issuer stays inactive
+until consumers pin the exact verifier.
+
 Each target has an append-only hash chain of signed Production release
 identities. The highest sequence is current. A new release cannot reuse an old
 release identity. If the latest admission expires or is revoked, Production is

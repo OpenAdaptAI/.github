@@ -68,9 +68,15 @@ jobs:
           else
             printf '{"admissions":[]}\n' > "$RUNNER_TEMP/previous-production-lifecycle-admissions.json"
           fi
+          if git cat-file -e "$BASE_SHA:production-workflow-admissions.json"; then
+            git show "$BASE_SHA:production-workflow-admissions.json" > "$RUNNER_TEMP/previous-production-workflow-admissions.json"
+          else
+            printf '%s\n' '{"$schema":"schemas/production-workflow-admissions.schema.json","schema_version":"openadapt.production-workflow-admissions/v1","policy_sha256":"sha256:e1444a08ce6b16736168cce027ce9d48abb2e0e246fc0cd79c0772fa8e423e11","admissions":[]}' > "$RUNNER_TEMP/previous-production-workflow-admissions.json"
+          fi
           python3 scripts/validate_production_lifecycle.py \
             --history-only \
-            --previous-admissions "$RUNNER_TEMP/previous-production-lifecycle-admissions.json"
+            --previous-admissions "$RUNNER_TEMP/previous-production-lifecycle-admissions.json" \
+            --previous-workflow-admissions "$RUNNER_TEMP/previous-production-workflow-admissions.json"
       - name: Validate product truth and links
         run: python3 scripts/check_profile.py
       - name: Bind every published benchmark figure to its artifact
