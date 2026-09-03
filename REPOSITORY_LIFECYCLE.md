@@ -89,21 +89,21 @@ revocation, release drift, an authority failure, or missing evidence produces
 the same state. The validator never restores an older admission or replaces
 the state with Beta, Experimental, or Early access.
 
-The signed ledger currently has an active remote-safe-synthetic admission for
-each of the seven targets. Product-wide Production is true only while all
-seven stay active. These admissions are not a MockMed
-`production_acceptance` flip. Native Desktop Apple and Windows installers
-remain unsigned and are not required. These are the derived states:
+The signed ledger retains remote-safe-synthetic records for the seven targets.
+Those records have no expiry. Their campaign counts also do not include a
+retained set of executed-trial artifacts. They cannot produce active
+Production state under the signed, expiring, and revocable admission policy.
+These are the derived states:
 
 | Target | Current state | Role |
 |------------|-----------|------|
-| `openadapt` | **Production** | `OpenAdapt` launcher/meta-package and unified CLI |
-| `flow` | **Production** | `openadapt-flow` compiler and governed runtime |
-| `cloud` | **Production** | Proprietary control plane and hosted execution surface |
-| `desktop` | **Production** | Desktop recording, qualification, execution, evidence, and repair cockpit |
-| `capture` | **Production** | Native screen, input, timing, window, and media capture |
-| `agent` | **Production** | Local MCP and Agent Skills bridge for governed Flow workflows |
-| `docs` | **Production** | `docs.openadapt.ai` deployment sourced from `openadapt-ops` |
+| `openadapt` | **Not actively admitted** | `OpenAdapt` launcher/meta-package and unified CLI |
+| `flow` | **Not actively admitted** | `openadapt-flow` compiler and governed runtime |
+| `cloud` | **Not actively admitted** | Proprietary control plane and hosted execution surface |
+| `desktop` | **Not actively admitted** | Desktop recording, qualification, execution, evidence, and repair cockpit |
+| `capture` | **Not actively admitted** | Native screen, input, timing, window, and media capture |
+| `agent` | **Not actively admitted** | Local MCP and Agent Skills bridge for governed Flow workflows |
+| `docs` | **Not actively admitted** | `docs.openadapt.ai` deployment sourced from `openadapt-ops` |
 
 ## Other Repository Lifecycles
 
