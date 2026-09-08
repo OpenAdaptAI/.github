@@ -115,3 +115,32 @@ def test_reused_observation_cannot_count_as_another_trial(tmp_path):
     path.write_text(json.dumps(value))
     with pytest.raises(ValueError, match="unique observed evidence"):
         candidate.summarize(path, WHEEL)
+
+
+def test_incomplete_input_writes_refusal_candidate(tmp_path, monkeypatch):
+    path, value = manifest(tmp_path)
+    value["scope"] = "Explicit test fixture; no execution claim"
+    value["limitations"] = ["Two classes were not measured"]
+    value["trials"] = [
+        t
+        for t in value["trials"]
+        if t["class"] not in {"declared_attended", "governed_repair"}
+    ]
+    path.write_text(json.dumps(value))
+    monkeypatch.setattr(
+        candidate,
+        "observe_release",
+        lambda: {"artifacts": [{"kind": "python-wheel", "sha256": WHEEL}]},
+    )
+    output = tmp_path / "candidate.json"
+    monkeypatch.setattr(
+        candidate.sys,
+        "argv",
+        ["prepare.py", "--measured-manifest", str(path), "--out", str(output)],
+    )
+    assert candidate.main() == 1
+    result = json.loads(output.read_text())
+    assert result["state"] == "evidence-incomplete"
+    assert result["admission_issued"] is False
+    assert "declared_attended, governed_repair" in result["validation_errors"][0]
+    assert result["limitations"] == value["limitations"]

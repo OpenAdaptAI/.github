@@ -201,11 +201,12 @@ def summarize(manifest_path: Path, wheel_digest: str) -> tuple[dict, dict]:
         ):
             raise ValueError("trial counters must be nonnegative integers")
         groups[trial["class"]].append(trial)
+    missing = [name for name in trust.CAMPAIGN_CLASSES if not groups[name]]
+    if missing:
+        raise ValueError("measured trials are missing for " + ", ".join(missing))
     summary = {}
     for name in trust.CAMPAIGN_CLASSES:
         trials = groups[name]
-        if not trials:
-            raise ValueError(f"measured trials are missing for {name}")
         cells = Counter((t["task_id"], t["condition"]) for t in trials)
         counts = {key: sum(t["counters"][key] for t in trials) for key in COUNTERS}
         counts.update(
@@ -262,12 +263,27 @@ def main() -> int:
         "required_campaign_classes": list(trust.CAMPAIGN_CLASSES),
     }
     if args.measured_manifest:
-        summary, measured = summarize(args.measured_manifest, wheel["sha256"])
-        candidate.update(
-            state="ready-for-review",
-            campaign_summary=summary,
-            measured_evidence=measured,
-        )
+        candidate["measured_manifest_sha256"] = sha(args.measured_manifest.read_bytes())
+        measured_document = read_json(args.measured_manifest)
+        candidate["measured_scope"] = measured_document.get("scope")
+        candidate["limitations"] = measured_document.get("limitations", [])
+        try:
+            summary, measured = summarize(args.measured_manifest, wheel["sha256"])
+        except (ValueError, trust.TrustError) as exc:
+            candidate["validation_errors"] = [str(exc)]
+        else:
+            if measured_document.get("candidate_ready") is not True:
+                candidate["validation_errors"] = [
+                    "measured evidence declares unresolved admission requirements"
+                ]
+            elif not candidate["measured_scope"]:
+                candidate["validation_errors"] = ["measured scope must be explicit"]
+            else:
+                candidate.update(
+                    state="ready-for-review",
+                    campaign_summary=summary,
+                    measured_evidence=measured,
+                )
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(candidate, indent=2, sort_keys=True) + "\n")
     print(
@@ -279,7 +295,7 @@ def main() -> int:
             }
         )
     )
-    return 0
+    return 1 if candidate.get("validation_errors") else 0
 
 
 if __name__ == "__main__":

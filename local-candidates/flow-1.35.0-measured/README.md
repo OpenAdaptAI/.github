@@ -1,5 +1,10 @@
 # Flow 1.35.0 measured admission candidate
 
+The retained 1.35.0 evidence refuses admission. The default attended continuation
+omits its execution target, and the repair campaign cannot qualify the encrypted
+anchor path. Each gap has three retained reproductions. The 33 base-condition
+trials and three idempotency trials passed their expected outcomes.
+
 This directory prepares an unsigned release candidate for review. `prepare.py`
 checks the published wheel and sdist, their GitHub asset digests, the annotated
 tag, and the successful qualification and three-OS lifecycle runs for source

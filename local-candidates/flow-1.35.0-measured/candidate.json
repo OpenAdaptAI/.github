@@ -2,6 +2,26 @@
   "admission_issued": false,
   "canonical_policy_commit": "9b61391713203998e584f4834e4812bb41b40f6e",
   "evidence_class": "remote-safe-synthetic",
+  "limitations": [
+    {
+      "detail": "BoundAttendedExecutor continuation omits execution_target_kind. The qualified default continuation cannot observe the environment and refuses after successful live revalidation.",
+      "id": "attended-resume-target-kind",
+      "status": "observed integration failure"
+    },
+    {
+      "detail": "The repair campaign reads plaintext template/context inputs. It fails campaign proof for the actual encrypted, template-armed OCR repair candidate and refuses approval.",
+      "id": "encrypted-repair-anchor",
+      "status": "observed integration failure"
+    }
+  ],
+  "measured_manifest_sha256": "sha256:8f98f2499059d37ff580f6abda1afb741ceb684d8400780ec899ca104467fbd4",
+  "measured_scope": {
+    "application": "Pillow synthetic clinic fixture",
+    "operator_principal": "Explicit synthetic local protocol inputs; no real human/authentication provider proof",
+    "required_path": "Default real attended and encrypted repair paths; added deployment adapters/plaintext diagnostics do not substitute for those paths",
+    "runtime": "Exact installed unmodified Flow 1.35.0 wheel",
+    "system_of_record": "Local SQLite"
+  },
   "proposed_release_identity": {
     "channel": "production",
     "previous_admission_sha256": "sha256:d2983b86d5428c892421b191f6943a63cf4f9a0b1629e324d099f5df6fa5dcda",
@@ -27,7 +47,7 @@
         "size_bytes": 21116872
       }
     ],
-    "observed_at": "2026-09-08T21:35:47.008801+00:00",
+    "observed_at": "2026-09-08T21:44:03.027630+00:00",
     "release_url": "https://github.com/OpenAdaptAI/openadapt-flow/releases/tag/v1.35.0",
     "runs": {
       "qualification": {
@@ -171,5 +191,8 @@
   "schema_version": "openadapt.unsigned-measured-release-candidate/v1",
   "scope": "Executed local synthetic SQLite and pixel fixture; synthetic reviewer inputs; no customer qualification or actual human approval.",
   "state": "evidence-incomplete",
-  "target": "flow"
+  "target": "flow",
+  "validation_errors": [
+    "measured trials are missing for declared_attended, governed_repair"
+  ]
 }
