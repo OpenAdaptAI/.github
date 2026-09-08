@@ -36,3 +36,41 @@ existing issuer must bind the exact retained manifest and contract digests,
 preserve the previous admission in sequence, and issue the matching signed
 objects. The live ledger and its projections require a separate reviewed
 change. Flow 1.34.0 remains the published admission until that change succeeds.
+
+The corrected successor must use a new immutable version. To inspect an
+unpublished 1.35.1 wheel and sdist with their measured evidence:
+
+```bash
+python local-candidates/flow-1.35.0-measured/prepare.py \
+  --unpublished-wheel /absolute/path/to/openadapt_flow-1.35.1-py3-none-any.whl \
+  --unpublished-sdist /absolute/path/to/openadapt_flow-1.35.1.tar.gz \
+  --source-commit EXACT_BUILD_COMMIT \
+  --measured-manifest /absolute/path/to/1.35.1/evidence-manifest.json \
+  --out local-candidates/flow-1.35.1-measured/candidate.json
+```
+
+This mode verifies the local archive metadata and hashes. The source commit
+comes from the build record and requires review against the retained build
+provenance. Even complete measured evidence produces only
+`ready-for-release-review`. It records publication as false and retains the
+required merge, protected-main qualification, three-OS lifecycle, immutable
+publication, artifact parity, and admission steps. The 1.35.0 refusal stays
+separate from the successor's evidence.
+
+For a complete candidate, every counted trial must retain a normalized
+observation with the same identity and counters as its manifest entry. The
+verifier reads the referenced native reports and checks their outcome, success
+flag, and model-call counts. Each uncertain-delivery, attended, and repair
+trial must satisfy its own event requirements. Events from one trial cannot
+satisfy another trial's requirement.
+
+Attended acceptance requires a native `VERIFIED` effect report. A receipt that
+only reports decision completion cannot replace that effect proof. The wheel
+check compares every inventoried runtime member with the retained installation
+proof and rejects omitted members or extra installed files.
+
+These checks establish consistency among the retained bytes. They don't prove
+that an execution took place. Reviewers must inspect the retained measurement
+code, installation provenance, and independent oracle references before they
+accept the observation. The public verifier does not contain private oracle
+recipes or grant authority to its test fixtures.

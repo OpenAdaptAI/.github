@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare an unsigned Flow 1.35.0 admission candidate from measured trials.
+"""Prepare an unsigned Flow release candidate from measured trials.
 
 No key access, signatures, registry writes, or publication occur here. The
 operator must review the exact candidate before the existing issuer uses it.
@@ -11,6 +11,9 @@ import argparse
 import hashlib
 import json
 import subprocess
+import tarfile
+import zipfile
+from email.parser import BytesParser
 import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
@@ -136,7 +139,145 @@ def observe_release() -> dict:
     }
 
 
-def summarize(manifest_path: Path, wheel_digest: str) -> tuple[dict, dict]:
+def verify_trial_observation(
+    trial: dict,
+    inventory: dict,
+    root: Path,
+    version: str,
+    wheel_digest: str,
+    proofs: set[str],
+) -> None:
+    """Cross-check normalized counters against their retained native reports.
+
+    Hashes establish byte identity. They do not prove that a process executed;
+    review of the retained measurement code and provenance remains required.
+    """
+
+    def referenced(reference: dict) -> Path:
+        if (
+            not isinstance(reference.get("path"), str)
+            or reference["path"] not in inventory
+            or inventory[reference["path"]]["sha256"] != reference.get("sha256")
+        ):
+            raise ValueError("observation reference is absent from verified inventory")
+        return root / reference["path"]
+
+    observed = read_json(referenced(trial.get("observation", {})))
+    if observed.get("schema_version") != "openadapt.observed-release-trial/v1":
+        raise ValueError("wrong observed trial schema")
+    for field in ("class", "task_id", "condition", "trial", "counters"):
+        if observed.get(field) != trial[field]:
+            raise ValueError(f"retained observation differs from trial {field}")
+    runtime = observed.get("runtime", {})
+    if runtime.get("version") != version or runtime.get("wheel_sha256") != wheel_digest:
+        raise ValueError("observed runtime identity differs")
+    proof_reference = runtime.get("installed_distribution_proof", {})
+    proof_path = referenced(proof_reference)
+    if proof_reference["sha256"] not in proofs:
+        proof = read_json(proof_path)
+        if (
+            proof.get("schema_version") != "openadapt.installed-distribution-proof/v1"
+            or proof.get("distribution") != "openadapt-flow"
+            or proof.get("version") != version
+            or proof.get("all_members_match") is not True
+            or proof.get("installed_extra_files") != []
+        ):
+            raise ValueError("installed distribution proof is incomplete or mismatched")
+        wheel_reference = proof.get("wheel", {})
+        wheel_path = referenced(wheel_reference)
+        if wheel_reference.get("sha256") != wheel_digest:
+            raise ValueError("installed proof names another wheel")
+        if wheel_reference.get("size_bytes") != wheel_path.stat().st_size:
+            raise ValueError("installed proof wheel size differs")
+        members = proof.get("members", [])
+        indexed = {m["path"]: m for m in members}
+        if len(indexed) != len(members):
+            raise ValueError("duplicate installed member proof")
+        with zipfile.ZipFile(wheel_path) as archive:
+            names = [
+                n
+                for n in archive.namelist()
+                if n.startswith("openadapt_flow/") and not n.endswith("/")
+            ]
+            if not names or len(names) != len(set(names)) or set(names) != set(indexed):
+                raise ValueError(
+                    "installed member proof does not cover the exact wheel"
+                )
+            for name in names:
+                raw = archive.read(name)
+                item = indexed[name]
+                if (
+                    item.get("size_bytes") != len(raw)
+                    or item.get("wheel_sha256") != sha(raw)
+                    or item.get("installed_sha256") != sha(raw)
+                ):
+                    raise ValueError("installed member differs from candidate wheel")
+        proofs.add(proof_reference["sha256"])
+
+    reports = observed.get("reports", [])
+    if not reports or len({r["path"] for r in reports}) != len(reports):
+        raise ValueError("observed trial needs distinct retained native reports")
+    primary = []
+    model_calls = 0
+    for reference in reports:
+        report = read_json(referenced(reference))
+        for field in ("success", "transaction_outcome", "model_calls"):
+            if field not in report or report[field] != reference.get(field):
+                raise ValueError(
+                    f"retained native report differs from observed {field}"
+                )
+        if not isinstance(report["success"], bool):
+            raise ValueError("native report success must be a boolean")
+        count = report["model_calls"]
+        if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+            raise ValueError("native model calls must be observed nonnegative integers")
+        model_calls += count
+        if reference.get("role") == "primary":
+            primary.append(report)
+    if len(primary) != 1 or model_calls != trial["counters"]["model_call_count"]:
+        raise ValueError("primary report or model call total differs")
+    final = primary[0]
+    if trial["class"] == "uncertain_delivery":
+        expected = (
+            not final["success"]
+            and final["transaction_outcome"] == "RECONCILIATION_REQUIRED"
+        )
+    elif trial["class"] == "safe_halt":
+        expected = not final["success"] and final["transaction_outcome"] != "VERIFIED"
+    else:
+        expected = final["success"] and final["transaction_outcome"] == "VERIFIED"
+    if not expected:
+        raise ValueError("primary native outcome does not satisfy its measured class")
+    references = observed.get("verification_references", [])
+    if not references:
+        raise ValueError("observed trial has no retained verification references")
+    for reference in references:
+        referenced(reference)
+
+
+def validate_trial_events(trial: dict) -> None:
+    required = {
+        "uncertain_delivery": ("reconciliation_required_count",),
+        "declared_attended": (
+            "authenticated_bound_decision_count",
+            "live_target_revalidation_count",
+        ),
+        "governed_repair": (
+            "policy_approved_repair_count",
+            "approved_repair_count",
+            "retained_repair_evidence_count",
+            "live_target_revalidation_count",
+        ),
+    }
+    if any(trial["counters"][field] != 1 for field in required.get(trial["class"], ())):
+        raise ValueError(
+            "each trial must satisfy its own required class events exactly once"
+        )
+
+
+def summarize(
+    manifest_path: Path, wheel_digest: str, *, version: str = VERSION
+) -> tuple[dict, dict]:
     root = manifest_path.resolve().parent
     raw = manifest_path.read_bytes()
     document = json.loads(raw)
@@ -145,8 +286,8 @@ def summarize(manifest_path: Path, wheel_digest: str) -> tuple[dict, dict]:
         or document["evidence_class"] != "remote-safe-synthetic"
     ):
         raise ValueError("wrong measured evidence schema or class")
-    if document["runtime"] != {"version": VERSION, "wheel_sha256": wheel_digest}:
-        raise ValueError("measured runtime does not match the published wheel")
+    if document["runtime"] != {"version": version, "wheel_sha256": wheel_digest}:
+        raise ValueError("measured runtime does not match the candidate wheel")
     inventory = {}
     for item in document["artifacts"]:
         relative = Path(item["path"])
@@ -176,7 +317,7 @@ def summarize(manifest_path: Path, wheel_digest: str) -> tuple[dict, dict]:
         if (
             key in seen
             or trial["class"] not in trust.CAMPAIGN_CLASSES
-            or trial["runtime_version"] != VERSION
+            or trial["runtime_version"] != version
         ):
             raise ValueError("duplicate, unknown-class, or wrong-runtime trial")
         seen.add(key)
@@ -204,6 +345,19 @@ def summarize(manifest_path: Path, wheel_digest: str) -> tuple[dict, dict]:
     missing = [name for name in trust.CAMPAIGN_CLASSES if not groups[name]]
     if missing:
         raise ValueError("measured trials are missing for " + ", ".join(missing))
+    normalizer = document.get("normalizer", {})
+    if (
+        not isinstance(normalizer.get("path"), str)
+        or not normalizer["path"]
+        or normalizer["path"] not in inventory
+        or not isinstance(normalizer.get("sha256"), str)
+        or inventory[normalizer["path"]]["sha256"] != normalizer["sha256"]
+    ):
+        raise ValueError("measurement normalizer is absent from verified inventory")
+    proofs: set[str] = set()
+    for trial in document["trials"]:
+        validate_trial_events(trial)
+        verify_trial_observation(trial, inventory, root, version, wheel_digest, proofs)
     summary = {}
     for name in trust.CAMPAIGN_CLASSES:
         trials = groups[name]
@@ -224,12 +378,75 @@ def summarize(manifest_path: Path, wheel_digest: str) -> tuple[dict, dict]:
     }
 
 
+def observe_unpublished(wheel: Path, sdist: Path, source: str) -> dict:
+    if len(source) != 40 or any(c not in "0123456789abcdef" for c in source):
+        raise ValueError("candidate source must be an exact commit SHA")
+    with zipfile.ZipFile(wheel) as archive:
+        metadata_paths = [
+            n for n in archive.namelist() if n.endswith(".dist-info/METADATA")
+        ]
+        if len(metadata_paths) != 1:
+            raise ValueError("wheel metadata is ambiguous")
+        wheel_metadata = BytesParser().parsebytes(archive.read(metadata_paths[0]))
+    with tarfile.open(sdist, "r:gz") as archive:
+        metadata_paths = [
+            m
+            for m in archive.getmembers()
+            if m.name.count("/") == 1 and m.name.endswith("/PKG-INFO")
+        ]
+        if len(metadata_paths) != 1 or not metadata_paths[0].isfile():
+            raise ValueError("sdist metadata is ambiguous")
+        stream = archive.extractfile(metadata_paths[0])
+        assert stream is not None
+        sdist_metadata = BytesParser().parsebytes(stream.read())
+    version = wheel_metadata["Version"]
+    if (
+        wheel_metadata["Name"] != "openadapt-flow"
+        or sdist_metadata["Name"] != "openadapt-flow"
+        or sdist_metadata["Version"] != version
+    ):
+        raise ValueError("candidate package metadata differs")
+    if version != "1.35.1":
+        raise ValueError("this reviewed successor candidate must be version 1.35.1")
+    return {
+        "published": False,
+        "version": version,
+        "source_commit": source,
+        "observed_at": datetime.now(timezone.utc).isoformat(),
+        "required_external_gates": [
+            "Review and merge the exact candidate",
+            "Run the protected-main full qualification and three-OS lifecycle",
+            "Publish and verify both immutable artifacts",
+            "Issue and project the exact signed admission",
+        ],
+        "artifacts": [
+            {
+                "kind": kind,
+                "name": path.name,
+                "sha256": sha(path.read_bytes()),
+                "size_bytes": path.stat().st_size,
+            }
+            for kind, path in (("python-wheel", wheel), ("python-sdist", sdist))
+        ],
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--measured-manifest", type=Path)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--unpublished-wheel", type=Path)
+    parser.add_argument("--unpublished-sdist", type=Path)
+    parser.add_argument("--source-commit")
     args = parser.parse_args()
-    observation = observe_release()
+    local_args = (args.unpublished_wheel, args.unpublished_sdist, args.source_commit)
+    if any(local_args) and not all(local_args):
+        parser.error(
+            "unpublished wheel, sdist, and source commit must be supplied together"
+        )
+    observation = (
+        observe_unpublished(*local_args) if all(local_args) else observe_release()
+    )
     wheel = next(a for a in observation["artifacts"] if a["kind"] == "python-wheel")
     ledger = read_json(ROOT / "production-lifecycle-admissions.json")
     previous = []
@@ -268,7 +485,11 @@ def main() -> int:
         candidate["measured_scope"] = measured_document.get("scope")
         candidate["limitations"] = measured_document.get("limitations", [])
         try:
-            summary, measured = summarize(args.measured_manifest, wheel["sha256"])
+            summary, measured = summarize(
+                args.measured_manifest,
+                wheel["sha256"],
+                version=observation.get("version", VERSION),
+            )
         except (ValueError, trust.TrustError) as exc:
             candidate["validation_errors"] = [str(exc)]
         else:
@@ -280,7 +501,9 @@ def main() -> int:
                 candidate["validation_errors"] = ["measured scope must be explicit"]
             else:
                 candidate.update(
-                    state="ready-for-review",
+                    state="ready-for-release-review"
+                    if observation.get("published") is False
+                    else "ready-for-review",
                     campaign_summary=summary,
                     measured_evidence=measured,
                 )
