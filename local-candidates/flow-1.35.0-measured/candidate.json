@@ -1,0 +1,198 @@
+{
+  "admission_issued": false,
+  "canonical_policy_commit": "9b61391713203998e584f4834e4812bb41b40f6e",
+  "evidence_class": "remote-safe-synthetic",
+  "limitations": [
+    {
+      "detail": "BoundAttendedExecutor continuation omits execution_target_kind. The qualified default continuation cannot observe the environment and refuses after successful live revalidation.",
+      "id": "attended-resume-target-kind",
+      "status": "observed integration failure"
+    },
+    {
+      "detail": "The repair campaign reads plaintext template/context inputs. It fails campaign proof for the actual encrypted, template-armed OCR repair candidate and refuses approval.",
+      "id": "encrypted-repair-anchor",
+      "status": "observed integration failure"
+    }
+  ],
+  "measured_manifest_sha256": "sha256:6b7ee4704e42776f707f4b176996b08ffa6bfda1501bc68b65faf7b3dbb59cff",
+  "measured_scope": {
+    "application": "Pillow synthetic clinic fixture",
+    "operator_principal": "Explicit synthetic local protocol inputs; no real human/authentication provider proof",
+    "required_path": "Default real attended and encrypted repair paths; added deployment adapters/plaintext diagnostics do not substitute for those paths",
+    "runtime": "Exact installed unmodified Flow 1.35.0 wheel",
+    "system_of_record": "Local SQLite"
+  },
+  "proposed_release_identity": {
+    "channel": "production",
+    "previous_admission_sha256": "sha256:d2983b86d5428c892421b191f6943a63cf4f9a0b1629e324d099f5df6fa5dcda",
+    "schema_version": "openadapt.monotonic-production-release/v1",
+    "sequence": 2
+  },
+  "release_observation": {
+    "artifacts": [
+      {
+        "github_url": "https://github.com/OpenAdaptAI/openadapt-flow/releases/download/v1.35.0/openadapt_flow-1.35.0-py3-none-any.whl",
+        "kind": "python-wheel",
+        "name": "openadapt_flow-1.35.0-py3-none-any.whl",
+        "pypi_url": "https://files.pythonhosted.org/packages/09/89/6c00cae30e9a75f5c2473178550012a8afeeab83c9f465e3039b051a2374/openadapt_flow-1.35.0-py3-none-any.whl",
+        "sha256": "sha256:2bd0122d506aade41a018cdac1f06a139adef7e85d4ca0b186bb56ee94dc3297",
+        "size_bytes": 2121501
+      },
+      {
+        "github_url": "https://github.com/OpenAdaptAI/openadapt-flow/releases/download/v1.35.0/openadapt_flow-1.35.0.tar.gz",
+        "kind": "python-sdist",
+        "name": "openadapt_flow-1.35.0.tar.gz",
+        "pypi_url": "https://files.pythonhosted.org/packages/d8/aa/8086768b5a0df9f901a972d4e2bce829a18a24429d2969bdcda1f0e48b5d/openadapt_flow-1.35.0.tar.gz",
+        "sha256": "sha256:45668042b346fd40ec881f8d43ed8b395c86aa075729168d4787877e03ee6ef3",
+        "size_bytes": 21116872
+      }
+    ],
+    "observed_at": "2026-09-08T21:46:10.121623+00:00",
+    "release_url": "https://github.com/OpenAdaptAI/openadapt-flow/releases/tag/v1.35.0",
+    "runs": {
+      "qualification": {
+        "conclusion": "success",
+        "id": 33822314626,
+        "jobs": [
+          {
+            "conclusion": "success",
+            "name": "docs-consistency"
+          },
+          {
+            "conclusion": "success",
+            "name": "scope"
+          },
+          {
+            "conclusion": "success",
+            "name": "windows-mock"
+          },
+          {
+            "conclusion": "success",
+            "name": "effectbench-standalone"
+          },
+          {
+            "conclusion": "success",
+            "name": "interop-types"
+          },
+          {
+            "conclusion": "success",
+            "name": "python-compatibility"
+          },
+          {
+            "conclusion": "success",
+            "name": "phi-guard"
+          },
+          {
+            "conclusion": "success",
+            "name": "mypy-strict-safety"
+          },
+          {
+            "conclusion": "success",
+            "name": "lint"
+          },
+          {
+            "conclusion": "success",
+            "name": "linux-atspi-x11"
+          },
+          {
+            "conclusion": "success",
+            "name": "test"
+          },
+          {
+            "conclusion": "success",
+            "name": "wheel"
+          },
+          {
+            "conclusion": "success",
+            "name": "e2e-browser"
+          },
+          {
+            "conclusion": "success",
+            "name": "test-matrix (ubuntu-latest, 3.12)"
+          },
+          {
+            "conclusion": "success",
+            "name": "test-matrix (ubuntu-latest, 3.11)"
+          },
+          {
+            "conclusion": "success",
+            "name": "test-matrix (macos-latest, 3.12)"
+          },
+          {
+            "conclusion": "success",
+            "name": "test-matrix (ubuntu-latest, 3.10)"
+          }
+        ],
+        "source_commit": "6d1f80aa4775e6aa398c3251c8d53e7ec61d0c0c",
+        "url": "https://github.com/OpenAdaptAI/openadapt-flow/actions/runs/33822314626"
+      },
+      "release": {
+        "conclusion": "success",
+        "id": 33826859321,
+        "jobs": [
+          {
+            "conclusion": "success",
+            "name": "validate-tag"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "backfill-github-release"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "validate-dispatch"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "create-release-tag"
+          },
+          {
+            "conclusion": "success",
+            "name": "publish-tag"
+          }
+        ],
+        "source_commit": "6d1f80aa4775e6aa398c3251c8d53e7ec61d0c0c",
+        "url": "https://github.com/OpenAdaptAI/openadapt-flow/actions/runs/33826859321"
+      },
+      "three_os_lifecycle": {
+        "conclusion": "success",
+        "id": 33822325382,
+        "jobs": [
+          {
+            "conclusion": "success",
+            "name": "lifecycle (macos-latest)"
+          },
+          {
+            "conclusion": "success",
+            "name": "lifecycle (ubuntu-latest)"
+          },
+          {
+            "conclusion": "success",
+            "name": "lifecycle (windows-latest)"
+          }
+        ],
+        "source_commit": "6d1f80aa4775e6aa398c3251c8d53e7ec61d0c0c",
+        "url": "https://github.com/OpenAdaptAI/openadapt-flow/actions/runs/33822325382"
+      }
+    },
+    "source_commit": "6d1f80aa4775e6aa398c3251c8d53e7ec61d0c0c",
+    "tag": "v1.35.0",
+    "tag_object": "4e851c65e8fbfd676c2851360f567e2bb7af4945",
+    "version": "1.35.0"
+  },
+  "required_campaign_classes": [
+    "healthy",
+    "safe_halt",
+    "idempotency_replay",
+    "uncertain_delivery",
+    "declared_attended",
+    "governed_repair"
+  ],
+  "schema_version": "openadapt.unsigned-measured-release-candidate/v1",
+  "scope": "Executed local synthetic SQLite and pixel fixture; synthetic reviewer inputs; no customer qualification or actual human approval.",
+  "state": "evidence-incomplete",
+  "target": "flow",
+  "validation_errors": [
+    "measured trials are missing for declared_attended, governed_repair"
+  ]
+}

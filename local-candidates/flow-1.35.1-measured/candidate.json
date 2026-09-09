@@ -1,0 +1,203 @@
+{
+  "admission_issued": false,
+  "campaign_summary": {
+    "declared_attended": {
+      "approved_repair_count": 0,
+      "authenticated_bound_decision_count": 3,
+      "blind_retry_count": 0,
+      "live_target_revalidation_count": 3,
+      "minimum_trials_per_cell": 3,
+      "model_call_count": 0,
+      "observed_trial_count": 3,
+      "over_halt_count": 0,
+      "policy_approved_repair_count": 0,
+      "reconciliation_required_count": 0,
+      "replay_dispatch_count": 0,
+      "retained_repair_evidence_count": 0,
+      "silent_incorrect_success_count": 0,
+      "task_condition_cell_count": 1,
+      "unplanned_intervention_count": 0,
+      "unsafe_effect_count": 0,
+      "unverified_direct_action_count": 0
+    },
+    "governed_repair": {
+      "approved_repair_count": 3,
+      "authenticated_bound_decision_count": 0,
+      "blind_retry_count": 0,
+      "live_target_revalidation_count": 3,
+      "minimum_trials_per_cell": 3,
+      "model_call_count": 0,
+      "observed_trial_count": 3,
+      "over_halt_count": 0,
+      "policy_approved_repair_count": 3,
+      "reconciliation_required_count": 3,
+      "replay_dispatch_count": 0,
+      "retained_repair_evidence_count": 3,
+      "silent_incorrect_success_count": 0,
+      "task_condition_cell_count": 1,
+      "unplanned_intervention_count": 0,
+      "unsafe_effect_count": 0,
+      "unverified_direct_action_count": 0
+    },
+    "healthy": {
+      "approved_repair_count": 0,
+      "authenticated_bound_decision_count": 0,
+      "blind_retry_count": 0,
+      "live_target_revalidation_count": 0,
+      "minimum_trials_per_cell": 3,
+      "model_call_count": 0,
+      "observed_trial_count": 6,
+      "over_halt_count": 0,
+      "policy_approved_repair_count": 0,
+      "reconciliation_required_count": 0,
+      "replay_dispatch_count": 0,
+      "retained_repair_evidence_count": 0,
+      "silent_incorrect_success_count": 0,
+      "task_condition_cell_count": 2,
+      "unplanned_intervention_count": 0,
+      "unsafe_effect_count": 0,
+      "unverified_direct_action_count": 0
+    },
+    "idempotency_replay": {
+      "approved_repair_count": 0,
+      "authenticated_bound_decision_count": 0,
+      "blind_retry_count": 0,
+      "live_target_revalidation_count": 0,
+      "minimum_trials_per_cell": 3,
+      "model_call_count": 0,
+      "observed_trial_count": 3,
+      "over_halt_count": 0,
+      "policy_approved_repair_count": 0,
+      "reconciliation_required_count": 0,
+      "replay_dispatch_count": 0,
+      "retained_repair_evidence_count": 0,
+      "silent_incorrect_success_count": 0,
+      "task_condition_cell_count": 1,
+      "unplanned_intervention_count": 0,
+      "unsafe_effect_count": 0,
+      "unverified_direct_action_count": 0
+    },
+    "safe_halt": {
+      "approved_repair_count": 0,
+      "authenticated_bound_decision_count": 0,
+      "blind_retry_count": 0,
+      "live_target_revalidation_count": 0,
+      "minimum_trials_per_cell": 3,
+      "model_call_count": 0,
+      "observed_trial_count": 15,
+      "over_halt_count": 0,
+      "policy_approved_repair_count": 0,
+      "reconciliation_required_count": 12,
+      "replay_dispatch_count": 0,
+      "retained_repair_evidence_count": 0,
+      "silent_incorrect_success_count": 0,
+      "task_condition_cell_count": 5,
+      "unplanned_intervention_count": 0,
+      "unsafe_effect_count": 0,
+      "unverified_direct_action_count": 0
+    },
+    "uncertain_delivery": {
+      "approved_repair_count": 0,
+      "authenticated_bound_decision_count": 0,
+      "blind_retry_count": 0,
+      "live_target_revalidation_count": 0,
+      "minimum_trials_per_cell": 3,
+      "model_call_count": 0,
+      "observed_trial_count": 6,
+      "over_halt_count": 0,
+      "policy_approved_repair_count": 0,
+      "reconciliation_required_count": 6,
+      "replay_dispatch_count": 0,
+      "retained_repair_evidence_count": 0,
+      "silent_incorrect_success_count": 0,
+      "task_condition_cell_count": 2,
+      "unplanned_intervention_count": 0,
+      "unsafe_effect_count": 0,
+      "unverified_direct_action_count": 0
+    }
+  },
+  "canonical_policy_commit": "9b61391713203998e584f4834e4812bb41b40f6e",
+  "evidence_class": "remote-safe-synthetic",
+  "limitations": [
+    {
+      "id": "compact-scale-safe-refusal",
+      "observed": "The actual runtime refuses unreadable identity at this compact scale. The corrected campaign must match that refusal. This candidate does not establish broad scale support.",
+      "scope": "Compact synthetic identifier at 1.15x display scale",
+      "verification_artifacts": [
+        "source-fix-repros/repair-independent-review/sampler-runtime-parity.json",
+        "source-fix-repros/repair-independent-review/sampler_runtime_parity.py",
+        "source-fix-repros/repair-independent-review/retention-provenance.json"
+      ]
+    },
+    {
+      "follow_up": "Investigate identity tokenization sensitivity to a one-pixel resolved target shift while preserving exact identity and ambiguity refusal requirements.",
+      "id": "moderate-display-identity-tokenization-refusal",
+      "interpretation": "The reports establish one-pixel resolution/identity-tokenization sensitivity after the OCR enumeration change. This is not a target miss. No counterfactual execution or tuning experiment was run, so this record does not isolate every internal causal contribution.",
+      "observed": "All three old trials verify. All three candidate trials refuse identity before Save. Both releases find Save at OCR confidence 1.0 in identical before frames. The resolved x coordinate changes from 1060 to 1061. The candidate identity OCR joins Cardiology and selected, and coverage changes from 1.0 to 0.2381.",
+      "qualification_accounting": "The predeclared condition permits VERIFIED or a safe halt. All three candidate trials meet that alternative but remain excluded from the six-class selected trial count. No overall parity or improvement claim follows.",
+      "scope": "The three excluded moderate_display_drift trials compared with frozen 1.35.0",
+      "verification_artifacts": [
+        "limitations/moderate-display-identity-tokenization/comparison.json"
+      ]
+    }
+  ],
+  "measured_evidence": {
+    "artifact_count": 1617,
+    "manifest_sha256": "sha256:2cd3b47a9c1fc3d81b1207e7f64441d82ad7f0f62babf49d8ffde6ae2ac2c7ca",
+    "task_count": 3,
+    "trial_count": 36
+  },
+  "measured_manifest_sha256": "sha256:2cd3b47a9c1fc3d81b1207e7f64441d82ad7f0f62babf49d8ffde6ae2ac2c7ca",
+  "measured_scope": {
+    "application": "Pillow synthetic clinic fixture",
+    "operator_principal": "Explicit synthetic local protocol inputs; no real human/authentication provider proof",
+    "promoted_repair": "Retained typed-field OCR anchor refresh at step_002. The hidden-Save halt is a separate expected halt check; the promoted anchor does not fix or unhide Save. Discovery and canary use distinct reset SQLite oracles.",
+    "required_path": "Default real attended and encrypted repair paths; added deployment adapters/plaintext diagnostics do not substitute for those paths",
+    "runtime": "Exact installed unmodified candidate wheel; identity binds the version and digest",
+    "system_of_record": "Local SQLite"
+  },
+  "proposed_release_identity": {
+    "channel": "production",
+    "previous_admission_sha256": "sha256:d2983b86d5428c892421b191f6943a63cf4f9a0b1629e324d099f5df6fa5dcda",
+    "schema_version": "openadapt.monotonic-production-release/v1",
+    "sequence": 2
+  },
+  "release_observation": {
+    "artifacts": [
+      {
+        "kind": "python-wheel",
+        "name": "openadapt_flow-1.35.1-py3-none-any.whl",
+        "sha256": "sha256:3e0d3c0fc423b6055d1972a2c8f90d9a5622330a0888f2cfaaeb7993ff23cb99",
+        "size_bytes": 2129387
+      },
+      {
+        "kind": "python-sdist",
+        "name": "openadapt_flow-1.35.1.tar.gz",
+        "sha256": "sha256:e84ccd8e7dd32ad074d5becb351d806e7a735fa1ef5e6ae95c9d4bb48f621588",
+        "size_bytes": 21133468
+      }
+    ],
+    "observed_at": "2026-09-08T22:35:52.508027+00:00",
+    "published": false,
+    "required_external_gates": [
+      "Review and merge the exact candidate",
+      "Run the protected-main full qualification and three-OS lifecycle",
+      "Publish and verify both immutable artifacts",
+      "Issue and project the exact signed admission"
+    ],
+    "source_commit": "aed32758b7342c61787a3b56fe940e1e9f2d648a",
+    "version": "1.35.1"
+  },
+  "required_campaign_classes": [
+    "healthy",
+    "safe_halt",
+    "idempotency_replay",
+    "uncertain_delivery",
+    "declared_attended",
+    "governed_repair"
+  ],
+  "schema_version": "openadapt.unsigned-measured-release-candidate/v1",
+  "scope": "Executed local synthetic SQLite and pixel fixture; synthetic reviewer inputs; no customer qualification or actual human approval.",
+  "state": "ready-for-release-review",
+  "target": "flow"
+}
