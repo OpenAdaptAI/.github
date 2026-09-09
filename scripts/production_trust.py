@@ -653,12 +653,26 @@ def validate_tag_rulesets(
             else [
                 {"type": "deletion"},
                 {"type": "non_fast_forward"},
-                {
-                    "type": "update",
-                    "parameters": {"update_allows_fetch_and_merge": False},
-                },
+                {"type": "update"},
             ]
         )
+        if (
+            index == 1
+            and isinstance(rules, list)
+            and len(rules) == 3
+            and isinstance(rules[2], dict)
+            and "parameters" in rules[2]
+        ):
+            # GitHub omits this branch-only option on tag update rules. Preserve
+            # either exact representation; never normalize the retained evidence.
+            parameters = closed(
+                rules[2]["parameters"],
+                {"update_allows_fetch_and_merge"},
+                "tag update rule parameters",
+            )
+            if parameters["update_allows_fetch_and_merge"] is not False:
+                raise TrustError("tag update rule cannot allow fetch and merge")
+            expected_rules[2]["parameters"] = {"update_allows_fetch_and_merge": False}
         if rules != expected_rules:
             raise TrustError("tag ruleset rules differ from immutable policy")
     return value

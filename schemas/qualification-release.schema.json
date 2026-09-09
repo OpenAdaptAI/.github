@@ -229,11 +229,34 @@
           "role": {"const": "immutability"},
           "name": {"const": "OpenAdapt policy: immutable release tags"},
           "bypass_actors": {"const": []},
-          "rules": {"const": [
-            {"type": "deletion"},
-            {"type": "non_fast_forward"},
-            {"type": "update", "parameters": {"update_allows_fetch_and_merge": false}}
-          ]}
+          "rules": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "prefixItems": [
+              {"const": {"type": "deletion"}},
+              {"const": {"type": "non_fast_forward"}},
+              {"oneOf": [
+                {"const": {"type": "update"}},
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["type", "parameters"],
+                  "properties": {
+                    "type": {"const": "update"},
+                    "parameters": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["update_allows_fetch_and_merge"],
+                      "properties": {
+                        "update_allows_fetch_and_merge": {"type": "boolean", "const": false}
+                      }
+                    }
+                  }
+                }
+              ]}
+            ]
+          }
         }}
       ]
     },
