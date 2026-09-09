@@ -4,9 +4,9 @@
   "repository": "OpenAdaptAI/.github",
   "repository_id": "858454062",
   "repository_owner_id": "132681217",
-  "revision": 7,
-  "previous_registry_head_sha256": "sha256:ae6b1c8f7ad3f5d12fc9b0c8abfad42950f74c73c0f602f645cd08e6dbdbd9f4",
-  "registry_head_sha256": "sha256:f821ad5b1f342d62494f3d2204a0fc15b861b3ee4f8b7e6dbd0f3139a058df90",
+  "revision": 8,
+  "previous_registry_head_sha256": "sha256:f821ad5b1f342d62494f3d2204a0fc15b861b3ee4f8b7e6dbd0f3139a058df90",
+  "registry_head_sha256": "sha256:3dc458aef999b8b0dec2255fda62390a038d0eebb2a90871fe39827dff563723",
   "signer_registry": {
     "schema_version": "openadapt.qualification-signer-registry-pointer/v1",
     "object_path": "production-evidence/signer-registries/sha256/7a/7a81bf3d213c74673f3c6b5fa179234cbee534c9432aaea6ae09e455562f96b6.qualification-signer-registry.json",
@@ -925,6 +925,28 @@
       "semantic_identity_sha256": "sha256:65c5bf4d7b8e0159a1ede34440bd80c0287f4448027c54c44e6a09214ac9bf88",
       "subject_sha256": "sha256:30eab7c62a55e988a543c1e21463676585171ba9e80afe71f518d89b04e53977",
       "registry_entry_sha256": "sha256:691ab41408c5eb46bfb0653b17fcb87455733898d1acb33b175bc510af0ebc62"
+    },
+    {
+      "kind": "qualification-release",
+      "object_schema_version": "openadapt.qualification-release/v2",
+      "object_path": "production-evidence/objects/sha256/0e/0edd19d51d449e3eaba21463117fb19148553a817e03c8c5b804953a26bcbb51.qualification-release.json",
+      "object_sha256": "sha256:0edd19d51d449e3eaba21463117fb19148553a817e03c8c5b804953a26bcbb51",
+      "size_bytes": 7641,
+      "object_media_type": "application/vnd.openadapt.qualification-release+json;version=2",
+      "semantic_identity_sha256": "sha256:bf7608421fb7e6dbf0c660ebdc20b25877703fd019b9c5f27d193a717d08ca5e",
+      "subject_sha256": null,
+      "registry_entry_sha256": "sha256:56394709d93aa546e5c619915e48473f420f479777f0bfb526d9d727e5d4eb26"
+    },
+    {
+      "kind": "qualification-release-sigstore-bundle",
+      "object_schema_version": "application/vnd.dev.sigstore.bundle.v0.3+json",
+      "object_path": "production-evidence/objects/sha256/11/114c70ce18f6633b0a2b9c4b7b274e8f7484e711a102f182cf3d1f417ec74910.qualification-release-sigstore-bundle.json",
+      "object_sha256": "sha256:114c70ce18f6633b0a2b9c4b7b274e8f7484e711a102f182cf3d1f417ec74910",
+      "size_bytes": 2741,
+      "object_media_type": "application/vnd.dev.sigstore.bundle.v0.3+json",
+      "semantic_identity_sha256": "sha256:3ecfd6d66f69d57c3d349c29ae1b813389fc17ba7976d19d0e09463cab25809b",
+      "subject_sha256": "sha256:0edd19d51d449e3eaba21463117fb19148553a817e03c8c5b804953a26bcbb51",
+      "registry_entry_sha256": "sha256:20b9769f47d82e1a0be905e7e1e0c91086645ee4db16745a05e9f39f22d90278"
     }
   ]
 }
