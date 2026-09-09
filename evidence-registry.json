@@ -4,9 +4,9 @@
   "repository": "OpenAdaptAI/.github",
   "repository_id": "858454062",
   "repository_owner_id": "132681217",
-  "revision": 3,
-  "previous_registry_head_sha256": "sha256:12508b788997dcd841b7b116b512dd7c1e129192988a947952bcc2e2e8572a24",
-  "registry_head_sha256": "sha256:d00a5f4f68db36de5da56de27045905c622b5f699ffd9c45eb29f452fe5e3ba1",
+  "revision": 4,
+  "previous_registry_head_sha256": "sha256:d00a5f4f68db36de5da56de27045905c622b5f699ffd9c45eb29f452fe5e3ba1",
+  "registry_head_sha256": "sha256:41e277d2cf9d6e90dd17da913dc0103b152efe5b2157abf9be400b6225401b69",
   "signer_registry": {
     "schema_version": "openadapt.qualification-signer-registry-pointer/v1",
     "object_path": "production-evidence/signer-registries/sha256/7a/7a81bf3d213c74673f3c6b5fa179234cbee534c9432aaea6ae09e455562f96b6.qualification-signer-registry.json",
@@ -837,6 +837,28 @@
       "semantic_identity_sha256": "sha256:414b826ba65470764c2d22229bfd2686f753919a87ddf38d79ca6592d721875e",
       "size_bytes": 2741,
       "subject_sha256": "sha256:5370cba3f92802fd27b3f364a746c219d9c651e9992b87d25a4d180386744f82"
+    },
+    {
+      "kind": "qualification-evidence-decision-receipt",
+      "object_schema_version": "openadapt.qualification-evidence-decision-receipt/v2",
+      "object_path": "production-evidence/objects/sha256/01/01f11ce3f7343e407f67ab6e5e6e2490af852602f4cae473e0de0d91cd6f6984.qualification-evidence-decision-receipt.json",
+      "object_sha256": "sha256:01f11ce3f7343e407f67ab6e5e6e2490af852602f4cae473e0de0d91cd6f6984",
+      "size_bytes": 6639,
+      "object_media_type": "application/vnd.openadapt.qualification-evidence-decision-receipt+json;version=2",
+      "semantic_identity_sha256": "sha256:ba54f3d10a92a567afd17550d658e545bfef6ac94f81d332f293a133ec8cd494",
+      "subject_sha256": null,
+      "registry_entry_sha256": "sha256:1b1c0940cd94b0b31ce1dc4e3a384dbac7402d5d9361eff8bee634c053b9da4c"
+    },
+    {
+      "kind": "qualification-evidence-decision-receipt-sigstore-bundle",
+      "object_schema_version": "application/vnd.dev.sigstore.bundle.v0.3+json",
+      "object_path": "production-evidence/objects/sha256/21/219de812a126e2e6ecc2ffc60ca21788ba2c820851d5040c6aa0e02247db6d30.qualification-evidence-decision-receipt-sigstore-bundle.json",
+      "object_sha256": "sha256:219de812a126e2e6ecc2ffc60ca21788ba2c820851d5040c6aa0e02247db6d30",
+      "size_bytes": 2849,
+      "object_media_type": "application/vnd.dev.sigstore.bundle.v0.3+json",
+      "semantic_identity_sha256": "sha256:9a5dae5b8ae6dd5e408b4dc56fe215ca7c64d47f97f8e33dc186418b92c31157",
+      "subject_sha256": "sha256:01f11ce3f7343e407f67ab6e5e6e2490af852602f4cae473e0de0d91cd6f6984",
+      "registry_entry_sha256": "sha256:8d0d159f371663b7f3c8de756d8d0abea6e8e0084c25a44394ae545b1c1e5f10"
     }
   ]
 }
