@@ -1702,7 +1702,7 @@ def _validate_v2_workflow_admission(
 ) -> tuple[dict[str, Any], bool]:
     """Validate one registered qualification-admission/v4 ledger row.
 
-    remote-safe-synthetic tutorial rows are retained and checked. One
+    remote-safe-synthetic reference rows are retained and checked. One
     active row is enough to list a workflow admission. It does not
     qualify a product release, and it is not a MockMed
     production_acceptance flip.
@@ -1742,10 +1742,6 @@ def _validate_v2_workflow_admission(
     if admission["evidence_class"] != "remote-safe-synthetic":
         raise LifecycleError(
             f"workflow admission {index} evidence class is not remote-safe-synthetic"
-        )
-    if admission["bundle_version"] != "0.0.0-synthetic":
-        raise LifecycleError(
-            f"workflow admission {index} is not the synthetic tutorial bundle"
         )
     if admission["expires_at"] is not None:
         raise LifecycleError(f"workflow admission {index} expiry must be until-revoked")

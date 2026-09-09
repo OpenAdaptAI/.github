@@ -10,7 +10,7 @@ import subprocess
 import sys
 import types
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 
@@ -1105,18 +1105,68 @@ class ProductionLifecycleTests(unittest.TestCase):
 class PublishedPolicyTests(unittest.TestCase):
     """Bind the validator to the policy document the repository publishes."""
 
+    BASELINE_RELEASE_OBJECTS = (
+        "sha256:790122a25c87e456c6e45d25ebf5cd029b21b8511265b062fd9129b74aa1dd82",
+        "sha256:a339d74d2a28281dee2daacbf378bd9b03f1cca7884980e7e8355345b7195d64",
+        "sha256:999ffd46284b5aabc32eca6b39c0cd9b01a689b2ec3679c6b8a77d42e78c722c",
+        "sha256:ab90ad9cd7a5b284d2f2cb59f6feb4477062cb2a7fd4ab089cd177001dedd25d",
+        "sha256:962514bb387e79cd31fa00a7f5d3fe2476a4dd89ee508095a183de3ba8cc70b0",
+        "sha256:549d2abc0f18d3e14d505698865d7226bf6cdf8356300322ee42d00b717ce054",
+        "sha256:5370cba3f92802fd27b3f364a746c219d9c651e9992b87d25a4d180386744f82",
+    )
+
+    BASELINE_WORKFLOW_OBJECTS = (
+        "sha256:dcdb32a762aca87fbb1a7c9df5d346403b167ec5850d35fe47fd64d942684a04",
+        "sha256:34b8a1157cfd72d820cac0c49e3679959174083ccbb83cf0371925cc72226fdb",
+        "sha256:4b505945969b876b8af9d9686416214d191b78cd3472e313ce3776a5e550efcb",
+        "sha256:71b69bc2339fd3202eae960c2cd7fbef4963e6736fa5ad6e24d7879e53f8da7d",
+        "sha256:46e925b68d8313880756b38fcbf17d8bf02af1fb5b57692e63cc972479088a3e",
+        "sha256:71470304eb13b4d9aed64c0d26c9d31d1bb8a4eb463955be0b720e1aed523e61",
+        "sha256:6d0c77a7831103e1959406513f7b53fca7fb0709c872056461dc8b6be06a784e",
+    )
+
+    def published_objects(self, ledger_name: str) -> list[dict]:
+        ledger = json.loads((ROOT / ledger_name).read_text(encoding="utf-8"))
+        registry = lifecycle.evidence_registry
+        entries = registry.validate_registry(
+            json.loads((ROOT / "evidence-registry.json").read_text(encoding="utf-8"))
+        )
+        result = []
+        for reference in ledger["admissions"]:
+            registry.require_registered(entries, reference=reference, label=ledger_name)
+            raw = (ROOT / reference["object_path"]).read_bytes()
+            self.assertEqual(digest_bytes(raw), reference["object_sha256"])
+            self.assertEqual(len(raw), reference["size_bytes"])
+            result.append(json.loads(raw))
+        return result
+
+    def published_now(self) -> datetime:
+        # Test the checked-in snapshot after its actual activation times. This
+        # deterministic clock does not change the validator's live clock.
+        objects = [
+            value
+            for name in (
+                "production-lifecycle-admissions.json",
+                "production-workflow-admissions.json",
+            )
+            for value in self.published_objects(name)
+        ]
+        return max(
+            trust.require_timestamp(value[field], "published admission " + field)
+            for value in objects
+            for field in ("issued_at", "not_before")
+        ) + timedelta(seconds=1)
+
     def test_published_policy_is_accepted(self) -> None:
-        # Remaining-six rows are issued 2026-09-02T19:22:47Z. Use a clock
-        # after that instant. This is not a MockMed production_acceptance flip.
-        published_now = datetime(2026, 9, 2, 19, 30, 0, tzinfo=timezone.utc)
+        published_now = self.published_now()
         active = lifecycle.validate_files(ROOT, now=published_now)
-        release = json.loads(
+        release = max(
             (
-                ROOT
-                / "production-evidence/objects/sha256/79/"
-                "790122a25c87e456c6e45d25ebf5cd029b21b8511265b062fd9129b74aa1dd82"
-                ".qualification-release.json"
-            ).read_text(encoding="utf-8")
+                value
+                for value in self.published_objects("production-lifecycle-admissions.json")
+                if value["target"] == "flow"
+            ),
+            key=lambda value: value["release_identity"]["sequence"],
         )
         self.assertEqual(release["evidence_class"], "remote-safe-synthetic")
         self.assertEqual(release["target"], "flow")
@@ -1129,7 +1179,7 @@ class PublishedPolicyTests(unittest.TestCase):
     def test_seven_synthetic_target_admissions_are_product_production(
         self,
     ) -> None:
-        published_now = datetime(2026, 9, 2, 19, 30, 0, tzinfo=timezone.utc)
+        published_now = self.published_now()
         active = lifecycle.validate_files(ROOT, now=published_now)
         self.assertEqual(len(active), 7)
         self.assertEqual(set(active), set(lifecycle.EXPECTED_TARGETS))
@@ -1144,7 +1194,7 @@ class PublishedPolicyTests(unittest.TestCase):
     def test_published_workflow_ledger_lists_synthetic_tutorial_admissions(
         self,
     ) -> None:
-        published_now = datetime(2026, 9, 2, 19, 30, 0, tzinfo=timezone.utc)
+        published_now = self.published_now()
         active = lifecycle.validate_files(ROOT, now=published_now)
         self.assertEqual(len(active), 7)
         ledger = json.loads(
@@ -1154,7 +1204,13 @@ class PublishedPolicyTests(unittest.TestCase):
             ledger["schema_version"], "openadapt.production-workflow-admissions/v1"
         )
         self.assertEqual(ledger["policy_sha256"], lifecycle.RETAINED_POLICY_SHA256)
-        self.assertEqual(len(ledger["admissions"]), 7)
+        self.assertEqual(
+            tuple(
+                row["object_sha256"]
+                for row in ledger["admissions"][: len(self.BASELINE_WORKFLOW_OBJECTS)]
+            ),
+            self.BASELINE_WORKFLOW_OBJECTS,
+        )
         kinds = {row["kind"] for row in ledger["admissions"]}
         self.assertEqual(kinds, {"qualification-admission"})
         tutorial = json.loads(
@@ -1188,7 +1244,13 @@ class PublishedPolicyTests(unittest.TestCase):
         ledger = json.loads(
             (ROOT / "production-lifecycle-admissions.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(len(ledger["admissions"]), 7)
+        self.assertEqual(
+            tuple(
+                row["object_sha256"]
+                for row in ledger["admissions"][: len(self.BASELINE_RELEASE_OBJECTS)]
+            ),
+            self.BASELINE_RELEASE_OBJECTS,
+        )
         flow = ledger["admissions"][0]
         self.assertEqual(flow["kind"], "qualification-release")
         self.assertEqual(

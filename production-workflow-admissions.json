@@ -128,6 +128,24 @@
       "object_media_type": "application/vnd.openadapt.qualification-admission+json;version=4",
       "semantic_identity_sha256": "sha256:920214d3bb3378e5cdab572c67ac04d13de3b2f19f99ade5e73f7e394282776e",
       "subject_sha256": null
+    },
+    {
+      "kind": "qualification-admission",
+      "object_media_type": "application/vnd.openadapt.qualification-admission+json;version=4",
+      "object_path": "production-evidence/objects/sha256/94/947224523757df41127be021fc66adee5746f07ff1a0e913319c5461e430e34d.qualification-admission.json",
+      "object_schema_version": "openadapt.qualification-admission/v4",
+      "object_sha256": "sha256:947224523757df41127be021fc66adee5746f07ff1a0e913319c5461e430e34d",
+      "registry_entry_sha256": "sha256:8bf275e7e38161fdbc66084cad6f2365c4283d363b9097b01c5f2587aadc8a73",
+      "registry_head_sha256": "sha256:2de6be9baa56e46d4c705a19a790c1637130968f90dd2ab6cbd26678d53f2891",
+      "registry_revision": 5,
+      "registry_source_commit": "f0fb9cc812c0d1653b1ec2998749b078f244308e",
+      "repository": "OpenAdaptAI/.github",
+      "repository_id": "858454062",
+      "repository_owner_id": "132681217",
+      "schema_version": "openadapt.production-evidence-object-reference/v2",
+      "semantic_identity_sha256": "sha256:7181ef7c2f3a74d1a8e6b8289a544efd40d4e85b8b590855d3dff2715b9ed2d1",
+      "size_bytes": 8058,
+      "subject_sha256": null
     }
   ]
 }
