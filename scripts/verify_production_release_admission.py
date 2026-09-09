@@ -19,6 +19,8 @@ from pathlib import Path
 from typing import Any
 
 import production_trust as trust
+import public_trust_kms as public_trust
+import public_trust_resolver as public_resolver
 import validate_evidence_registry as evidence
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -379,7 +381,13 @@ def fetch_pair(
         return signer_value
 
     current_signer_registry = load_signer(current_pointer, require_active=True)
-    bound_identity = value.get("signer_registry_sha256")
+    # Authority v2 commits registry bytes and semantic identity separately.
+    bound_identity = value.get(
+        "signer_registry_identity_sha256"
+        if value.get("schema_version")
+        == "openadapt.qualification-authority-state-receipt/v2"
+        else "signer_registry_sha256"
+    )
     if bound_identity is None:
         bound_pointer = current_pointer
     else:
@@ -419,11 +427,10 @@ def resolve_pair(
     regular_raw, bundle_raw, value, bound_signer_registry, current_signer_registry = (
         fetch_pair(regular_reference, bundle_reference)
     )
-    verify_sigstore(
-        regular_raw,
-        bundle_raw,
-        kind=kind,
-        object_value=value,
+    verify_registered_signature(
+        regular_reference,
+        bundle_reference,
+        (regular_raw, bundle_raw, value, bound_signer_registry, current_signer_registry),
         policy=policy,
     )
     return value, bound_signer_registry, current_signer_registry
@@ -453,6 +460,298 @@ def derive_bundle_reference(regular_reference: dict[str, Any]) -> dict[str, Any]
     raise trust.TrustError(
         "the admission bundle does not immediately follow its object"
     )
+
+
+def _registered_state_pairs(
+    reference: dict[str, Any],
+    *,
+    kind: str,
+    identity: str | None = None,
+    authority_identity: str | None = None,
+) -> list[tuple[dict[str, Any], dict[str, Any], tuple]]:
+    """Resolve historical state from the object's exact containing registry."""
+
+    commit = reference["registry_source_commit"]
+    registry = json.loads(fetch(raw_url(commit, "evidence-registry.json")))
+    entries = evidence.validate_registry(registry)
+    if (
+        registry["revision"] != reference["registry_revision"]
+        or registry["registry_head_sha256"] != reference["registry_head_sha256"]
+    ):
+        raise trust.TrustError("state reference registry revision or head differs")
+    matches = []
+    for entry in entries:
+        if entry["kind"] != kind or (
+            identity is not None and entry["semantic_identity_sha256"] != identity
+        ):
+            continue
+        regular = {
+            **{field: reference[field] for field in (
+                "schema_version", "repository", "repository_id",
+                "repository_owner_id", "registry_source_commit",
+                "registry_revision", "registry_head_sha256",
+            )},
+            **entry,
+        }
+        bundle = derive_bundle_reference(regular)
+        pair = fetch_pair(regular, bundle)
+        if authority_identity is not None and (
+            pair[2].get("authority_state_sha256") != authority_identity
+        ):
+            continue
+        matches.append((regular, bundle, pair))
+    return matches
+
+
+def _registered_state_pair(reference: dict[str, Any], **selectors: Any) -> tuple:
+    matches = _registered_state_pairs(reference, **selectors)
+    if len(matches) != 1:
+        raise trust.TrustError("exactly one bound state must be registered")
+    return matches[0]
+
+
+def _software_signer(registry: dict[str, Any], statement: dict[str, Any]) -> dict:
+    matches = [signer for signer in registry["signers"] if (
+        signer["key_id"] == statement["key_id"]
+        and signer["algorithm"] == "ed25519"
+        and signer.get("key_origin") == "software"
+    )]
+    if len(matches) != 1:
+        raise trust.TrustError("software bundle does not select one registered signer")
+    return matches[0]
+
+
+def _verify_software_pair(
+    reference: dict[str, Any],
+    bundle_reference: dict[str, Any],
+    pair: tuple,
+    *,
+    authority: dict[str, Any],
+    revocation: dict[str, Any],
+    now: datetime,
+) -> None:
+    raw, bundle_raw, value, bound_registry, current_registry = pair
+    bundle = json.loads(bundle_raw)
+    statement = public_trust.statement_from_bundle(bundle)
+    if statement["signature_profile"] != public_trust.SOFTWARE_SIGNATURE_PROFILE:
+        raise trust.TrustError("registered software route rejects this signature profile")
+    bound_raw = evidence.canonical(bound_registry) + b"\n"
+    bound_identity = evidence.signer_registry_identity_digest(bound_registry)
+    signed_at = trust.require_timestamp(statement["issued_at"], "statement issued_at")
+    expectations = {
+        "expected_signer_registry_sha256": bound_identity,
+        "expected_authority_state_sha256": authority["authority_state_sha256"],
+        "expected_revocation_state_sha256": revocation["revocation_state_sha256"],
+    }
+    if value.get("schema_version") == (
+        "openadapt.qualification-authority-state-receipt/v2"
+    ):
+        # This existing schema and its outer statement bind the raw registry
+        # digest. Do not relabel it as the independent semantic identity.
+        if raw != evidence.canonical(value) + b"\n" or (
+            bundle_raw != evidence.canonical(bundle) + b"\n"
+        ):
+            raise trust.TrustError("authority pair must be canonical JSON plus LF")
+        generated = evidence._timestamp(bound_registry["generated_at"], "registry generated_at")
+        expires = evidence.optional_timestamp(bound_registry["expires_at"], "registry expires_at")
+        if signed_at < generated or (expires is not None and signed_at >= expires):
+            raise trust.TrustError("authority bound signer registry is not active at statement time")
+        if value["signer_registry_identity_sha256"] != bound_identity:
+            raise trust.TrustError("authority signer registry identity differs")
+        expectations["expected_signer_registry_sha256"] = (
+            "sha256:" + hashlib.sha256(bound_raw).hexdigest()
+        )
+        public_trust.validate_statement_object_binding(
+            statement,
+            object_raw=raw,
+            object_value=value,
+            object_kind=reference["kind"],
+            object_schema_version=reference["object_schema_version"],
+            object_media_type=reference["object_media_type"],
+            semantic_identity_sha256=reference["semantic_identity_sha256"],
+            **expectations,
+        )
+        public_trust.verify_bundle(
+            bundle, expected_statement=statement,
+            signer=_software_signer(bound_registry, statement), now=signed_at,
+        )
+    else:
+        public_resolver.verify_registered_public_trust_pair(
+            object_raw=raw, object_reference=reference,
+            bundle_raw=bundle_raw, bundle_reference=bundle_reference,
+            signer_registry_raw=bound_raw, now=signed_at, **expectations,
+        )
+    # Historical bindings do not grant a revoked key present-day authority.
+    public_trust.verify_bundle(
+        bundle, expected_statement=statement,
+        signer=_software_signer(current_registry, statement), now=now,
+    )
+
+
+def _verify_embedded_state(
+    state_pair: tuple,
+    *,
+    bound_registry: dict[str, Any],
+    current_registry: dict[str, Any],
+    now: datetime,
+) -> None:
+    reference, _, fetched = state_pair
+    state, state_bound, state_current = fetched[2:]
+    if (
+        evidence.signer_registry_identity_digest(state_bound)
+        != evidence.signer_registry_identity_digest(bound_registry)
+        or evidence.signer_registry_identity_digest(state_current)
+        != evidence.signer_registry_identity_digest(current_registry)
+    ):
+        raise trust.TrustError("registered trust-state signer registries differ")
+    if reference["kind"] == "qualification-authority-state-receipt":
+        validator = trust.validate_authority_state
+        domain = trust.AUTHORITY_STATE_SIGNATURE_DOMAIN
+    elif reference["kind"] == "qualification-revocation-state-receipt":
+        validator = trust.validate_revocation_state
+        domain = trust.REVOCATION_STATE_SIGNATURE_DOMAIN
+    else:
+        raise trust.TrustError("registered state has an unsupported kind")
+    observed_at = trust.require_timestamp(state["observed_at"], "state observed_at")
+    validator(state, now=observed_at)
+    for registry, instant in ((state_bound, observed_at), (state_current, now)):
+        trust.verify_embedded_signature(
+            state, signer_registry=registry,
+            object_schema_version=reference["object_schema_version"],
+            signature_domain=domain, usage=reference["kind"], now=instant,
+        )
+
+
+def _validate_registered_state_links(
+    authority: dict[str, Any],
+    revocation: dict[str, Any],
+    *,
+    bound_registry: dict[str, Any],
+    current_registry: dict[str, Any],
+) -> None:
+    identity = evidence.signer_registry_identity_digest(bound_registry)
+    if (
+        authority["signer_registry_identity_sha256"] != identity
+        or authority["signer_registry_sha256"]
+        != "sha256:" + hashlib.sha256(evidence.canonical(bound_registry) + b"\n").hexdigest()
+        or authority["signer_registry_revision"] != bound_registry["revision"]
+        or revocation["signer_registry_sha256"] != identity
+        or revocation["authority_state_sha256"] != authority["authority_state_sha256"]
+    ):
+        raise trust.TrustError("registered bound authority and signer state differ")
+    revoked = {(item["subject_kind"], item["subject_id"])
+               for item in revocation["revocations"]}
+    if any(signer["status"] == "active" and (
+        "qualification-signer-key", signer["public_key_sha256"]
+    ) in revoked for signer in current_registry["signers"]):
+        raise trust.TrustError("an active signer key is revoked")
+
+
+def _verify_authority_pair(
+    authority_pair: tuple,
+    *,
+    bound_registry: dict[str, Any],
+    current_registry: dict[str, Any],
+    now: datetime,
+) -> tuple:
+    """Find the independently verified historical reverse link missing in v2."""
+
+    reference, bundle_reference, pair = authority_pair
+    authority = pair[2]
+    matches = []
+    for candidate in _registered_state_pairs(
+        reference, kind="qualification-revocation-state-receipt",
+        authority_identity=authority["authority_state_sha256"],
+    ):
+        revocation = candidate[2][2]
+        try:
+            _verify_embedded_state(candidate, bound_registry=bound_registry,
+                                   current_registry=current_registry, now=now)
+            _validate_registered_state_links(authority, revocation,
+                                             bound_registry=bound_registry,
+                                             current_registry=current_registry)
+            _verify_software_pair(*candidate, authority=authority,
+                                  revocation=revocation, now=now)
+            _verify_software_pair(reference, bundle_reference, pair,
+                                  authority=authority, revocation=revocation, now=now)
+        except (trust.TrustError, public_trust.PublicTrustKmsError,
+                public_resolver.PublicTrustResolutionError,
+                evidence.EvidenceRegistryError, KeyError, TypeError,
+                json.JSONDecodeError):
+            continue
+        matches.append(candidate)
+    if len(matches) != 1:
+        raise trust.TrustError("authority must bind exactly one verified registered revocation")
+    return matches[0]
+
+
+def verify_registered_signature(
+    reference: dict[str, Any],
+    bundle_reference: dict[str, Any],
+    pair: tuple,
+    *,
+    policy: dict[str, Any],
+) -> None:
+    """Route registered software DSSE without changing any keyless profile."""
+
+    raw, bundle_raw, value, bound_registry, current_registry = pair
+    bundle = json.loads(bundle_raw)
+    envelope = bundle.get("dsseEnvelope", {}) if isinstance(bundle, dict) else {}
+    material = bundle.get("verificationMaterial", {}) if isinstance(bundle, dict) else {}
+    is_public_trust = (
+        isinstance(envelope, dict)
+        and envelope.get("payloadType") == public_trust.STATEMENT_MEDIA_TYPE
+    ) or (isinstance(material, dict) and "publicKey" in material)
+    if not is_public_trust:
+        verify_sigstore(raw, bundle_raw, kind=reference["kind"],
+                       object_value=value, policy=policy)
+        return
+    try:
+        statement = public_trust.statement_from_bundle(bundle)
+        if statement["signature_profile"] != public_trust.SOFTWARE_SIGNATURE_PROFILE:
+            raise trust.TrustError("registered software route rejects this signature profile")
+        now = datetime.now(timezone.utc)
+        if value.get("schema_version") == (
+            "openadapt.qualification-authority-state-receipt/v2"
+        ):
+            authority_pair = (reference, bundle_reference, pair)
+            _verify_embedded_state(authority_pair, bound_registry=bound_registry,
+                                   current_registry=current_registry, now=now)
+            _verify_authority_pair(authority_pair, bound_registry=bound_registry,
+                                   current_registry=current_registry, now=now)
+            return
+        # Select the target's states from registered object commitments,
+        # never from an outer DSSE statement.
+        revocation_pair = _registered_state_pair(
+            reference, kind="qualification-revocation-state-receipt",
+            identity=value.get("revocation_state_sha256"),
+            authority_identity=value.get("authority_state_sha256"),
+        )
+        revocation = revocation_pair[2][2]
+        authority_pair = _registered_state_pair(
+            reference, kind="qualification-authority-state-receipt",
+            identity=revocation["authority_state_sha256"],
+        )
+        authority = authority_pair[2][2]
+        for state_pair in (authority_pair, revocation_pair):
+            _verify_embedded_state(state_pair, bound_registry=bound_registry,
+                                   current_registry=current_registry, now=now)
+        _validate_registered_state_links(authority, revocation,
+                                         bound_registry=bound_registry,
+                                         current_registry=current_registry)
+        # The authority outer signature keeps its own historical reverse link
+        # when a later revocation retains the same authority identity.
+        _verify_authority_pair(authority_pair, bound_registry=bound_registry,
+                               current_registry=current_registry, now=now)
+        _verify_software_pair(*revocation_pair, authority=authority,
+                              revocation=revocation, now=now)
+        _verify_software_pair(reference, bundle_reference, pair,
+                              authority=authority, revocation=revocation, now=now)
+    except (public_trust.PublicTrustKmsError,
+            public_resolver.PublicTrustResolutionError,
+            evidence.EvidenceRegistryError, KeyError, TypeError,
+            json.JSONDecodeError) as exc:
+        raise trust.TrustError(f"registered software DSSE verification failed: {exc}") from exc
 
 
 def verify_sigstore(
@@ -746,11 +1045,13 @@ def main(argv: list[str] | None = None) -> int:
             _current_signer_registry,
         ) = fetch_pair(reference, bundle_reference)
         policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
-        verify_sigstore(
-            regular_raw,
-            bundle_raw,
-            kind="qualification-release",
-            object_value=admission_value,
+        if reference.get("kind") != "qualification-release":
+            raise trust.TrustError("the referenced object is not qualification-release")
+        verify_registered_signature(
+            reference,
+            bundle_reference,
+            (regular_raw, bundle_raw, admission_value,
+             release_signer_registry, _current_signer_registry),
             policy=policy,
         )
         now = datetime.now(timezone.utc)
