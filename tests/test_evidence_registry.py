@@ -145,11 +145,23 @@ class EvidenceRegistryTests(unittest.TestCase):
         value = json.loads((ROOT / "evidence-registry.json").read_text())
         entries = registry.validate_registry(value, root=ROOT)
         kinds = [entry["kind"] for entry in entries]
-        self.assertEqual(value["revision"], 3)
+        self.assertGreaterEqual(value["revision"], 3)
+        # Revision 3 is a retained baseline, not the final allowed append.
+        # Bind all 74 historical entries while permitting later registered pairs.
+        baseline = copy.deepcopy(value)
+        baseline["revision"] = 3
+        baseline["previous_registry_head_sha256"] = (
+            "sha256:12508b788997dcd841b7b116b512dd7c1e129192988a947952bcc2e2e8572a24"
+        )
+        baseline["registry_head_sha256"] = (
+            "sha256:d00a5f4f68db36de5da56de27045905c622b5f699ffd9c45eb29f452fe5e3ba1"
+        )
+        baseline["entries"] = entries[:74]
+        registry.validate_registry(baseline, root=ROOT)
         self.assertIsNotNone(value["signer_registry"])
         self.assertIn("qualification-release", kinds)
         self.assertIn("qualification-release-sigstore-bundle", kinds)
-        self.assertEqual(kinds[-2:], [
+        self.assertEqual(kinds[72:74], [
             "qualification-release",
             "qualification-release-sigstore-bundle",
         ])
