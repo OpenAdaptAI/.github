@@ -687,10 +687,38 @@ def current_context(source_commit: str, now: datetime) -> dict:
     }
 
 
+def prepared_target(inputs: dict) -> tuple[str, str]:
+    """Derive the supported target from the verified inventory and release.
+
+    This shared phase machinery has two explicit input preparers. A caller
+    cannot select another product by adding a target string to a phase request.
+    Each preparer verifies its own retained measurements and publication bytes.
+    """
+    inventory = trust.validate_artifact_inventory(inputs["artifact_inventory"])
+    target = inventory["target"]
+    if target not in {"flow", "cloud"}:
+        fail("measured adapter does not support this target")
+    contract = trust.TARGET_CONTRACTS[target]
+    release = inputs["release"]
+    if (
+        inventory["claim_scope"] != contract["claim_scope"]
+        or release["schema_version"] != "openadapt.production-release-candidate/v1"
+        or release["kind"] != contract["release_kind"]
+        or release["source_repository"] != contract["repository"]
+        or release["source_repository_id"] != contract["repository_id"]
+        or not isinstance(release["source_commit"], str)
+        or trust.HEX40.fullmatch(release["source_commit"]) is None
+        or release["artifacts"] != inventory["artifacts"]
+    ):
+        fail("measured release differs from the validated target inventory")
+    return target, contract["claim_scope"]
+
+
 def check_release_identity(inputs: dict, source: str) -> None:
     ledger = json.loads(
         verifier.fetch(verifier.raw_url(source, "production-lifecycle-admissions.json"))
     )
+    target, _ = prepared_target(inputs)
     previous = []
     for ref in ledger["admissions"]:
         value = verifier.verify_bytes(
@@ -698,10 +726,10 @@ def check_release_identity(inputs: dict, source: str) -> None:
             ref,
             "ledger admission",
         )
-        if value.get("target") == "flow":
+        if value.get("target") == target:
             previous.append(value)
     if not previous:
-        fail("current Flow admission history is missing")
+        fail("current measured target admission history is missing")
     last = max(previous, key=lambda value: value["release_identity"]["sequence"])
     expected = {
         "schema_version": "openadapt.monotonic-production-release/v1",
@@ -762,6 +790,7 @@ def issuer_identity(source: str, phase: str) -> dict:
 def phase_object(
     inputs: dict, request: dict, context: dict, *, consumer=None
 ) -> tuple[dict, dict | None]:
+    target, claim_scope = prepared_target(inputs)
     phase = request["phase"]
     source = request["issuer_source_commit"]
     now = trust.require_timestamp(request["issued_at"], "phase issued_at")
@@ -915,9 +944,9 @@ def phase_object(
             fail("acceptance issuer must be actual reviewed evals protected main")
         value = {
             "schema_version": "openadapt.production-acceptance/v3",
-            "target": "flow",
+            "target": target,
             "verdict": "accepted",
-            "claim_scope": "production_flow",
+            "claim_scope": claim_scope,
             **{
                 k: context[k]
                 for k in ("acceptance_policy_sha256", "lifecycle_policy_sha256")
@@ -927,8 +956,8 @@ def phase_object(
             "release_sha256": trust.digest_bytes(
                 trust.RELEASE_DOMAIN,
                 {
-                    "target": "flow",
-                    "claim_scope": "production_flow",
+                    "target": target,
+                    "claim_scope": claim_scope,
                     "release": inputs["release"],
                 },
             ),
@@ -1179,7 +1208,7 @@ def validate_staging_registry(path: Path, source: str, context: dict) -> None:
         fail("staging registry does not append to the verified current trust state")
 
 
-def main(argv=None) -> int:
+def main(argv=None, *, input_preparer=None, expected_target="flow") -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mapping", type=Path)
     parser.add_argument("--mapping-sha256")
@@ -1229,7 +1258,11 @@ def main(argv=None) -> int:
         live_now = datetime.now(timezone.utc)
         if now > live_now or (live_now - now).total_seconds() > 3600:
             fail("reviewed issue time must be within the last hour")
-        inputs = prepare_inputs(args.mapping, args.mapping_sha256)
+        # The default executable remains Flow-only. The Cloud executable uses
+        # its separately reviewed verifier; JSON cannot choose a preparer.
+        inputs = (input_preparer or prepare_inputs)(args.mapping, args.mapping_sha256)
+        if prepared_target(inputs)[0] != expected_target:
+            fail("measured input target differs from this executable")
         context = current_context(request["issuer_source_commit"], live_now)
         check_release_identity(inputs, request["issuer_source_commit"])
         value, issue_request = phase_object(inputs, request, context)
