@@ -157,7 +157,7 @@ def verify_derivative_provenance(
     references: dict,
     *,
     gh=shared.gh,
-) -> None:
+) -> dict:
     """Use fixed-workflow provenance and actual retained and live source readback."""
     validate_producer(producer)
     trust.closed(
@@ -217,6 +217,7 @@ def verify_derivative_provenance(
         != workflow_raw
     ):
         shared.fail("actual producer workflow bytes differ from the reviewed file")
+    return run
 
 
 DERIVATIVE_FIELDS = {
@@ -952,6 +953,189 @@ def verify_deployment(
             )
 
 
+PUBLICATION_OBSERVATION_FIELDS = {
+    "schema_version",
+    "producer",
+    "qualification_derivative_sha256",
+    "subject",
+    "observed_at",
+    "provider_readback_sha256",
+}
+
+
+def observation_time(value: str):
+    from datetime import datetime, timezone
+
+    if not isinstance(value, str):
+        shared.fail("provider observation time must be actual UTC milliseconds")
+    try:
+        moment = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        shared.fail("provider observation time must be actual UTC milliseconds")
+    if (
+        moment.tzinfo != timezone.utc
+        or moment.isoformat(timespec="milliseconds").replace("+00:00", "Z") != value
+    ):
+        shared.fail("provider observation time must be actual UTC milliseconds")
+    return moment
+
+
+def verify_publication_observation(
+    owner: Path,
+    reference: dict | None,
+    derivative: dict,
+    derivative_raw: bytes,
+    inventory: dict,
+    staging: dict,
+    *,
+    gh=shared.gh,
+) -> None:
+    """Bind staging time to original evidence or a separately attested fresh read.
+
+    The refresh authenticates a read-only observation through the fixed producer.
+    It leaves the original campaign, derivative and activation byte commitments
+    intact. Original evidence can support only its original observation time.
+    """
+    original = role_json(derivative, inventory, "deployment_readback")
+    if reference is None:
+        observed = observation_time(original["observed_at"])
+    else:
+        trust.closed(
+            reference,
+            {"artifact", "provenance", "provider_readback"},
+            "publication observation references",
+        )
+        _, proof_raw = shared.checked_file(owner, reference["artifact"])
+        proof = trust.closed(
+            strict_json(proof_raw),
+            PUBLICATION_OBSERVATION_FIELDS,
+            "publication observation",
+        )
+        _, raw = shared.checked_file(owner, reference["provider_readback"])
+        readback = trust.closed(
+            strict_json(raw),
+            {
+                "observed_at",
+                "app_id",
+                "app_version",
+                "source_commit",
+                "netlify_deploy_id",
+                "runtime_boundary_id",
+                "deployment_manifest_sha256",
+                "control_image_id",
+                "sandbox_image_id",
+                "provider_observation",
+                "health",
+            },
+            "fresh provider observation",
+        )
+        if (
+            proof["schema_version"] != "openadapt.hosted-publication-observation/v1"
+            or proof["qualification_derivative_sha256"]
+            != shared.sha(derivative_raw)[7:]
+            or proof["subject"] != derivative["subject"]
+            or proof["provider_readback_sha256"] != shared.sha(raw)[7:]
+            or proof["observed_at"] != readback["observed_at"]
+        ):
+            shared.fail(
+                "fresh observation does not bind the original derivative and actual readback"
+            )
+        observed = observation_time(readback["observed_at"])
+        run = verify_derivative_provenance(
+            owner,
+            proof_raw,
+            proof["producer"],
+            reference["provenance"],
+            gh=gh,
+        )
+        started = trust.require_timestamp(run["run_started_at"], "producer run start")
+        completed = trust.require_timestamp(
+            run["updated_at"], "producer run completion"
+        )
+        # GitHub's API bounds have second precision. Compare the observation's
+        # containing second while preserving its exact milliseconds in evidence.
+        if not started <= observed.replace(microsecond=0) <= completed:
+            shared.fail(
+                "fresh observation time falls outside its authenticated workflow attempt"
+            )
+        subject = derivative["subject"]
+        prior = original["provider_observation"]
+        context = original["observed_runtime_context"]
+        expected = {
+            "app_id": prior["modal"]["app_id"],
+            "app_version": prior["modal"]["app_version"],
+            "source_commit": subject["source_commit"],
+            "netlify_deploy_id": prior["host"]["deploy_id"],
+            "deployment_manifest_sha256": subject["deployment_manifest_sha256"],
+            "control_image_id": context["control_image_id"],
+            "sandbox_image_id": context["modal_image_id"],
+            "provider_observation": {key: prior[key] for key in ("host", "modal")},
+        }
+        if any(readback[key] != value for key, value in expected.items()):
+            shared.fail(
+                "fresh provider, source or image differs from the qualified deployment"
+            )
+        runtime = role_json(derivative, inventory, "runtime_version")
+        health = readback["health"]
+        health_expected = {
+            "ready": True,
+            "service": "runner",
+            "mode": "live",
+            "boundary_id": readback["runtime_boundary_id"],
+            "flow_version": runtime["openadapt_flow"],
+            "modal_sdk": runtime["modal_sdk"],
+            "fastapi": runtime["fastapi"],
+            "starlette": runtime["starlette"],
+            "runner_build": runtime["runner_build"],
+            "runner_artifact_sha256": runtime["runner_artifact_sha256"],
+            "sandbox_network_policy": runtime["sandbox_network_policy"],
+            "deployment_manifest_sha256": subject["deployment_manifest_sha256"],
+            "runtime_build_identity": role_json(
+                derivative, inventory, "runtime_build_identity"
+            ),
+            "runtime_environment_sha256": context["runtime_environment_sha256"],
+        }
+        if (
+            health.get("ready") is not True
+            or context["runtime_environment_sha256"]
+            != health_expected["runtime_build_identity"]["substrate_runtime"][
+                "runtime_boundary_sha256"
+            ]
+            or any(health.get(key) != value for key, value in health_expected.items())
+            or semantic_digest({"environment": readback["runtime_boundary_id"]})
+            != context["runtime_environment_sha256"]
+        ):
+            shared.fail(
+                "fresh runner health or runtime differs from the qualified deployment"
+            )
+        functions = original.get("function_readbacks")
+        if (
+            not isinstance(functions, list)
+            or len(functions) != 3
+            or {row.get("function_tag") for row in functions if isinstance(row, dict)}
+            != {"enqueue", "run_flow", "run_teach"}
+            or health.get("function_readbacks") != functions
+        ):
+            shared.fail(
+                "fresh runner function inventory differs from the qualified deployment"
+            )
+        function = health.get("deployment_readback", {})
+        expected_function = {
+            "app_id": prior["modal"]["app_id"],
+            "app_version": prior["modal"]["app_version"],
+            "function_id": prior["modal"]["function_id"],
+            "function_definition_id": prior["modal"]["function_definition_id"],
+            "control_image_id": context["control_image_id"],
+            "sandbox_image_id": context["modal_image_id"],
+        }
+        if any(function.get(key) != value for key, value in expected_function.items()):
+            shared.fail(
+                "fresh runner function or image differs from the qualified deployment"
+            )
+    if staging["observed_at"] != observed.strftime("%Y-%m-%dT%H:%M:%SZ"):
+        shared.fail("staging time differs from its authenticated provider observation")
+
+
 def prepare_inputs(mapping_path: Path, mapping_sha256: str, *, gh=shared.gh) -> dict:
     raw = mapping_path.read_bytes()
     if shared.sha(raw) != mapping_sha256:
@@ -965,6 +1149,7 @@ def prepare_inputs(mapping_path: Path, mapping_sha256: str, *, gh=shared.gh) -> 
             "provenance",
             "retained_files",
             "publication_staging",
+            "publication_observation",
         },
         "measured Cloud input mapping",
     )
@@ -1040,6 +1225,15 @@ def prepare_inputs(mapping_path: Path, mapping_sha256: str, *, gh=shared.gh) -> 
     )
     _, staging = checked_json(mapping_path, mapping["publication_staging"])
     verify_deployment(derivative, inventory, release, staging, gh=gh)
+    verify_publication_observation(
+        mapping_path,
+        mapping["publication_observation"],
+        derivative,
+        derivative_raw,
+        inventory,
+        staging,
+        gh=gh,
+    )
     inputs.update(
         mapping_sha256=mapping_sha256,
         candidate_sha256=shared.sha(candidate_path.read_bytes()),

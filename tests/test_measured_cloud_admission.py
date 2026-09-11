@@ -147,7 +147,7 @@ class CloudProvenanceTests(unittest.TestCase):
             )
 
     def test_exact_fixed_workflow_passes_without_network(self):
-        self.assertIsNone(self.verify())
+        self.assertEqual(self.verify(), self.run)
 
     def test_verified_repo_workflow_ids_builder_run_attempt_refuse(self):
         original = copy.deepcopy(self.result)
@@ -317,7 +317,9 @@ class MeasuredFixture:
             "substrate_runtime": {
                 "transport": "browser",
                 "os_family": "linux",
-                "runtime_boundary_sha256": self.digest("boundary"),
+                "runtime_boundary_sha256": adapter.semantic_digest(
+                    {"environment": "test-only-boundary"}
+                ),
             },
         }
         self.add("runtime_build_identity", self.build)
@@ -467,6 +469,7 @@ class MeasuredFixture:
         self.add("deployment_workflow_run", self.run)
         self.readback = {
             "schema_version": "openadapt.cloud-production-deployment-readback/v1",
+            "observed_at": "2026-09-11T00:05:00.123Z",
             "source_commit": self.source,
             "manifest_sha256": "sha256:" + manifest_hash,
             "manifest_bytes_sha256": "sha256:" + manifest_hash,
@@ -506,14 +509,29 @@ class MeasuredFixture:
                     "source_dirty": False,
                     "sdk_version": runtime["modal_sdk"],
                     "endpoint_origin": "https://test-only.modal.run/",
+                    "function_id": "fu-" + "a" * 22,
+                    "function_definition_id": "test-only-definition",
                 },
                 "environment_contract_sha256": host["environment_contract_sha256"],
             },
             "observed_runtime_context": {
                 "deployment_manifest_sha256": manifest_hash,
                 "runtime_build_identity": self.build,
+                "control_image_id": "im-test-only-control",
+                "modal_image_id": "im-test-only-sandbox",
+                "runtime_environment_sha256": adapter.semantic_digest(
+                    {"environment": "test-only-boundary"}
+                ),
             },
         }
+        self.readback["function_readbacks"] = [
+            {
+                "function_tag": tag,
+                "function_id": "test-only-" + tag,
+                "function_definition_id": "test-only-definition-" + tag,
+            }
+            for tag in ("enqueue", "run_flow", "run_teach")
+        ]
         self.add("deployment_readback", self.readback)
         commitments = {}
         manifest_opening = self.add(
@@ -1022,6 +1040,7 @@ class CloudMeasuredInputsTests(unittest.TestCase):
             "candidate": write("candidate.json", candidate),
             "derivative": write("derivative.json", f.derivative),
             "publication_staging": write("staging.json", f.staging),
+            "publication_observation": None,
             "provenance": {"test_only": "mocked after separate crypto tests"},
             "retained_files": [
                 {
@@ -1130,6 +1149,217 @@ class CloudMeasuredInputsTests(unittest.TestCase):
         self.assertFalse(output.exists())
         with self.assertRaises(SystemExit):
             adapter.shared.main(args + ["--target", "cloud"])
+
+
+class CloudPublicationObservationTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.fixture = f = MeasuredFixture(temporary.name)
+        self.owner = f.directory / "mapping.json"
+        self.derivative_raw = adapter.canonical_json(f.derivative)
+        prior = f.readback["provider_observation"]
+        context = f.readback["observed_runtime_context"]
+        runtime = f.runtime
+        self.observation = {
+            "observed_at": "2026-09-11T01:00:00.123Z",
+            "app_id": prior["modal"]["app_id"],
+            "app_version": prior["modal"]["app_version"],
+            "source_commit": f.source,
+            "netlify_deploy_id": prior["host"]["deploy_id"],
+            "runtime_boundary_id": "test-only-boundary",
+            "deployment_manifest_sha256": f.subject["deployment_manifest_sha256"],
+            "control_image_id": context["control_image_id"],
+            "sandbox_image_id": context["modal_image_id"],
+            "provider_observation": {key: prior[key] for key in ("host", "modal")},
+            "health": {
+                "ready": True,
+                "service": "runner",
+                "mode": "live",
+                "boundary_id": "test-only-boundary",
+                "flow_version": runtime["openadapt_flow"],
+                "modal_sdk": runtime["modal_sdk"],
+                "fastapi": runtime["fastapi"],
+                "starlette": runtime["starlette"],
+                "runner_build": runtime["runner_build"],
+                "runner_artifact_sha256": runtime["runner_artifact_sha256"],
+                "sandbox_network_policy": runtime["sandbox_network_policy"],
+                "deployment_manifest_sha256": f.subject["deployment_manifest_sha256"],
+                "runtime_build_identity": f.build,
+                "runtime_environment_sha256": context["runtime_environment_sha256"],
+                "function_readbacks": f.readback["function_readbacks"],
+                "deployment_readback": {
+                    "app_id": prior["modal"]["app_id"],
+                    "app_version": prior["modal"]["app_version"],
+                    "function_id": prior["modal"]["function_id"],
+                    "function_definition_id": prior["modal"]["function_definition_id"],
+                    "control_image_id": context["control_image_id"],
+                    "sandbox_image_id": context["modal_image_id"],
+                },
+            },
+        }
+        self.run = {
+            "run_started_at": "2026-09-11T00:59:00Z",
+            "updated_at": "2026-09-11T01:01:00Z",
+        }
+        self.staging = {**f.staging, "observed_at": "2026-09-11T01:00:00Z"}
+
+    def references(self, observation=None, **changes):
+        f = self.fixture
+
+        def write(name, value):
+            raw = adapter.canonical_json(value)
+            (f.directory / name).write_bytes(raw)
+            return {
+                "path": name,
+                "sha256": adapter.shared.sha(raw),
+                "size_bytes": len(raw),
+            }
+
+        observation = observation or self.observation
+        raw_ref = write("fresh-readback.json", observation)
+        proof = {
+            "schema_version": "openadapt.hosted-publication-observation/v1",
+            "producer": producer(),
+            "qualification_derivative_sha256": adapter.shared.sha(self.derivative_raw)[
+                7:
+            ],
+            "subject": f.subject,
+            "observed_at": observation["observed_at"],
+            "provider_readback_sha256": raw_ref["sha256"][7:],
+            **changes,
+        }
+        return {
+            "artifact": write("fresh-observation.json", proof),
+            "provider_readback": raw_ref,
+            "provenance": {"test_only": "separate fixed-workflow crypto tests"},
+        }
+
+    def verify(self, reference, staging=None):
+        f = self.fixture
+        return adapter.verify_publication_observation(
+            self.owner,
+            reference,
+            f.derivative,
+            self.derivative_raw,
+            f.inventory,
+            staging or self.staging,
+            gh=f.gh,
+        )
+
+    def test_original_time_cannot_be_refreshed_without_new_observation(self):
+        self.assertIsNone(self.verify(None, self.fixture.staging))
+        with self.assertRaisesRegex(ValueError, "staging time differs"):
+            self.verify(None)
+
+    def test_separate_attested_refresh_preserves_original_bytes(self):
+        f = self.fixture
+        originals = {digest: raw for digest, (_, raw) in f.inventory.items()}
+        reference = self.references()
+        with mock.patch.object(
+            adapter, "verify_derivative_provenance", return_value=self.run
+        ) as verifier:
+            self.assertIsNone(self.verify(reference))
+        verifier.assert_called_once()
+        self.assertEqual(
+            verifier.call_args.args[1],
+            (f.directory / reference["artifact"]["path"]).read_bytes(),
+        )
+        self.assertEqual(verifier.call_args.args[2], producer())
+        self.assertEqual(
+            {digest: path.read_bytes() for digest, (path, _) in f.inventory.items()},
+            originals,
+        )
+        self.assertEqual(adapter.canonical_json(f.derivative), self.derivative_raw)
+
+    def test_unverified_or_wrong_original_subject_and_bytes_refuse(self):
+        reference = self.references()
+        with (
+            mock.patch.object(
+                adapter,
+                "verify_derivative_provenance",
+                side_effect=ValueError("crypto refused"),
+            ),
+            self.assertRaisesRegex(ValueError, "crypto refused"),
+        ):
+            self.verify(reference)
+        for changes in (
+            {"qualification_derivative_sha256": "a" * 64},
+            {"subject": {**self.fixture.subject, "source_commit": "b" * 40}},
+            {"provider_readback_sha256": "a" * 64},
+            {"observed_at": "2026-09-11T01:00:01.000Z"},
+            {"extra": "not allowed"},
+        ):
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                self.verify(self.references(**changes))
+        reference = self.references()
+        (self.fixture.directory / reference["provider_readback"]["path"]).write_bytes(
+            b"{}"
+        )
+        with self.assertRaisesRegex(ValueError, "bytes differ"):
+            self.verify(reference)
+
+    def test_staging_and_millisecond_time_must_fit_authenticated_attempt(self):
+        for observed_at in ("2026-09-11T00:58:59.999Z", "2026-09-11T01:01:01.000Z"):
+            changed = {**self.observation, "observed_at": observed_at}
+            with (
+                self.subTest(observed_at=observed_at),
+                mock.patch.object(
+                    adapter, "verify_derivative_provenance", return_value=self.run
+                ),
+                self.assertRaisesRegex(ValueError, "outside its authenticated"),
+            ):
+                self.verify(self.references(changed))
+        for value in (
+            "2026-09-11T01:00:00Z",
+            "2026-09-11T01:00:00.123000Z",
+            "2026-09-11T01:00:00.123+00:00",
+            "invalid",
+        ):
+            with (
+                self.subTest(value=value),
+                self.assertRaisesRegex(ValueError, "UTC milliseconds"),
+            ):
+                self.verify(self.references({**self.observation, "observed_at": value}))
+        with (
+            mock.patch.object(
+                adapter, "verify_derivative_provenance", return_value=self.run
+            ),
+            self.assertRaisesRegex(ValueError, "staging time differs"),
+        ):
+            self.verify(
+                self.references(),
+                {**self.staging, "observed_at": "2026-09-11T01:00:01Z"},
+            )
+
+    def test_changed_provider_image_build_or_health_refuses(self):
+        for path, value in (
+            (("source_commit",), "a" * 40),
+            (("app_version",), "v3"),
+            (("control_image_id",), "other"),
+            (("sandbox_image_id",), "other"),
+            (("netlify_deploy_id",), "b" * 24),
+            (("provider_observation", "modal", "function_id"), "other"),
+            (("health", "runtime_build_identity"), {}),
+            (("health", "runtime_environment_sha256"), "a" * 64),
+            (("health", "flow_version"), "1.34.0"),
+            (("health", "ready"), 1),
+            (("health", "function_readbacks", 1, "function_definition_id"), "other"),
+            (("health", "deployment_readback", "function_definition_id"), "other"),
+        ):
+            changed = copy.deepcopy(self.observation)
+            target = changed
+            for field in path[:-1]:
+                target = target[field]
+            target[path[-1]] = value
+            with (
+                self.subTest(path=path),
+                mock.patch.object(
+                    adapter, "verify_derivative_provenance", return_value=self.run
+                ),
+                self.assertRaises(ValueError),
+            ):
+                self.verify(self.references(changed))
 
 
 if __name__ == "__main__":

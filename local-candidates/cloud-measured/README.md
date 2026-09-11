@@ -14,8 +14,9 @@ python local-candidates/cloud-measured/issue.py \
 ```
 
 The mapping uses `openadapt.measured-cloud-admission-mapping/v1` and has exactly
-`candidate`, `derivative`, `provenance`, `retained_files`, and
-`publication_staging`, plus `schema_version`. Each file reference contains
+`candidate`, `derivative`, `provenance`, `retained_files`,
+`publication_staging`, `publication_observation`, and `schema_version`.
+Each file reference contains
 `path`, `sha256` (with the `sha256:` prefix), and `size_bytes`. Paths are relative
 to the mapping's directory. Keep the mapping above its retained files; traversal
 and symlinks are refused.
@@ -54,6 +55,15 @@ completion. The native bundle digest, sealed archive hash, runtime-build domain
 hash, component-manifest domain hash, and runtime-version canonical JSON hash
 remain separate. The adapter checks those bindings before it prepares an issuer
 request.
+
+For the original observation, set `publication_observation` to null and use
+the original provider readback time. A later observation uses a separate
+`{artifact, provenance, provider_readback}` selection. Its attested
+`openadapt.hosted-publication-observation/v1` metadata binds the original
+derivative hash, the same subject, and fresh provider bytes. The observer time
+must fall within its own authenticated workflow attempt. Staging uses that time
+at whole-second precision. Preserve the original campaign and provenance files;
+a refresh neither changes an activation nor issues another workflow admission.
 
 Use the existing receipt, workflow, manifest, summary and release request shapes
 in the [shared issuer](../flow-1.35.1-measured/issue.py). Each next phase names
