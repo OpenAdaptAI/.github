@@ -247,6 +247,20 @@ class CloudProvenanceTests(unittest.TestCase):
             with self.subTest(raw=raw), self.assertRaises(ValueError):
                 adapter.strict_json(raw)
 
+    def test_exponent_overflow_refuses_and_finite_json_numbers_pass(self):
+        for raw in (b'{"x":1e999}', b'{"x":-1e999}'):
+            with (
+                self.subTest(raw=raw),
+                self.assertRaisesRegex(ValueError, "non-finite JSON"),
+            ):
+                adapter.strict_json(raw)
+        for raw, expected in (
+            (b'{"x":1.5}', 1.5),
+            (b'{"x":-2e2}', -200.0),
+            (b'{"x":0}', 0),
+        ):
+            self.assertEqual(adapter.strict_json(raw), {"x": expected})
+
 
 class MeasuredFixture:
     """Inert interface fixtures, not a native campaign or an admitted deployment."""

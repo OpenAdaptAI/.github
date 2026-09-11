@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import importlib.util
 import json
+import math
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -54,7 +55,18 @@ def strict_json(raw: bytes):
     def invalid_constant(_value):
         shared.fail("non-finite JSON value in retained evidence")
 
-    return json.loads(raw, object_pairs_hook=pairs, parse_constant=invalid_constant)
+    def finite_float(value):
+        result = float(value)
+        if not math.isfinite(result):
+            shared.fail("non-finite JSON value in retained evidence")
+        return result
+
+    return json.loads(
+        raw,
+        object_pairs_hook=pairs,
+        parse_constant=invalid_constant,
+        parse_float=finite_float,
+    )
 
 
 def checked_json(owner: Path, reference: dict):
