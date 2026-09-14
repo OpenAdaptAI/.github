@@ -152,6 +152,20 @@ def _timestamp(value: datetime) -> str:
     return value.replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def verification_draft_release_id(admission: dict[str, Any]) -> str | None:
+    """A published deployment has no GitHub draft release identity."""
+    staging = admission["publication_staging"]
+    if staging["publication_mode"] == trust.PUBLICATION_MODE_ALREADY_PUBLISHED_DEPLOYMENT:
+        trust.validate_staging(staging)
+        if (
+            admission["release"]["kind"] != "deployment"
+            or admission["release"]["deployment_id"] != staging["deployment_id"]
+        ):
+            raise trust.TrustError("verified deployment staging identity differs")
+        return None
+    return trust.require_decimal_id(staging["draft_release_id"], "verified draft release id")
+
+
 def verification_receipt(
     *,
     admission: dict[str, Any],
@@ -182,7 +196,7 @@ def verification_receipt(
         "source_commit": admission["release"]["source_commit"],
         "version": admission["release"]["version"],
         "tag": admission["release"]["tag"],
-        "draft_release_id": admission["publication_staging"]["draft_release_id"],
+        "draft_release_id": verification_draft_release_id(admission),
         "publication_staging_sha256": admission["publication_staging_sha256"],
         "authority_state_sha256": admission["authority_state_sha256"],
         "revocation_state_sha256": admission["revocation_state_sha256"],
@@ -791,6 +805,30 @@ def verify_sigstore(
         return
     if profile != "github-attestation":
         raise trust.TrustError(f"{kind} has an unsupported Sigstore profile")
+    verify_github_attestation(
+        regular_raw,
+        bundle_raw,
+        identity=identity,
+        issuer_identity=object_value.get("issuer"),
+        sigstore=sigstore,
+    )
+
+
+def verify_github_attestation(
+    regular_raw: bytes,
+    bundle_raw: bytes,
+    *,
+    identity: dict[str, Any],
+    issuer_identity: dict[str, Any] | None,
+    sigstore: dict[str, Any],
+) -> dict[str, Any]:
+    """Verify retained provenance with an independently selected identity.
+
+    Admission callers select identity from current policy. Input adapters can
+    select a separate, code-fixed producer identity without granting that
+    producer admission authority. Return only the cryptographically verified
+    result so those adapters can bind additional signed provenance fields.
+    """
     version = subprocess.run(
         ["gh", "--version"], check=True, capture_output=True, text=True
     ).stdout.splitlines()[0]
@@ -851,7 +889,7 @@ def verify_sigstore(
             != {"sha256": hashlib.sha256(regular_raw).hexdigest()}
         ):
             raise trust.TrustError("Sigstore statement subject or predicate differs")
-        issuer = object_value.get("issuer")
+        issuer = issuer_identity
         if not isinstance(issuer, dict):
             raise trust.TrustError("signed object has no closed issuer identity")
         source_commit = issuer.get("source_commit")
@@ -872,6 +910,8 @@ def verify_sigstore(
         }
         if dependencies != [expected_dependency]:
             raise trust.TrustError("Sigstore resolved source dependency differs")
+
+        return verification
 
 
 def _canonical_base64(value: Any, *, label: str) -> bytes:
@@ -1213,7 +1253,7 @@ def main(argv: list[str] | None = None) -> int:
                 admission["publication_staging"]
             ).decode("utf-8"),
             "publication_staging_sha256": admission["publication_staging_sha256"],
-            "draft_release_id": admission["publication_staging"]["draft_release_id"],
+            "draft_release_id": receipt_output["draft_release_id"] or "",
             "version": release["version"] or "",
             "tag": release["tag"] or "",
             "deployment_id": release["deployment_id"] or "",
