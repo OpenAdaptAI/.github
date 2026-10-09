@@ -306,7 +306,10 @@ SCRIPT_HEAD = """\
 # except the pinned repositories, which only an owner can set by hand.
 # 64 for a usage error.
 #
-# Needs the GitHub CLI (gh) signed in as an owner of {org}.
+# Needs the GitHub CLI (gh) signed in as an owner of {org}, with a token
+# that has the admin:org and repo scopes. To add them, run:
+#   gh auth refresh -s admin:org,repo
+#
 # Each listed repository is set exactly: an empty website clears the field,
 # and the topic list replaces every current topic.
 #
@@ -330,7 +333,7 @@ case "${{1:-}}" in
   --apply) MODE=apply ;;
   --verify) MODE=verify ;;
   -h | --help)
-    sed -n '2,30p' "$0"
+    sed -n '2,/^$/p' "$0"
     exit 0
     ;;
   *)
@@ -412,7 +415,7 @@ check_pins() {{
     printf 'matches    organization: pinned repositories\\n'
   else
     PINS_PENDING=1
-    printf 'PIN BY HAND organization: pinned repositories\\n           GitHub:   %s\\n           registry: %s\\n' \\
+    printf 'TO PIN     organization: pinned repositories (set by hand)\\n           GitHub:   %s\\n           registry: %s\\n' \\
       "$actual" "$PINS" >&2
   fi
 }}
