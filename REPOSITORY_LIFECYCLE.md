@@ -1,6 +1,6 @@
-# OpenAdapt Repository Lifecycle Registry
+# OpenAdapt repository lifecycle registry
 
-Last reviewed: 2026-09-02
+Last reviewed: 2026-10-09
 
 This public registry separates the product from experiments and records the
 intended lifecycle of organization repositories. It does not authorize moving
@@ -9,8 +9,12 @@ checkout state and credential-response details belong in private operations
 records, not in this public repository.
 
 The machine-readable source is [`repository-lifecycle.yml`](repository-lifecycle.yml).
+It also holds each listed repository's public GitHub description, website,
+and topics, and the organization pins. Support repositories include the
+public [EHR Integration Directory](https://ehrintegrationdirectory.com),
+which OpenAdapt publishes.
 
-## Lifecycle Definitions
+## Lifecycle definitions
 
 | Status | Meaning |
 |--------|---------|
@@ -26,7 +30,7 @@ The machine-readable source is [`repository-lifecycle.yml`](repository-lifecycle
 | **Deprecated** | Superseded; migration fixes only, no new integrations |
 | **Archived** | Historical and read-only |
 
-## Production Admission
+## Production admission
 
 Production is a derived per-release state. It is not a static repository label.
 A person cannot create it by changing a table or repository description. The canonical
@@ -83,7 +87,7 @@ Static Production membership is forbidden. Consumers derive current Production
 at read time from the signed admission, its revocation state, and until-revoked
 validity.
 
-## Admission-Gated Targets
+## Admission-gated targets
 
 The seven product targets do not have fallback lifecycle labels. A target that
 doesn't have a current admission is **not actively admitted**. Expiry,
@@ -110,11 +114,11 @@ These are the derived states:
 | `agent` | **Production** | Local MCP and Agent Skills bridge for governed Flow workflows |
 | `docs` | **Production** | `docs.openadapt.ai` deployment sourced from `openadapt-ops` |
 
-## Other Repository Lifecycles
+## Other repository lifecycles
 
 | Group | Repositories |
 |-------|--------------|
-| **Support** | `.github`, `openadapt-web`, `openadapt-ops`, `openadapt-wright`, `openadapt-herald`, `openadapt-crier`, `openadapt-consilium`, `openadapt-telemetry`, `openadapt-viewer`, `openadapt-blog` |
+| **Support** | `.github`, `openadapt-web`, `openadapt-ops`, `openadapt-wright`, `openadapt-herald`, `openadapt-crier`, `openadapt-consilium`, `openadapt-telemetry`, `openadapt-viewer`, `openadapt-blog`, `ehr-integration-directory` |
 | **Experimental** | `openadapt-privacy`, `openadapt-types`, `openadapt-console`, `openadapt-tray` |
 | **Research** | `openadapt-ml`, `openadapt-evals`, `openadapt-retrieval`, `openadapt-grounding`, `openadapt-verifier` |
 | **Internal** | `openadapt-bootstrap`, `openadapt-internal`, `openadapt-yc`, `openadapt-presenter` |
@@ -122,7 +126,7 @@ These are the derived states:
 | **Archived historical directions** | `OpenAdapter`, `OpenReflector` |
 | **Superseded** | `OpenSanitizer` (successor: `openadapt-privacy`) |
 
-## Retirement Queue
+## Retirement queue
 
 | Repository | Lifecycle | Public action |
 |------------|-----------|---------------|
@@ -136,7 +140,7 @@ Experimental, Research, Labs, and Internal repositories are not deprecated by
 default. Moving local checkouts is a separate operational decision that must
 use private, current evidence.
 
-## Archive Procedure
+## Archive procedure
 
 1. Preserve or intentionally discard every tracked and untracked local change.
 2. Confirm the branch is pushed and record the final commit in private
