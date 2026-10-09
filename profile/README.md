@@ -92,7 +92,9 @@ run stops and leaves the record for a person to check. On Python 3.13 or
 newer, install with `uv tool install --python 3.12 openadapt` instead.
 
 To record your own task, follow the
-[walkthrough](https://docs.openadapt.ai/get-started/).
+[walkthrough](https://docs.openadapt.ai/get-started/). To have us run the
+computer for browser workflows, see the hosted plans on the
+[pricing page](https://openadapt.ai/pricing).
 
 ## For developers
 
@@ -190,8 +192,8 @@ and [`openadapt-evals`](https://github.com/OpenAdaptAI/openadapt-evals), which
 scores agents and OpenAdapt programs on public benchmarks. You don't need any
 of them to record, build, or run an automation.
 
-OmniMCP, SoM, and PydanticPrompt are Labs projects, not product dependencies.
-The public
+OmniMCP, SoM, and PydanticPrompt are Labs projects. The product doesn't depend
+on them. The public
 [lifecycle registry](https://github.com/OpenAdaptAI/.github/blob/main/REPOSITORY_LIFECYCLE.md)
 classifies every other repository as Support, Experimental, Historical,
 Superseded, Deprecated, Archived, or Internal.
