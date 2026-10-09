@@ -1,13 +1,14 @@
 schema_version: 2
-reviewed_on: 2026-10-08
+reviewed_on: 2026-10-09
 canonical_product:
   launcher: OpenAdapt
   engine: openadapt-flow
 # public_metadata is the source of truth for the GitHub settings a visitor
-# sees: the organization description and website, the pinned repositories, and
-# each listed repository's description, website, and topics. Editing this file
-# does not change GitHub. After merge, an organization owner applies it with
-# the script that `python3 scripts/github_metadata.py render-apply` prints.
+# sees: the organization description and website, the profile headline, the
+# pinned repositories, and each listed repository's description, website, and
+# topics. Editing this file doesn't change GitHub. After merge, an organization
+# owner runs .overhaul/APPLY.sh, which
+# `python3 scripts/github_metadata.py render-apply` renders from this file.
 # Each listed repository is set exactly: an empty homepage clears the website
 # field, and the topic list replaces every current topic.
 public_metadata:
@@ -17,8 +18,8 @@ public_metadata:
     match.
   organization_homepage: https://openadapt.ai/
   profile_headline: >-
-    OpenAdapt takes the last manual step off your team. It enters approved
-    information into the systems you already use and checks that it saved.
+    OpenAdapt enters approved information into the systems your team already
+    uses, and then it checks that the entry saved.
   pinned_repositories:
     - OpenAdapt
     - openadapt-flow
@@ -57,8 +58,8 @@ public_metadata:
     openadapt-flow:
       description: >-
         OpenAdapt's open-source engine. It turns one recorded task into a
-        program that runs on your computer and reports done only after it
-        checks the record.
+        program that runs on your computer and never reports an unchecked entry
+        as done.
       homepage: https://openadapt.ai/platform/flow
       topics:
         - browser-automation
@@ -99,7 +100,7 @@ public_metadata:
     openadapt-capture:
       description: >-
         Records screen, mouse, and keyboard on Windows, macOS, and Linux so
-        OpenAdapt can turn one recorded task into a program.
+        OpenAdapt can turn one recorded task into an automation.
       homepage: https://openadapt.ai/platform/capture
       topics:
         - gui-automation
@@ -109,8 +110,8 @@ public_metadata:
         - openadapt
     openadapt-agent:
       description: >-
-        Lets AI agents run your approved OpenAdapt automations over MCP. Each
-        run returns a plain result, and a run that stops goes to a person.
+        Lets your AI agent run approved OpenAdapt automations on your computer.
+        Each run reports how it ended, and a run that stops goes to a person.
       homepage: https://openadapt.ai/platform/agent
       topics:
         - agent-skills
@@ -124,7 +125,7 @@ public_metadata:
     ehr-integration-directory:
       description: >-
         Shows which EHR tasks have a public API and which still end at a
-        screen, with a source for every entry. Published by OpenAdapt.
+        screen. Each entry links its source. Published by OpenAdapt.
       homepage: https://ehrintegrationdirectory.com
       topics:
         - ehr
@@ -138,8 +139,9 @@ public_metadata:
         - openadapt
     openadapt-cloud:
       description: >-
-        Proprietary hosted control plane for workflow qualification,
-        deployment, attended operation, and governed repair.
+        Proprietary source for app.openadapt.ai, the hosted service that runs
+        automations, tests them before they go live, and sends stopped runs to
+        a person.
       homepage: https://app.openadapt.ai
       topics: []
     .github:
@@ -151,8 +153,8 @@ public_metadata:
         - openadapt
     openadapt-web:
       description: >-
-        Source for openadapt.ai, including product pages, evidence, pricing,
-        and workflow qualification.
+        Source for openadapt.ai, including product pages, pricing, customer
+        stories, and evidence.
       homepage: https://openadapt.ai
       topics: []
     openadapt-ops:
@@ -183,7 +185,7 @@ public_metadata:
       topics: []
     openadapt-crier:
       description: >-
-        Support: team tool that sends drafted release posts to Telegram for a
+        Support: team tool that sends drafted social posts to Telegram for a
         person to approve. Not part of the product.
       homepage: ""
       topics: []
@@ -196,7 +198,7 @@ public_metadata:
     openadapt-telemetry:
       description: >-
         Support: error reports and usage counts for OpenAdapt packages, with
-        personal data removed. Honors DO_NOT_TRACK.
+        personal details scrubbed. Set DO_NOT_TRACK=1 to opt out.
       homepage: ""
       topics: []
     openadapt-viewer:
@@ -211,7 +213,7 @@ public_metadata:
         - visualization
     openadapt-privacy:
       description: >-
-        Experimental: finds and removes personal and health information from
+        Experimental: detects and redacts personal and health information in
         recordings and screenshots before they're shared.
       homepage: https://pypi.org/project/openadapt-privacy/
       topics:
@@ -235,8 +237,8 @@ public_metadata:
       topics: []
     openadapt-tray:
       description: >-
-        Experimental: a menu-bar icon that shows what OpenAdapt is doing, with
-        a start and stop button. Optional.
+        Experimental: a tray icon that shows what OpenAdapt is doing, with
+        start and stop controls. Optional.
       homepage: ""
       topics:
         - openadapt
