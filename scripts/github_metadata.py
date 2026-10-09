@@ -405,6 +405,8 @@ expect() {{
 check_pins() {{
   local actual
   CHECKED=$((CHECKED + 1))
+  # The GraphQL query names $org itself, so the shell must not expand it.
+  # shellcheck disable=SC2016
   if ! actual=$(read_value "organization: pinned repositories" \\
     gh api graphql -F org="$ORG" -f query={pins_query} \\
     --jq '[.data.organization.pinnedItems.nodes[].name] | join(",")'); then
