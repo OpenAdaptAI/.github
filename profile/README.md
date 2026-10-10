@@ -29,7 +29,7 @@ The time studies are from
 [UCSF, JAMIA Open 2020](https://pmc.ncbi.nlm.nih.gov/articles/PMC7660949/)
 (its mean includes a call to the patient) and
 [Calderdale and Huddersfield NHS Foundation Trust, HFMA 2024](https://www.hfma.org.uk/system/files/2024-04/Using%20digital%20technologies%20to%20process%20admin%20tasks%20Case%20Study%20v7.pdf).
-No OpenAdapt customer has measured an "after" time yet, so this table doesn't
+Nobody has measured an "after" time with OpenAdapt yet, so this table doesn't
 claim a time saving.
 
 OpenAdapt doesn't need an EMR integration. The record check needs a second way
