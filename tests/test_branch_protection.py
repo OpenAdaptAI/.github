@@ -133,6 +133,18 @@ class ClassicProtectionTests(unittest.TestCase):
             "deletion": lambda p: p["allow_deletions"].update(enabled=True),
             "missing force-push field": lambda p: p.pop("allow_force_pushes"),
             "admins bypass": lambda p: p["enforce_admins"].update(enabled=False),
+            "pull request bypass allowance": lambda p: p[
+                "required_pull_request_reviews"
+            ].update(
+                bypass_pull_request_allowances={
+                    "users": [{"login": "maintainer", "id": 1}],
+                    "teams": [],
+                    "apps": [],
+                }
+            ),
+            "malformed pull request bypass allowance": lambda p: p[
+                "required_pull_request_reviews"
+            ].update(bypass_pull_request_allowances=["maintainer"]),
         }
         for label, mutate in mutations.items():
             with self.subTest(label):
@@ -140,6 +152,29 @@ class ClassicProtectionTests(unittest.TestCase):
                 mutate(protection)
                 problems, _ = evaluate(protection=protection)
                 self.assertNotEqual(problems, [])
+
+    def test_pull_request_bypass_allowance_fails_only_that_requirement(self) -> None:
+        protection = classic_protection()
+        reviews = protection["required_pull_request_reviews"]
+        reviews["bypass_pull_request_allowances"] = {
+            "users": [],
+            "teams": [],
+            "apps": [{"slug": "some-app", "id": 2}],
+        }
+        problems, _ = evaluate(protection=protection)
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn(check.PULL_REQUEST, problems[0])
+        self.assertIn("bypass", problems[0])
+
+    def test_empty_pull_request_bypass_allowances_pass(self) -> None:
+        protection = classic_protection()
+        reviews = protection["required_pull_request_reviews"]
+        reviews["bypass_pull_request_allowances"] = {
+            "users": [],
+            "teams": [],
+            "apps": [],
+        }
+        self.assertEqual(evaluate(protection=protection)[0], [])
 
     def test_approval_floor_is_enforced(self) -> None:
         with mock.patch.object(check, "MINIMUM_APPROVALS", 1):

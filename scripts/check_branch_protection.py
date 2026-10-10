@@ -86,6 +86,22 @@ def _disabled(protection: dict, key: str) -> bool:
     return isinstance(setting, dict) and setting.get("enabled") is False
 
 
+def _classic_pull_request_bypass(protection: dict) -> bool:
+    """Return whether classic protection lets listed actors skip the pull request.
+
+    Users, teams, or apps in `bypass_pull_request_allowances` can push to the
+    branch without a pull request even when `enforce_admins` is on. An
+    allowance in a shape this check doesn't recognize counts as a bypass.
+    """
+    reviews = protection.get("required_pull_request_reviews")
+    if not isinstance(reviews, dict) or "bypass_pull_request_allowances" not in reviews:
+        return False
+    allowances = reviews["bypass_pull_request_allowances"]
+    if not isinstance(allowances, dict):
+        return True
+    return any(allowances.values())
+
+
 def classic_requirements(protection: Any) -> set[str]:
     """Return the requirements that readable classic protection satisfies."""
     if not isinstance(protection, dict):
@@ -157,7 +173,10 @@ def evaluate(
         # bypass list this token can't read ("unknown").
         outcomes = set()
         if requirement in classic:
-            outcomes.add("bound" if classic_binds_admins else "bypass")
+            bound = classic_binds_admins and not (
+                requirement == PULL_REQUEST and _classic_pull_request_bypass(protection)
+            )
+            outcomes.add("bound" if bound else "bypass")
         for rule in rules:
             if rule_requirement(rule) != requirement:
                 continue
