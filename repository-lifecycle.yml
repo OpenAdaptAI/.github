@@ -153,8 +153,8 @@ public_metadata:
         - openadapt
     openadapt-web:
       description: >-
-        Source for openadapt.ai, including product pages, pricing, customer
-        stories, and evidence.
+        Source for openadapt.ai, including product pages, pricing, and
+        evidence.
       homepage: https://openadapt.ai
       topics: []
     openadapt-ops:

@@ -247,7 +247,7 @@ JSON
 JSON
   change 'openadapt-web: description and website' \
     gh api --method PATCH "repos/$ORG/openadapt-web" --input - <<'JSON'
-{"description": "Source for openadapt.ai, including product pages, pricing, customer stories, and evidence.", "homepage": "https://openadapt.ai"}
+{"description": "Source for openadapt.ai, including product pages, pricing, and evidence.", "homepage": "https://openadapt.ai"}
 JSON
   change 'openadapt-web: topics' \
     gh api --method PUT "repos/$ORG/openadapt-web/topics" --input - <<'JSON'
@@ -495,7 +495,7 @@ verify_github() {
     openadapt \
     gh api "repos/$ORG/.github/topics" --jq '.names | sort | join(",")'
   expect 'openadapt-web: description' \
-    'Source for openadapt.ai, including product pages, pricing, customer stories, and evidence.' \
+    'Source for openadapt.ai, including product pages, pricing, and evidence.' \
     gh api "repos/$ORG/openadapt-web" --jq '.description // ""'
   expect 'openadapt-web: website' \
     https://openadapt.ai \

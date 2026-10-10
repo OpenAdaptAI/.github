@@ -69,11 +69,9 @@ Tell us about a task your team repeats:
 3. We keep it working. When a screen changes, we propose a fix, and a person
    on your team approves it.
 
-We scope [services](https://openadapt.ai/services) per workflow.
-[One customer story](https://openadapt.ai/customers/rvu-audit-heart-care)
-describes a monthly billing audit at a US cardiology practice. Its figures are
-preliminary. If your own AI product decides what to enter,
-OpenAdapt can make that final entry and return the result to your product. See
+We scope [services](https://openadapt.ai/services) per workflow. If your own
+AI product decides what to enter, OpenAdapt can make that final entry and
+return the result to your product. See
 [OpenAdapt Execute](https://openadapt.ai/execute).
 
 ### Run it yourself
