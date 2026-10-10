@@ -146,9 +146,9 @@ being tested.
 
 We injected faults into saves that our own engine made to a test record
 system: nine injected faults and one clean control, nine runs each. In 72 of
-90 runs, the record ended up wrong: missing, partial, duplicated, or on the
-wrong record. The table shows how many of those runs each kind of check still
-passed.
+90 runs, the record ended up wrong: missing, partial, duplicated, on the wrong
+record, or with other records deleted or added. The table shows how many of
+those runs each kind of check still passed.
 
 | Check | Wrong records it passed |
 |---|---|
