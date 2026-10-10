@@ -2,9 +2,10 @@
 
 **OpenAdapt enters approved information into the systems your team already uses, and then it checks that the entry saved.**
 
-It takes this last manual step in EMRs, payer portals, and desktop apps,
-including apps your staff reach through Citrix or remote desktop. When
-something doesn't match, it stops and asks a person instead of guessing.
+It does this last manual step for your team in EMRs, payer portals, and
+desktop apps, including apps your staff reach through Citrix or remote
+desktop. When something doesn't match, it stops and asks a person instead of
+guessing.
 
 [Watch the live demo](https://app.openadapt.ai/demo) ·
 [Discuss your workflow](https://openadapt.ai/book) ·
@@ -88,8 +89,8 @@ openadapt quickstart --break-it
 This runs a synthetic clinic task twice on your computer. The first run is
 done and checked. In the second run, the test server rejects the save after
 the app shows that it saved. The record check finds no saved record, so the
-run stops and leaves the record for a person to check. On Python 3.13 or
-newer, install with `uv tool install --python 3.12 openadapt` instead.
+run ends with "Check the record" instead of reporting success. On Python 3.13
+or newer, install with `uv tool install --python 3.12 openadapt` instead.
 
 To record your own task, follow the
 [walkthrough](https://docs.openadapt.ai/get-started/). To have us run the
@@ -169,7 +170,7 @@ adds a patient note, compiled replay finished 19/20 runs at 39.2s median with
 no model calls. A computer-use agent finished 10/10 runs at 70.4s median, at
 about $0.55 a run at the July 2026 list price. The one compiled run that didn't
 finish stopped at step 17, before saving, instead of reporting success. We
-measured this on 2026-07-08 with Flow 0.1.0. It's a small sample on a demo
+measured this on 2026-07-08 with a development build of Flow 0.1.0. It's a small sample on a demo
 that resets daily, so CI can't reproduce it. OpenAdapt isn't affiliated with
 the OpenEMR project.
 [Method and caveats](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/benchmark/openemr/BENCHMARK.md).
