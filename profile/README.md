@@ -69,10 +69,10 @@ Tell us about a task your team repeats:
 3. We keep it working. When a screen changes, we propose a fix, and a person
    on your team approves it.
 
-We scope [services](https://openadapt.ai/services) per workflow. One customer
-story, a monthly billing audit at a US cardiology practice, is
-[written up here](https://openadapt.ai/customers/rvu-audit-heart-care). Its
-figures are preliminary. If your own AI product decides what to enter,
+We scope [services](https://openadapt.ai/services) per workflow.
+[One customer story](https://openadapt.ai/customers/rvu-audit-heart-care)
+describes a monthly billing audit at a US cardiology practice. Its figures are
+preliminary. If your own AI product decides what to enter,
 OpenAdapt can make that final entry and return the result to your product. See
 [OpenAdapt Execute](https://openadapt.ai/execute).
 
@@ -159,8 +159,8 @@ passed.
 The 9 that one separate read passed were all one kind: a write to a billing
 table that read didn't cover. The zero covers only the audited test database.
 Every check also stopped 9 of 18 runs that had saved correctly, because the
-client never got the server's reply. This is a coverage test over a fixed
-fault list, not a real-world error rate.
+client never got the server's reply. This test covers a fixed list of faults.
+It doesn't measure a real-world error rate.
 [Method and caveats](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/benchmark/effect_e2e/EFFECT_E2E.md).
 
 ### OpenEMR field test
@@ -170,9 +170,9 @@ adds a patient note, compiled replay finished 19/20 runs at 39.2s median with
 no model calls. A computer-use agent finished 10/10 runs at 70.4s median, at
 about $0.55 a run at the July 2026 list price. The one compiled run that didn't
 finish stopped at step 17, before saving, instead of reporting success. We
-measured this on 2026-07-08 with a development build of Flow 0.1.0. It's a small sample on a demo
-that resets daily, so CI can't reproduce it. OpenAdapt isn't affiliated with
-the OpenEMR project.
+measured this on 2026-07-08 with a development build of Flow 0.1.0. It's a
+small sample on a demo that resets daily, so CI can't reproduce it. OpenAdapt
+isn't affiliated with the OpenEMR project.
 [Method and caveats](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/benchmark/openemr/BENCHMARK.md).
 
 Neither study is a production reliability or clinical safety claim. The model
