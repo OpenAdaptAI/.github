@@ -114,3 +114,49 @@ jobs:
           else
             gh issue create --repo "${{ github.repository }}" --title "$TITLE" --body "$BODY"
           fi
+
+  check-branch-protection:
+    needs: reject-lifecycle-app
+    if: >-
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
+      github.actor != 'openadapt-lifecycle[bot]' &&
+      github.triggering_actor != 'openadapt-lifecycle[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Require protection on main
+        # The default token reads ruleset rules. Classic branch protection is
+        # readable only with Administration read access, so an optional
+        # BRANCH_PROTECTION_READ_TOKEN secret is used when it exists.
+        env:
+          GH_TOKEN: ${{ secrets.BRANCH_PROTECTION_READ_TOKEN || github.token }}
+        run: python3 scripts/check_branch_protection.py --repository "$GITHUB_REPOSITORY" --branch main
+
+  report-unprotected-branch:
+    needs: [reject-lifecycle-app, check-branch-protection]
+    if: >-
+      ${{ always() && needs.check-branch-protection.result == 'failure' &&
+          github.actor != 'openadapt-lifecycle[bot]' &&
+          github.triggering_actor != 'openadapt-lifecycle[bot]' }}
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: File or update the branch protection failure
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TITLE="Branch protection on main needs attention"
+          BODY="The scheduled branch protection check failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          Main holds the admission ledgers and the workflows that issue and verify admissions. Until it requires a pull request and the validate-profile check, and blocks force pushes and deletion, anyone with write access can change them without review. Apply main-branch-ruleset.json as a repository ruleset to fix this."
+          EXISTING=$(gh issue list --repo "${{ github.repository }}" --state open \
+            --search "in:title \"$TITLE\"" --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --repo "${{ github.repository }}" --body "$BODY"
+          else
+            gh issue create --repo "${{ github.repository }}" --title "$TITLE" --body "$BODY"
+          fi
