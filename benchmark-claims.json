@@ -45,9 +45,112 @@
   ],
   "claims": [
     {
+      "id": "effect-wrong-effect-count",
+      "surface": "profile/README.md",
+      "context": "In 72 of 90 runs, the record ended up wrong",
+      "text": "72 of 90",
+      "renderer": "count_of",
+      "decimals": null,
+      "source": "effect-e2e",
+      "pointers": [
+        "/metrics/per_arm/screen/n_wrong_effect",
+        "/metrics/per_arm/screen/n_runs"
+      ],
+      "status": "bound",
+      "drift": null
+    },
+    {
+      "id": "effect-screen-silent-wrong-count",
+      "surface": "profile/README.md",
+      "context": "| Trust the app's success banner | 54 of 72 (75.0%) |",
+      "text": "54 of 72",
+      "renderer": "count_of",
+      "decimals": null,
+      "source": "effect-e2e",
+      "pointers": [
+        "/metrics/per_arm/screen/silent_wrong_count",
+        "/metrics/per_arm/screen/n_wrong_effect"
+      ],
+      "status": "bound",
+      "drift": null
+    },
+    {
+      "id": "effect-screen-undetected-rate",
+      "surface": "profile/README.md",
+      "context": "| Trust the app's success banner | 54 of 72 (75.0%) |",
+      "text": "75.0%",
+      "renderer": "percent",
+      "decimals": 1,
+      "source": "effect-e2e",
+      "pointers": [
+        "/metrics/per_arm/screen/undetected_wrong_rate"
+      ],
+      "status": "bound",
+      "drift": null
+    },
+    {
+      "id": "effect-rest-silent-wrong-count",
+      "surface": "profile/README.md",
+      "context": "| One separate read of the record | 9 of 72 (12.5%) |",
+      "text": "9 of 72",
+      "renderer": "count_of",
+      "decimals": null,
+      "source": "effect-e2e",
+      "pointers": [
+        "/metrics/per_arm/effect_rest/silent_wrong_count",
+        "/metrics/per_arm/effect_rest/n_wrong_effect"
+      ],
+      "status": "bound",
+      "drift": null
+    },
+    {
+      "id": "effect-rest-undetected-rate",
+      "surface": "profile/README.md",
+      "context": "| One separate read of the record | 9 of 72 (12.5%) |",
+      "text": "12.5%",
+      "renderer": "percent",
+      "decimals": 1,
+      "source": "effect-e2e",
+      "pointers": [
+        "/metrics/per_arm/effect_rest/undetected_wrong_rate"
+      ],
+      "status": "bound",
+      "drift": null
+    },
+    {
+      "id": "effect-full-silent-wrong-count",
+      "surface": "profile/README.md",
+      "context": "| A read of every table in the test database | 0 of 72 |",
+      "text": "0 of 72",
+      "renderer": "count_of",
+      "decimals": null,
+      "source": "effect-e2e",
+      "pointers": [
+        "/metrics/per_arm/effect_full/silent_wrong_count",
+        "/metrics/per_arm/effect_full/n_wrong_effect"
+      ],
+      "status": "bound",
+      "drift": null
+    },
+    {
+      "id": "effect-false-abort-count",
+      "surface": "profile/README.md",
+      "context": "Every check also stopped 9 of 18 runs that had saved correctly",
+      "text": "9 of 18",
+      "renderer": "count_of",
+      "decimals": null,
+      "source": "effect-e2e",
+      "pointers": [
+        "/metrics/per_arm/screen/false_abort_count",
+        "/metrics/per_arm/screen/n_correct_effect"
+      ],
+      "status": "bound",
+      "drift": null
+    },
+    {
       "id": "openemr-compiled-success-ratio",
       "surface": "profile/README.md",
-      "context": "compiled replay went **19/20 at 39.2s p50 with zero model calls**",
+      "context": "compiled replay finished 19/20 runs at 39.2s median with no model calls.",
       "text": "19/20",
       "renderer": "ratio",
       "decimals": null,
@@ -62,7 +165,7 @@
     {
       "id": "openemr-compiled-p50",
       "surface": "profile/README.md",
-      "context": "compiled replay went **19/20 at 39.2s p50 with zero model calls**",
+      "context": "compiled replay finished 19/20 runs at 39.2s median with no model calls.",
       "text": "39.2s",
       "renderer": "seconds",
       "decimals": 1,
@@ -76,7 +179,7 @@
     {
       "id": "openemr-agent-success-ratio",
       "surface": "profile/README.md",
-      "context": "the agent went 10/10 at 70.4s p50 at about $0.55 of model charge per run.",
+      "context": "A computer-use agent finished 10/10 runs at 70.4s median, at about $0.55 a run at the July 2026 list price.",
       "text": "10/10",
       "renderer": "ratio",
       "decimals": null,
@@ -91,7 +194,7 @@
     {
       "id": "openemr-agent-p50",
       "surface": "profile/README.md",
-      "context": "the agent went 10/10 at 70.4s p50 at about $0.55 of model charge per run.",
+      "context": "A computer-use agent finished 10/10 runs at 70.4s median, at about $0.55 a run at the July 2026 list price.",
       "text": "70.4s",
       "renderer": "seconds",
       "decimals": 1,
@@ -105,186 +208,13 @@
     {
       "id": "openemr-agent-cost-per-run",
       "surface": "profile/README.md",
-      "context": "the agent went 10/10 at 70.4s p50 at about $0.55 of model charge per run.",
+      "context": "A computer-use agent finished 10/10 runs at 70.4s median, at about $0.55 a run at the July 2026 list price.",
       "text": "$0.55",
       "renderer": "usd",
       "decimals": 2,
       "source": "openemr",
       "pointers": [
         "/arms/agent/cost_usd_per_run"
-      ],
-      "status": "bound",
-      "drift": null
-    },
-    {
-      "id": "mockmed-compiled-success-ratio",
-      "surface": "profile/README.md",
-      "context": "retained rows marked 100/100 compiled runs and 20/20 agent runs successful under the 2026-07-08 OCR check.",
-      "text": "100/100",
-      "renderer": "ratio",
-      "decimals": null,
-      "source": "mockmed",
-      "pointers": [
-        "/arms/compiled/success_count",
-        "/arms/compiled/n"
-      ],
-      "status": "bound",
-      "drift": null
-    },
-    {
-      "id": "mockmed-agent-success-ratio",
-      "surface": "profile/README.md",
-      "context": "retained rows marked 100/100 compiled runs and 20/20 agent runs successful under the 2026-07-08 OCR check.",
-      "text": "20/20",
-      "renderer": "ratio",
-      "decimals": null,
-      "source": "mockmed",
-      "pointers": [
-        "/arms/agent/success_count",
-        "/arms/agent/n"
-      ],
-      "status": "bound",
-      "drift": null
-    },
-    {
-      "id": "mockmed-compiled-p50",
-      "surface": "profile/README.md",
-      "context": "The compiled arm recorded 4.9s p50 and $0 per run in model API charges;",
-      "text": "4.9s",
-      "renderer": "seconds",
-      "decimals": 1,
-      "source": "mockmed",
-      "pointers": [
-        "/arms/compiled/wall_s_p50"
-      ],
-      "status": "bound",
-      "drift": null
-    },
-    {
-      "id": "mockmed-compiled-cost-per-run",
-      "surface": "profile/README.md",
-      "context": "The compiled arm recorded 4.9s p50 and $0 per run in model API charges;",
-      "text": "$0",
-      "renderer": "usd",
-      "decimals": 0,
-      "source": "mockmed",
-      "pointers": [
-        "/arms/compiled/cost_usd_per_run"
-      ],
-      "status": "bound",
-      "drift": null
-    },
-    {
-      "id": "mockmed-agent-p50",
-      "surface": "profile/README.md",
-      "context": "the agent arm recorded 37.5s p50 and about $0.27 per run.",
-      "text": "37.5s",
-      "renderer": "seconds",
-      "decimals": 1,
-      "source": "mockmed",
-      "pointers": [
-        "/arms/agent/wall_s_p50"
-      ],
-      "status": "bound",
-      "drift": null
-    },
-    {
-      "id": "mockmed-agent-cost-per-run",
-      "surface": "profile/README.md",
-      "context": "the agent arm recorded 37.5s p50 and about $0.27 per run.",
-      "text": "$0.27",
-      "renderer": "usd",
-      "decimals": 2,
-      "source": "mockmed",
-      "pointers": [
-        "/arms/agent/cost_usd_per_run"
-      ],
-      "status": "bound",
-      "drift": null
-    },
-    {
-      "id": "effect-screen-undetected-rate",
-      "surface": "profile/README.md",
-      "context": "oracle silently accepted **75.0%** of the wrong effects that actually occurred (54 of 90 runs).",
-      "text": "75.0%",
-      "renderer": "percent",
-      "decimals": 1,
-      "source": "effect-e2e",
-      "pointers": [
-        "/metrics/per_arm/screen/undetected_wrong_rate"
-      ],
-      "status": "bound",
-      "drift": null
-    },
-    {
-      "id": "effect-screen-silent-wrong-count",
-      "surface": "profile/README.md",
-      "context": "oracle silently accepted **75.0%** of the wrong effects that actually occurred (54 of 90 runs).",
-      "text": "54 of 90",
-      "renderer": "count_of",
-      "decimals": null,
-      "source": "effect-e2e",
-      "pointers": [
-        "/metrics/per_arm/screen/silent_wrong_count",
-        "/metrics/per_arm/screen/n_runs"
-      ],
-      "status": "bound",
-      "drift": null
-    },
-    {
-      "id": "effect-rest-undetected-rate",
-      "surface": "profile/README.md",
-      "context": "cut that to **12.5%** (9 of 90).",
-      "text": "12.5%",
-      "renderer": "percent",
-      "decimals": 1,
-      "source": "effect-e2e",
-      "pointers": [
-        "/metrics/per_arm/effect_rest/undetected_wrong_rate"
-      ],
-      "status": "bound",
-      "drift": null
-    },
-    {
-      "id": "effect-rest-silent-wrong-count",
-      "surface": "profile/README.md",
-      "context": "cut that to **12.5%** (9 of 90).",
-      "text": "9 of 90",
-      "renderer": "count_of",
-      "decimals": null,
-      "source": "effect-e2e",
-      "pointers": [
-        "/metrics/per_arm/effect_rest/silent_wrong_count",
-        "/metrics/per_arm/effect_rest/n_runs"
-      ],
-      "status": "bound",
-      "drift": null
-    },
-    {
-      "id": "effect-full-silent-wrong-count",
-      "surface": "profile/README.md",
-      "context": "A complete read path over every mutable surface reaches 0 of 90,",
-      "text": "0 of 90",
-      "renderer": "count_of",
-      "decimals": null,
-      "source": "effect-e2e",
-      "pointers": [
-        "/metrics/per_arm/effect_full/silent_wrong_count",
-        "/metrics/per_arm/effect_full/n_runs"
-      ],
-      "status": "bound",
-      "drift": null
-    },
-    {
-      "id": "effect-full-undetected-rate",
-      "surface": "profile/README.md",
-      "context": "one out-of-band oracle — not the 0%. All nine",
-      "text": "0%",
-      "renderer": "percent",
-      "decimals": 0,
-      "source": "effect-e2e",
-      "pointers": [
-        "/metrics/per_arm/effect_full/undetected_wrong_rate"
       ],
       "status": "bound",
       "drift": null

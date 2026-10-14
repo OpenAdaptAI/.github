@@ -1,14 +1,22 @@
 #!/usr/bin/env python3
-"""Check the public profile and its evidence-gated lifecycle."""
+"""Check the public profile, its GitHub metadata, and its evidence-gated lifecycle."""
 
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
+from github_metadata import (
+    APPLY_SCRIPT,
+    MetadataError,
+    PublicMetadata,
+    load_public_metadata,
+    render_apply_script,
+)
 from validate_production_lifecycle import LifecycleError, validate_files
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,17 +40,78 @@ REQUIRED_PROFILE_LINKS = {
     "https://github.com/OpenAdaptAI/openadapt-agent",
     "https://github.com/OpenAdaptAI/openadapt-ops",
     "https://github.com/OpenAdaptAI/openadapt-evals",
+    "https://github.com/OpenAdaptAI/ehr-integration-directory",
     "https://github.com/OpenAdaptAI/openadapt-flow/tree/main/docs/showcase",
     "https://openadapt.ai/",
+    "https://openadapt.ai/book",
+    "https://openadapt.ai/services",
     "https://app.openadapt.ai/",
+    "https://app.openadapt.ai/demo",
     "https://docs.openadapt.ai",
     "https://docs.openadapt.ai/production-lifecycle.json",
 }
-REQUIRED_PROFILE_MARKERS = {
-    "## Product Surfaces",
-    "## Research and Labs",
-    "Qualification is per workflow, not a blanket Production claim.",
-}
+# The business half of the profile comes first. Everything above
+# DEVELOPER_HEADING is written for people who own a process.
+DEVELOPER_HEADING = "## For developers"
+PRODUCT_HEADING = "## Product surfaces"
+PROFILE_HEADINGS = (
+    "## What changes for your team",
+    "## How a run ends",
+    "## Two ways to start",
+    "### Hand off a workflow",
+    "### Run it yourself",
+    DEVELOPER_HEADING,
+    PRODUCT_HEADING,
+    "## Research and labs",
+)
+REQUIRED_PROFILE_MARKERS = PROFILE_HEADINGS + (
+    "Qualification is per workflow. A product release admission doesn't "
+    "qualify any workflow.",
+)
+CANONICAL_QUICKSTART = (
+    "python -m pip install --upgrade openadapt",
+    "openadapt quickstart --break-it",
+)
+# Phrases that misstate a claim of record or publish a retired path. The fault
+# test's screen-only check passed 54 of the 72 runs that left the record wrong;
+# "54 of 90" pairs that count with every run, and pairing it with 75.0% is
+# wrong arithmetic.
+PROHIBITED_PROFILE_PHRASES = (
+    "54 of 90",
+    "openadapt flow demo-record --out rec",
+)
+# Terms that never appear where a business reader starts. The technical term
+# stays available one level deeper: below DEVELOPER_HEADING, and in the
+# developer repositories' own descriptions.
+BUSINESS_FORBIDDEN_TERMS = (
+    (re.compile(r"\bseals?\b", re.IGNORECASE), "Seal"),
+    (re.compile(r"\badmi(?:t|ts|tted|tting|ssion|ssions)\b", re.IGNORECASE), "admission"),
+    (
+        re.compile(r"\bqualif(?:y|ied|ies|ying|ication|ications)\b", re.IGNORECASE),
+        "qualification",
+    ),
+    (re.compile(r"\bgoverned\b", re.IGNORECASE), "governed"),
+    (re.compile(r"\boracles?\b", re.IGNORECASE), "oracle"),
+    (re.compile(r"\beffect contracts?\b", re.IGNORECASE), "effect contract"),
+    (re.compile(r"\bsubstrates?\b", re.IGNORECASE), "substrate"),
+    (re.compile(r"\bfixtures?\b", re.IGNORECASE), "fixture"),
+    (re.compile(r"REST\+SQL", re.IGNORECASE), "REST+SQL parity"),
+    (re.compile(r"non-target delta", re.IGNORECASE), "non-target delta"),
+    (re.compile(r"\bsha256\b", re.IGNORECASE), "sha256"),
+    (re.compile(r"\bstandard profile\b", re.IGNORECASE), "Standard profile"),
+    (re.compile(r"program state console", re.IGNORECASE), "Program State Console"),
+    (re.compile(r"\brunners?\b", re.IGNORECASE), "runner"),
+    (re.compile(r"\bMCP\b"), "MCP"),
+    (
+        re.compile(r"\b(?:VERIFIED|HALTED|COMPLETED_UNVERIFIED|FAILED)\b"),
+        "an all-caps run outcome",
+    ),
+    (
+        re.compile(r"RECONCILIATION_REQUIRED|HALTED_BEFORE_EFFECT"),
+        "a transaction outcome name",
+    ),
+)
+DASHES = ("–", "—")
 
 EXPECTED_PINNED_REPOSITORIES = (
     "OpenAdapt",
@@ -50,7 +119,7 @@ EXPECTED_PINNED_REPOSITORIES = (
     "openadapt-desktop",
     "openadapt-capture",
     "openadapt-agent",
-    "openadapt-evals",
+    "ehr-integration-directory",
 )
 LINK_RE = re.compile(r"!?\[[^\]]+\]\(([^\s)]+)(?:\s+[^)]*)?\)")
 PROFILE_TARGET_ROW_RE = re.compile(r"^\| `([a-z]+)` \|\s*(.*?)\s*\|$")
@@ -74,8 +143,38 @@ EXPECTED_CRITICAL_LIFECYCLES = {
     "openadapt-web": "support",
     "openadapt-ops": "support",
     "openadapt-blog": "support",
+    "ehr-integration-directory": "support",
     "OpenAdapter": "archived",
     "OpenReflector": "archived",
+}
+# A product target's state is derived from signed admissions, so its
+# repository description never carries a static lifecycle label. A described
+# repository that a visitor could mistake for the product opens with its
+# lifecycle label instead.
+STATIC_TARGET_LABELS = ("Beta", "Experimental", "Early access", "Exploratory")
+REQUIRED_DESCRIPTION_LABELS = {
+    "experimental": "Experimental: ",
+    "research": "Research: ",
+    "labs": "Labs: ",
+    "superseded": "Superseded by ",
+    "deprecated": "Deprecated",
+    "historical": "Historical",
+    "archived": "Archived",
+}
+LEADING_LABEL_RE = re.compile(
+    r"^(Production|Support|Beta|Experimental|Research|Internal|Labs|Historical|"
+    r"Superseded|Deprecated|Archived)\b"
+)
+UNPINNABLE_GROUPS = {
+    "beta",
+    "experimental",
+    "research",
+    "internal",
+    "labs",
+    "historical",
+    "superseded",
+    "deprecated",
+    "archived",
 }
 FORBIDDEN_PUBLIC_OPERATIONS_MARKERS = (
     "/Users/",
@@ -115,6 +214,119 @@ def check_link(source: Path, destination: str) -> str | None:
     return None
 
 
+def business_term_errors(label: str, text: str) -> list[str]:
+    """Name every business-vocabulary rule that `text` breaks."""
+    return [
+        f"{label} uses {name!r}; business-facing copy uses the plain term"
+        for pattern, name in BUSINESS_FORBIDDEN_TERMS
+        if pattern.search(text)
+    ]
+
+
+def reader_words(markdown: str) -> str:
+    """Drop link destinations and fenced code, which a reader doesn't read as prose."""
+    without_code = re.sub(r"```.*?```", " ", markdown, flags=re.DOTALL)
+    return re.sub(r"\]\([^)]*\)", "]", without_code)
+
+
+def parse_lifecycle_groups(
+    lifecycle_text: str, errors: list[str]
+) -> dict[str, list[str]]:
+    lifecycle_section = lifecycle_text.split("\nlifecycle:\n", maxsplit=1)
+    if len(lifecycle_section) != 2:
+        errors.append("repository-lifecycle.yml is missing its lifecycle mapping")
+        return {}
+    groups: dict[str, list[str]] = {}
+    active_group: str | None = None
+    for line in lifecycle_section[1].splitlines():
+        if match := LIFECYCLE_GROUP_RE.fullmatch(line):
+            active_group = match.group(1)
+            groups[active_group] = []
+        elif match := LIFECYCLE_REPOSITORY_RE.fullmatch(line):
+            if active_group is None:
+                errors.append(
+                    "repository-lifecycle.yml has a repository outside a lifecycle group"
+                )
+            else:
+                groups[active_group].append(match.group(1))
+        elif line and not line.startswith(" "):
+            break
+    return groups
+
+
+def metadata_errors(
+    metadata: PublicMetadata,
+    product_repositories: set[str],
+    lifecycles: dict[str, str],
+) -> list[str]:
+    """Check the public metadata against the lifecycle and the copy rules."""
+    errors: list[str] = []
+
+    if metadata.pinned_repositories != EXPECTED_PINNED_REPOSITORIES:
+        errors.append(
+            "repository-lifecycle.yml product pins do not match the public contract: "
+            f"{list(metadata.pinned_repositories)}"
+        )
+
+    for label, text in (
+        ("organization_description", metadata.organization_description),
+        ("profile_headline", metadata.profile_headline),
+    ):
+        errors += business_term_errors(f"repository-lifecycle.yml {label}", text)
+
+    static_label_patterns = [
+        (label, re.compile(rf"\b{re.escape(label)}\b", re.IGNORECASE))
+        for label in STATIC_TARGET_LABELS
+    ]
+    for name, repository in metadata.repositories.items():
+        group = lifecycles.get(name)
+        is_product = name in product_repositories
+        if group is None and not is_product:
+            errors.append(
+                f"repository-lifecycle.yml describes {name}, which is neither a "
+                "product target repository nor in a lifecycle group"
+            )
+
+        if is_product or name in metadata.pinned_repositories:
+            static = sorted(
+                label
+                for label, pattern in static_label_patterns
+                if pattern.search(repository.description)
+            )
+            if static:
+                errors.append(
+                    f"repository-lifecycle.yml {name} description carries static "
+                    f"lifecycle labels: {static}"
+                )
+
+        required = REQUIRED_DESCRIPTION_LABELS.get(group or "")
+        if required and not repository.description.startswith(required):
+            errors.append(
+                f"repository-lifecycle.yml {name} is {group}, so its description "
+                f"must start with {required.strip()!r}"
+            )
+        if match := LEADING_LABEL_RE.match(repository.description):
+            if match.group(1).lower() != group:
+                errors.append(
+                    f"repository-lifecycle.yml {name} description opens with "
+                    f"{match.group(1)!r}, but its lifecycle is {group!r}"
+                )
+
+    for name in metadata.pinned_repositories:
+        group = lifecycles.get(name)
+        if group in UNPINNABLE_GROUPS:
+            errors.append(
+                f"repository-lifecycle.yml pins {name}, which is {group}; pins are "
+                "for product and public Support repositories"
+            )
+        if name in metadata.repositories:
+            errors += business_term_errors(
+                f"repository-lifecycle.yml pinned {name} description",
+                metadata.repositories[name].description,
+            )
+    return errors
+
+
 def main() -> int:
     errors: list[str] = []
     profile_text = PROFILE.read_text(encoding="utf-8")
@@ -127,20 +339,32 @@ def main() -> int:
         errors.append("profile/README.md is missing the canonical product truth")
 
     for marker in REQUIRED_PROFILE_MARKERS:
-        if marker not in normalized_profile:
+        if " ".join(marker.split()) not in normalized_profile:
             errors.append(f"profile/README.md is missing required marker: {marker}")
+    heading_positions = [
+        profile_text.find(f"\n{heading}\n") for heading in PROFILE_HEADINGS
+    ]
+    if -1 not in heading_positions and heading_positions != sorted(heading_positions):
+        errors.append(
+            "profile/README.md must keep its sections in order, with every "
+            f"business section before {DEVELOPER_HEADING!r}"
+        )
 
-    canonical_quickstart = (
-        "python -m pip install --upgrade 'openadapt[browser]'",
-        "openadapt quickstart",
-    )
-    for command in canonical_quickstart:
+    for command in CANONICAL_QUICKSTART:
         if command not in profile_text:
             errors.append(
                 f"profile/README.md is missing canonical quickstart command: {command}"
             )
-    if "openadapt flow demo-record --out rec" in profile_text:
-        errors.append("profile/README.md publishes the superseded manual tutorial path")
+    for phrase in PROHIBITED_PROFILE_PHRASES:
+        if phrase in normalized_profile:
+            errors.append(f"profile/README.md publishes a prohibited phrase: {phrase!r}")
+    if any(dash in profile_text for dash in DASHES):
+        errors.append("profile/README.md uses an en or em dash")
+
+    business_section = profile_text.split(f"\n{DEVELOPER_HEADING}\n", maxsplit=1)[0]
+    errors += business_term_errors(
+        "profile/README.md business section", reader_words(business_section)
+    )
 
     profile_links = set(LINK_RE.findall(profile_text))
     missing_links = sorted(REQUIRED_PROFILE_LINKS - profile_links)
@@ -157,9 +381,12 @@ def main() -> int:
         (ROOT / "production-lifecycle-policy.json").read_text(encoding="utf-8")
     )
     expected_profile_targets = tuple(target["id"] for target in policy["targets"])
-    product_section_parts = profile_text.split("## Product Surfaces\n", maxsplit=1)
+    product_repositories = {
+        target["source_repository"].split("/", 1)[1] for target in policy["targets"]
+    }
+    product_section_parts = profile_text.split(f"{PRODUCT_HEADING}\n", maxsplit=1)
     if len(product_section_parts) != 2:
-        errors.append("profile/README.md is missing the Product Surfaces section")
+        errors.append("profile/README.md is missing the Product surfaces section")
     else:
         product_section = product_section_parts[1].split("\n## ", maxsplit=1)[0]
         profile_target_rows = [
@@ -215,52 +442,8 @@ def main() -> int:
             )
 
     lifecycle_text = LIFECYCLE_DATA.read_text(encoding="utf-8")
-    public_metadata_text = lifecycle_text.split("lifecycle:\n", maxsplit=1)[0]
-    static_target_labels = sorted(
-        label
-        for label in ("Beta", "Experimental", "Early access", "Exploratory")
-        if re.search(rf"\b{re.escape(label)}\b", public_metadata_text, re.IGNORECASE)
-    )
-    if static_target_labels:
-        errors.append(
-            "repository-lifecycle.yml public target metadata contains static "
-            f"lifecycle labels: {static_target_labels}"
-        )
-    pinned_section = lifecycle_text.split("  pinned_repositories:\n", maxsplit=1)
-    if len(pinned_section) != 2:
-        errors.append("repository-lifecycle.yml is missing pinned_repositories")
-    else:
-        pinned: list[str] = []
-        for line in pinned_section[1].splitlines():
-            if match := LIFECYCLE_REPOSITORY_RE.fullmatch(line):
-                pinned.append(match.group(1))
-            elif line and not line.startswith("    "):
-                break
-        if tuple(pinned) != EXPECTED_PINNED_REPOSITORIES:
-            errors.append(
-                "repository-lifecycle.yml product pins do not match the public contract"
-            )
-
-    lifecycle_section = lifecycle_text.split("lifecycle:\n", maxsplit=1)
-    if len(lifecycle_section) != 2:
-        errors.append("repository-lifecycle.yml is missing its lifecycle mapping")
-    else:
-        groups: dict[str, list[str]] = {}
-        active_group: str | None = None
-        for line in lifecycle_section[1].splitlines():
-            if match := LIFECYCLE_GROUP_RE.fullmatch(line):
-                active_group = match.group(1)
-                groups[active_group] = []
-            elif match := LIFECYCLE_REPOSITORY_RE.fullmatch(line):
-                if active_group is None:
-                    errors.append(
-                        "repository-lifecycle.yml has a repository outside a lifecycle group"
-                    )
-                else:
-                    groups[active_group].append(match.group(1))
-            elif line and not line.startswith(" "):
-                break
-
+    groups = parse_lifecycle_groups(lifecycle_text, errors)
+    if groups:
         if set(groups) != EXPECTED_LIFECYCLE_GROUPS:
             errors.append(
                 "repository-lifecycle.yml lifecycle groups do not match the public schema"
@@ -277,20 +460,48 @@ def main() -> int:
             errors.append(
                 f"repository-lifecycle.yml assigns multiple lifecycles: {duplicates}"
             )
-        actual_lifecycles = {
-            repository: group
-            for group, group_repositories in groups.items()
-            for repository in group_repositories
-        }
-        for repository, expected_group in EXPECTED_CRITICAL_LIFECYCLES.items():
-            if actual_lifecycles.get(repository) != expected_group:
+    actual_lifecycles = {
+        repository: group
+        for group, group_repositories in groups.items()
+        for repository in group_repositories
+    }
+    for repository, expected_group in EXPECTED_CRITICAL_LIFECYCLES.items():
+        if actual_lifecycles.get(repository) != expected_group:
+            errors.append(
+                "repository-lifecycle.yml assigns "
+                f"{repository} to {actual_lifecycles.get(repository)!r}; "
+                f"expected {expected_group!r}"
+            )
+
+    metadata: PublicMetadata | None
+    try:
+        metadata = load_public_metadata(LIFECYCLE_DATA)
+    except MetadataError as exc:
+        errors.append(f"repository-lifecycle.yml public_metadata: {exc}")
+        metadata = None
+    if metadata is not None:
+        errors += metadata_errors(metadata, product_repositories, actual_lifecycles)
+        first_bold = next(
+            (line for line in profile_text.splitlines() if line.startswith("**")), ""
+        )
+        if first_bold != f"**{metadata.profile_headline}**":
+            errors.append(
+                "profile/README.md must open with the profile_headline from "
+                "repository-lifecycle.yml as its first bold line"
+            )
+        if APPLY_SCRIPT.exists():
+            relative = APPLY_SCRIPT.relative_to(ROOT)
+            if APPLY_SCRIPT.read_text(encoding="utf-8") != render_apply_script(metadata):
                 errors.append(
-                    "repository-lifecycle.yml assigns "
-                    f"{repository} to {actual_lifecycles.get(repository)!r}; "
-                    f"expected {expected_group!r}"
+                    f"{relative} does not match repository-lifecycle.yml. Run: "
+                    f"python3 scripts/github_metadata.py render-apply --output {relative}"
                 )
+            if not os.access(APPLY_SCRIPT, os.X_OK):
+                errors.append(f"{relative} is not executable")
 
     public_operations_text = lifecycle_text + lifecycle_doc_text
+    if APPLY_SCRIPT.exists():
+        public_operations_text += APPLY_SCRIPT.read_text(encoding="utf-8")
     leaked_markers = sorted(
         marker
         for marker in FORBIDDEN_PUBLIC_OPERATIONS_MARKERS
@@ -313,7 +524,7 @@ def main() -> int:
             if error := check_link(source, destination):
                 errors.append(f"{source.relative_to(ROOT)}: {error}")
 
-    if errors:
+    if errors or metadata is None:
         for error in errors:
             print(f"ERROR: {error}", file=sys.stderr)
         return 1
@@ -322,7 +533,11 @@ def main() -> int:
         len(LINK_RE.findall(path.read_text(encoding="utf-8")))
         for path in MARKDOWN_FILES
     )
-    print(f"Validated canonical product truth and {link_count} Markdown links.")
+    print(
+        "Validated canonical product truth, "
+        f"{len(metadata.repositories)} repository descriptions, "
+        f"{len(metadata.pinned_repositories)} pins, and {link_count} Markdown links."
+    )
     return 0
 
 

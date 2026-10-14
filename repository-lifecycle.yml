@@ -1,46 +1,328 @@
 schema_version: 2
-reviewed_on: 2026-08-26
+reviewed_on: 2026-10-09
 canonical_product:
   launcher: OpenAdapt
   engine: openadapt-flow
+# public_metadata is the source of truth for the GitHub settings a visitor
+# sees: the organization description and website, the profile headline, the
+# pinned repositories, and each listed repository's description, website, and
+# topics. Editing this file doesn't change GitHub. After merge, an organization
+# owner runs .overhaul/APPLY.sh, which
+# `python3 scripts/github_metadata.py render-apply` renders from this file.
+# Each listed repository is set exactly: an empty homepage clears the website
+# field, and the topic list replaces every current topic.
 public_metadata:
   organization_description: >-
-    Governed automation across browser, desktop, RDP, and Citrix: compile a
-    demonstration, verify the result, and halt on uncertainty.
+    Enters approved information into the systems your team already uses,
+    checks that it saved, and stops to ask a person when something doesn't
+    match.
+  organization_homepage: https://openadapt.ai/
+  profile_headline: >-
+    OpenAdapt enters approved information into the systems your team already
+    uses, and then it checks that the entry saved.
   pinned_repositories:
     - OpenAdapt
     - openadapt-flow
     - openadapt-desktop
     - openadapt-capture
     - openadapt-agent
-    - openadapt-evals
-  repository_descriptions:
-    .github: >-
-      Organization profile and shared community files for OpenAdapt.
-    OpenAdapt: >-
-      Installer and unified CLI for OpenAdapt. The compiler and governed
-      runtime live in openadapt-flow.
-    openadapt-flow: >-
-      Compiler and governed runtime for demonstrated GUI workflows, with
-      explicit identity, policy, and result checks.
-    openadapt-web: >-
-      Source for openadapt.ai, including product pages, evidence, pricing, and
-      workflow qualification.
-    openadapt-ops: >-
-      Source for docs.openadapt.ai, with checks and runbooks that keep the
-      documentation current.
-    openadapt-cloud: >-
-      Proprietary hosted control plane for workflow qualification, deployment,
-      attended operation, and governed repair.
-    openadapt-desktop: >-
-      Desktop application for local workflow authoring, operation, evidence
-      review, and governed repair.
-    openadapt-capture: >-
-      Native desktop recorder that keeps screen, input, timing, and
-      window-scoped evidence synchronized.
-    openadapt-agent: >-
-      Local bridge that exposes governed OpenAdapt workflows to MCP clients and
-      Agent Skills.
+    - ehr-integration-directory
+  repositories:
+    OpenAdapt:
+      description: >-
+        OpenAdapt takes the last manual step off your team. It enters approved
+        information into EMRs, portals, and desktop or Citrix apps, then checks
+        that it saved.
+      homepage: https://openadapt.ai
+      topics:
+        - rpa
+        - robotic-process-automation
+        - process-automation
+        - workflow-automation
+        - desktop-automation
+        - browser-automation
+        - gui-automation
+        - ui-automation
+        - citrix
+        - rdp
+        - healthcare-automation
+        - emr
+        - ehr
+        - computer-use
+        - human-in-the-loop
+        - audit-trail
+        - local-first
+        - automation-from-demonstration
+        - mcp
+        - python
+    openadapt-flow:
+      description: >-
+        OpenAdapt's open-source engine. It turns one recorded task into a
+        program that runs on your computer and never reports an unchecked entry
+        as done.
+      homepage: https://openadapt.ai/platform/flow
+      topics:
+        - browser-automation
+        - computer-use
+        - deterministic-replay
+        - gui-automation
+        - healthcare-automation
+        - rpa
+        - workflow-automation
+        - automation-from-demonstration
+        - citrix
+        - demonstration-compiler
+        - desktop-automation
+        - effect-verification
+        - local-first
+        - python
+        - rdp
+        - ui-automation
+        - human-in-the-loop
+        - emr
+        - audit-trail
+        - robotic-process-automation
+    openadapt-desktop:
+      description: >-
+        The OpenAdapt app. Record a task once, watch it run, see what it
+        entered, and decide what happens when a run stops.
+      homepage: https://openadapt.ai/platform/desktop
+      topics:
+        - automation-from-demonstration
+        - desktop-automation
+        - gui-automation
+        - local-first
+        - openadapt
+        - python
+        - human-in-the-loop
+        - rpa
+        - citrix
+    openadapt-capture:
+      description: >-
+        Records screen, mouse, and keyboard on Windows, macOS, and Linux so
+        OpenAdapt can turn one recorded task into an automation.
+      homepage: https://openadapt.ai/platform/capture
+      topics:
+        - gui-automation
+        - python
+        - screen-capture
+        - input-recording
+        - openadapt
+    openadapt-agent:
+      description: >-
+        Lets your AI agent run approved OpenAdapt automations on your computer.
+        Each run reports how it ended, and a run that stops goes to a person.
+      homepage: https://openadapt.ai/platform/agent
+      topics:
+        - agent-skills
+        - gui-automation
+        - local-first
+        - mcp
+        - openadapt
+        - workflow-automation
+        - computer-use
+        - human-in-the-loop
+    ehr-integration-directory:
+      description: >-
+        Shows which EHR tasks have a public API and which still end at a
+        screen. Each entry links its source. Published by OpenAdapt.
+      homepage: https://ehrintegrationdirectory.com
+      topics:
+        - ehr
+        - emr
+        - fhir
+        - hl7
+        - smart-on-fhir
+        - healthcare
+        - healthcare-it
+        - interoperability
+        - openadapt
+    openadapt-cloud:
+      description: >-
+        Proprietary source for app.openadapt.ai, the hosted service that runs
+        automations, tests them before they go live, and sends stopped runs to
+        a person.
+      homepage: https://app.openadapt.ai
+      topics: []
+    .github:
+      description: >-
+        Support: OpenAdapt's GitHub profile, the status of every repository,
+        and shared community files.
+      homepage: https://openadapt.ai
+      topics:
+        - openadapt
+    openadapt-web:
+      description: >-
+        Source for openadapt.ai, including product pages, pricing, and
+        evidence.
+      homepage: https://openadapt.ai
+      topics: []
+    openadapt-ops:
+      description: >-
+        Support: source for docs.openadapt.ai, plus the checks that keep the
+        docs in step with each release.
+      homepage: https://docs.openadapt.ai
+      topics:
+        - openadapt
+    openadapt-blog:
+      description: >-
+        Support: source for blog.openadapt.ai, with guides, product updates,
+        and test write-ups.
+      homepage: https://blog.openadapt.ai
+      topics:
+        - openadapt
+    openadapt-wright:
+      description: >-
+        Support: team tool that drafts code changes and pull requests for a
+        person to approve. Not part of the product.
+      homepage: ""
+      topics: []
+    openadapt-herald:
+      description: >-
+        Support: team tool that drafts release announcements from git history.
+        Not part of the product.
+      homepage: ""
+      topics: []
+    openadapt-crier:
+      description: >-
+        Support: team tool that sends drafted social posts to Telegram for a
+        person to approve. Not part of the product.
+      homepage: ""
+      topics: []
+    openadapt-consilium:
+      description: >-
+        Support: team tool that asks several AI models one question and
+        combines their answers. Not part of the product.
+      homepage: ""
+      topics: []
+    openadapt-telemetry:
+      description: >-
+        Support: error reports and usage counts for OpenAdapt packages, with
+        personal details scrubbed. Set DO_NOT_TRACK=1 to opt out.
+      homepage: ""
+      topics: []
+    openadapt-viewer:
+      description: >-
+        Support: turns test results and screenshots into one HTML page you can
+        share. Not needed to automate a task.
+      homepage: https://pypi.org/project/openadapt-viewer/
+      topics:
+        - html
+        - openadapt
+        - python
+        - visualization
+    openadapt-privacy:
+      description: >-
+        Experimental: detects and redacts personal and health information in
+        recordings and screenshots before they're shared.
+      homepage: https://pypi.org/project/openadapt-privacy/
+      topics:
+        - openadapt
+        - pii-detection
+        - privacy
+        - python
+        - scrubbing
+    openadapt-types:
+      description: >-
+        Experimental: shared data formats for screens and actions inside
+        OpenAdapt. Not needed to automate a task.
+      homepage: ""
+      topics:
+        - openadapt
+    openadapt-console:
+      description: >-
+        Experimental: an early web console prototype. Not part of the product
+        today.
+      homepage: ""
+      topics: []
+    openadapt-tray:
+      description: >-
+        Experimental: a tray icon that shows what OpenAdapt is doing, with
+        start and stop controls. Optional.
+      homepage: ""
+      topics:
+        - openadapt
+    openadapt-ml:
+      description: >-
+        Research: optional model training for computer-use agents. Not needed
+        to record, build, or run an OpenAdapt automation.
+      homepage: https://pypi.org/project/openadapt-ml/
+      topics:
+        - computer-use
+        - gui-automation
+        - machine-learning
+        - openadapt
+        - python
+        - vlm
+        - research
+    openadapt-evals:
+      description: >-
+        Research: scores computer-use agents and OpenAdapt programs on public
+        benchmarks, including Windows Agent Arena. Not needed to automate a
+        task.
+      homepage: https://openadapt.ai/platform/evals
+      topics:
+        - benchmarks
+        - evaluation
+        - gui-automation
+        - openadapt
+        - python
+    openadapt-retrieval:
+      description: >-
+        Research: searches past recordings by image and text for model-driven
+        agents. Not needed to automate a task.
+      homepage: https://pypi.org/project/openadapt-retrieval/
+      topics:
+        - embeddings
+        - openadapt
+        - python
+        - retrieval
+        - demo-retrieval
+    openadapt-grounding:
+      description: >-
+        Research: finds buttons and fields on screen with vision models. Not
+        needed to automate a task.
+      homepage: https://pypi.org/project/openadapt-grounding/
+      topics:
+        - computer-vision
+        - openadapt
+        - python
+        - set-of-mark
+        - ui-detection
+    OmniMCP:
+      description: >-
+        Labs: an agent experiment that asks a model at every step. Not the
+        OpenAdapt product; see openadapt-flow.
+      homepage: https://omnimcp.openadapt.ai/
+      topics:
+        - anthropic
+        - aws
+        - computeruse
+        - gemini
+        - generative-ai
+        - model-context-protocol
+        - omniparser
+        - openai
+        - labs
+        - research
+    SoM:
+      description: >-
+        Labs: fork of Microsoft's Set-of-Mark visual prompting research. Not
+        the OpenAdapt product.
+      homepage: ""
+      topics: []
+    PydanticPrompt:
+      description: >-
+        Labs: a small Python library that documents Pydantic models for LLM
+        prompts. Not the OpenAdapt product.
+      homepage: ""
+      topics: []
+    OpenSanitizer:
+      description: >-
+        Superseded by openadapt-privacy, which new projects should use. Older
+        PII and PHI scrubbing for screen data.
+      homepage: ""
+      topics: []
 lifecycle:
   production: []
   support:
@@ -54,6 +336,7 @@ lifecycle:
     - openadapt-telemetry
     - openadapt-viewer
     - openadapt-blog
+    - ehr-integration-directory
   beta: []
   experimental:
     - openadapt-privacy
