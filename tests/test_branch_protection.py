@@ -321,9 +321,16 @@ class WorkflowTests(unittest.TestCase):
             job = re.split(r"\n  (?=\S)", job, maxsplit=1)[0]
             self.assertNotRegex(job, r"(?m)^    if:", context)
             self.assertNotRegex(job, r"(?m)^    needs:", context)
+            # Nothing may let the job run on past a failed refusal.
+            self.assertNotRegex(job, r"(?m)^    continue-on-error:", context)
             first_step = job.split("    steps:\n      - ", 1)[1]
             first_step = first_step.split("\n      - ", 1)[0]
             self.assertNotIn("uses:", first_step, context)
+            # A condition could skip the refusal, and continue-on-error would
+            # let a failed refusal count as a success.
+            self.assertNotRegex(
+                first_step, r"(?m)^(?: {8})?(?:if|continue-on-error):", context
+            )
             self.assertIn("ACTOR: ${{ github.actor }}", first_step, context)
             self.assertIn(
                 "TRIGGERING_ACTOR: ${{ github.triggering_actor }}", first_step, context
