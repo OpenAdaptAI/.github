@@ -29,13 +29,19 @@ jobs:
           test "$TRIGGERING_ACTOR" != 'openadapt-lifecycle[bot]'
 
   validate-profile:
-    needs: reject-lifecycle-app
-    if: >-
-      github.actor != 'openadapt-lifecycle[bot]' &&
-      github.triggering_actor != 'openadapt-lifecycle[bot]'
+    # Main's ruleset requires this check, and GitHub counts a skipped job as a
+    # passing check. So this job has no job-level condition or needs that
+    # could skip it. It refuses the lifecycle App with a failing first step.
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Reject the lifecycle App
+        env:
+          ACTOR: ${{ github.actor }}
+          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+        run: |
+          test "$ACTOR" != 'openadapt-lifecycle[bot]'
+          test "$TRIGGERING_ACTOR" != 'openadapt-lifecycle[bot]'
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0

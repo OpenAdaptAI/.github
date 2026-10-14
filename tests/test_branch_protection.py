@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import io
 import json
+import re
 import sys
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -299,6 +300,49 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotIn("pull_request", job)
         self.assertIn("  report-unprotected-branch:\n", content)
         self.assertIn("needs.check-branch-protection.result == 'failure'", content)
+
+    def test_required_check_fails_instead_of_skipping(self) -> None:
+        # GitHub counts a skipped job as a passing required check. A pull
+        # request the lifecycle App opens would then show the required check
+        # as passed although validation never ran. So the job behind each
+        # required check has no job-level condition or dependency that could
+        # skip it, and it refuses the lifecycle App with a failing first step.
+        body = json.loads((ROOT / "main-branch-ruleset.json").read_text())
+        contexts = [
+            item["context"]
+            for rule in body["rules"]
+            if rule["type"] == "required_status_checks"
+            for item in rule["parameters"]["required_status_checks"]
+        ]
+        self.assertEqual(contexts, [check.REQUIRED_CHECK])
+        content = (ROOT / ".github/workflows/profile-consistency.yml").read_text()
+        for context in contexts:
+            job = content.split(f"\n  {context}:\n", 1)[1]
+            job = re.split(r"\n  (?=\S)", job, maxsplit=1)[0]
+            self.assertNotRegex(job, r"(?m)^    if:", context)
+            self.assertNotRegex(job, r"(?m)^    needs:", context)
+            # Nothing may let the job run on past a failed refusal.
+            self.assertNotRegex(job, r"(?m)^    continue-on-error:", context)
+            first_step = job.split("    steps:\n      - ", 1)[1]
+            first_step = first_step.split("\n      - ", 1)[0]
+            self.assertNotIn("uses:", first_step, context)
+            # A condition could skip the refusal, and continue-on-error would
+            # let a failed refusal count as a success.
+            self.assertNotRegex(
+                first_step, r"(?m)^(?: {8})?(?:if|continue-on-error):", context
+            )
+            self.assertIn("ACTOR: ${{ github.actor }}", first_step, context)
+            self.assertIn(
+                "TRIGGERING_ACTOR: ${{ github.triggering_actor }}", first_step, context
+            )
+            self.assertIn(
+                "test \"$ACTOR\" != 'openadapt-lifecycle[bot]'", first_step, context
+            )
+            self.assertIn(
+                "test \"$TRIGGERING_ACTOR\" != 'openadapt-lifecycle[bot]'",
+                first_step,
+                context,
+            )
 
 
 if __name__ == "__main__":
