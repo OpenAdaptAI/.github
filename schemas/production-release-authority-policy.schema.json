@@ -36,12 +36,12 @@
     },
     "repositories": {
       "const": [
-        {"target":"agent","repository":"OpenAdaptAI/openadapt-agent","repository_id":"1136136670"},
+        {"target":"agent","repository":"OpenAdaptAI/OpenAdapt","repository_id":"627024850","package_path":"packages/agent","tag_pattern":"refs/tags/openadapt-agent-v*","creation_ruleset":"OpenAdapt policy: openadapt-agent release tag creation","immutability_ruleset":"OpenAdapt policy: immutable openadapt-agent release tags"},
         {"target":"capture","repository":"OpenAdaptAI/openadapt-capture","repository_id":"1115283835"},
         {"target":"cloud","repository":"OpenAdaptAI/openadapt-cloud","repository_id":"1300570990"},
         {"target":"desktop","repository":"OpenAdaptAI/openadapt-desktop","repository_id":"1171291730"},
         {"target":"docs","repository":"OpenAdaptAI/openadapt-ops","repository_id":"1172011294"},
-        {"target":"flow","repository":"OpenAdaptAI/openadapt-flow","repository_id":"1291376938"},
+        {"target":"flow","repository":"OpenAdaptAI/OpenAdapt","repository_id":"627024850","package_path":"packages/flow","tag_pattern":"refs/tags/openadapt-flow-v*","creation_ruleset":"OpenAdapt policy: openadapt-flow release tag creation","immutability_ruleset":"OpenAdapt policy: immutable openadapt-flow release tags"},
         {"target":"openadapt","repository":"OpenAdaptAI/OpenAdapt","repository_id":"627024850"}
       ]
     },

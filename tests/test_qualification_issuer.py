@@ -522,13 +522,19 @@ def flow_release_inputs(
     resolver: RecordingResolver,
     *,
     target: str = "flow",
+    version: str = "1.35.0",
 ) -> dict:
+    # The repository and tag prefix follow the version: flow releases before
+    # 2.2.0 came from openadapt-flow under v<version>.
+    source = trust.release_source("flow", version)
+    tag = trust.release_tag("flow", version)
+    creation_name, immutability_name = trust.tag_ruleset_names(source["tag_prefix"])
     admission_ref, admission_bundle_ref = reference_pair(
         "qualification-admission", admission
     )
     artifacts = [
         {
-            "name": "openadapt_flow-1.35.0.tar.gz",
+            "name": f"openadapt_flow-{version}.tar.gz",
             "kind": "python-sdist",
             "sha256": sha("flow-sdist"),
             "size_bytes": 101,
@@ -536,7 +542,7 @@ def flow_release_inputs(
             "publish_destinations": ["github-release", "pypi"],
         },
         {
-            "name": "openadapt_flow-1.35.0-py3-none-any.whl",
+            "name": f"openadapt_flow-{version}-py3-none-any.whl",
             "kind": "python-wheel",
             "sha256": sha("flow-wheel"),
             "size_bytes": 102,
@@ -546,18 +552,23 @@ def flow_release_inputs(
     ]
     common_ruleset = {
         "schema_version": "openadapt.production-release-tag-ruleset/v1",
-        "repository": "OpenAdaptAI/openadapt-flow",
-        "repository_id": "1291376938",
+        "repository": source["repository"],
+        "repository_id": source["repository_id"],
         "target": "tag",
         "enforcement": "active",
-        "conditions": {"ref_name": {"include": ["refs/tags/v*"], "exclude": []}},
+        "conditions": {
+            "ref_name": {
+                "include": [trust.tag_ref_pattern(source["tag_prefix"])],
+                "exclude": [],
+            }
+        },
     }
     rulesets = [
         {
             **common_ruleset,
             "role": "creation_authority",
             "ruleset_id": "10",
-            "name": "OpenAdapt policy: release tag creation",
+            "name": creation_name,
             "bypass_actors": [
                 {
                     "actor_id": "4730708",
@@ -571,7 +582,7 @@ def flow_release_inputs(
             **common_ruleset,
             "role": "immutability",
             "ruleset_id": "11",
-            "name": "OpenAdapt policy: immutable release tags",
+            "name": immutability_name,
             "bypass_actors": [],
             "rules": [
                 {"type": "deletion"},
@@ -586,10 +597,10 @@ def flow_release_inputs(
     staging = {
         "schema_version": "openadapt.production-release-staging-evidence/v1",
         "publication_mode": "draft-before-tag",
-        "repository": "OpenAdaptAI/openadapt-flow",
-        "repository_id": "1291376938",
+        "repository": source["repository"],
+        "repository_id": source["repository_id"],
         "draft_release_id": "20",
-        "tag": "v1.35.0",
+        "tag": tag,
         "target_commitish": "e" * 40,
         "draft": True,
         "prerelease": False,
@@ -616,21 +627,21 @@ def flow_release_inputs(
         ),
         "tag_rulesets": rulesets,
         "tag_rulesets_sha256": trust.digest_bytes(trust.TAG_RULESETS_DOMAIN, rulesets),
-        "tag_ref_state": {"ref": "refs/tags/v1.35.0", "exists": False},
+        "tag_ref_state": {"ref": f"refs/tags/{tag}", "exists": False},
         "tag_ref_state_sha256": trust.digest_bytes(
             trust.TAG_REF_STATE_DOMAIN,
-            {"ref": "refs/tags/v1.35.0", "exists": False},
+            {"ref": f"refs/tags/{tag}", "exists": False},
         ),
         "observed_at": utc(NOW),
     }
     candidate = {
         "schema_version": "openadapt.production-release-candidate/v1",
         "kind": "package",
-        "source_repository": "OpenAdaptAI/openadapt-flow",
-        "source_repository_id": "1291376938",
+        "source_repository": source["repository"],
+        "source_repository_id": source["repository_id"],
         "source_commit": "e" * 40,
-        "version": "1.35.0",
-        "tag": "v1.35.0",
+        "version": version,
+        "tag": tag,
         "deployment_id": None,
         "deployment_sha256": None,
         "artifacts": artifacts,
@@ -733,14 +744,15 @@ def flow_release_inputs(
                 }
             )
         staging_tag = tag or f"v0.0.0-deployment.{deployment_id}"
+        target_source = trust.release_source(target, version)
         target_rulesets = copy.deepcopy(rulesets)
         for ruleset in target_rulesets:
-            ruleset["repository"] = contract["repository"]
-            ruleset["repository_id"] = contract["repository_id"]
+            ruleset["repository"] = target_source["repository"]
+            ruleset["repository_id"] = target_source["repository_id"]
         staging = {
             **staging,
-            "repository": contract["repository"],
-            "repository_id": contract["repository_id"],
+            "repository": target_source["repository"],
+            "repository_id": target_source["repository_id"],
             "tag": staging_tag,
             "assets": [
                 {
@@ -766,8 +778,8 @@ def flow_release_inputs(
         candidate = {
             **candidate,
             "kind": contract["release_kind"],
-            "source_repository": contract["repository"],
-            "source_repository_id": contract["repository_id"],
+            "source_repository": target_source["repository"],
+            "source_repository_id": target_source["repository_id"],
             "version": version,
             "tag": tag,
             "deployment_id": deployment_id,
@@ -1392,14 +1404,15 @@ class QualificationIssuerTests(unittest.TestCase):
                     consumer=RecordingConsumer(),
                 )
                 contract = trust.TARGET_CONTRACTS[target]
+                source = trust.release_source(target, release["release"]["version"])
                 self.assertEqual(release["target"], target)
                 self.assertEqual(release["claim_scope"], contract["claim_scope"])
                 self.assertEqual(
-                    release["release"]["source_repository"], contract["repository"]
+                    release["release"]["source_repository"], source["repository"]
                 )
                 self.assertEqual(
                     release["release"]["source_repository_id"],
-                    contract["repository_id"],
+                    source["repository_id"],
                 )
                 self.assertEqual(
                     release["release"]["kind"], contract["release_kind"]
@@ -1443,7 +1456,7 @@ class QualificationIssuerTests(unittest.TestCase):
                         release["release"]["deployment_id"],
                     )
                 self.assertEqual(
-                    verification["source_repository"], contract["repository"]
+                    verification["source_repository"], source["repository"]
                 )
                 self.assertEqual(
                     verification["workflow_bundle_sha256"],

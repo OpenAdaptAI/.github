@@ -5,8 +5,10 @@ reviewed_on: 2026-10-09
 # openadapt-types repositories are frozen. Release admission is not configured
 # here: production-lifecycle-policy.json and
 # production-release-authority-policy.json bind each target's source
-# repository, and their `flow` and `agent` targets still name the frozen
-# repositories that hold the currently admitted releases.
+# repository. Their `flow` and `agent` targets name OpenAdapt; releases from
+# flow 2.2.0 and agent 2.2.1 on carry openadapt-flow-v* and openadapt-agent-v*
+# tags there, and every earlier release stays bound to its frozen repository
+# (scripts/production_trust.py, previous_sources).
 canonical_product:
   launcher: OpenAdapt
   engine: OpenAdapt/packages/flow

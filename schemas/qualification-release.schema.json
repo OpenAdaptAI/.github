@@ -58,7 +58,7 @@
     "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
     "decimal_id": {"type": "string", "pattern": "^[1-9][0-9]*$"},
     "version": {"type": "string", "pattern": "^(0|[1-9][0-9]{0,9})\\.(0|[1-9][0-9]{0,9})\\.(0|[1-9][0-9]{0,9})(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$"},
-    "tag": {"type": "string", "pattern": "^v(0|[1-9][0-9]{0,9})\\.(0|[1-9][0-9]{0,9})\\.(0|[1-9][0-9]{0,9})(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$"},
+    "tag": {"type": "string", "pattern": "^(openadapt-agent-|openadapt-flow-)?v(0|[1-9][0-9]{0,9})\\.(0|[1-9][0-9]{0,9})\\.(0|[1-9][0-9]{0,9})(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$"},
     "timestamp": {"type": "string", "format": "date-time", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"},
     "release_identity": {
       "type": "object",
@@ -184,7 +184,7 @@
           "additionalProperties": false,
           "required": ["include", "exclude"],
           "properties": {
-            "include": {"const": ["refs/tags/v*"]},
+            "include": {"enum": [["refs/tags/v*"], ["refs/tags/openadapt-agent-v*"], ["refs/tags/openadapt-flow-v*"]]},
             "exclude": {"const": []}
           }
         }
@@ -216,7 +216,7 @@
         {"$ref": "#/$defs/tag_ruleset"},
         {"properties": {
           "role": {"const": "creation_authority"},
-          "name": {"const": "OpenAdapt policy: release tag creation"},
+          "name": {"enum": ["OpenAdapt policy: release tag creation", "OpenAdapt policy: openadapt-agent release tag creation", "OpenAdapt policy: openadapt-flow release tag creation"]},
           "bypass_actors": {"const": [{"actor_id": "4730708", "actor_type": "Integration", "bypass_mode": "always"}]},
           "rules": {"const": [{"type": "creation"}]}
         }}
@@ -227,7 +227,7 @@
         {"$ref": "#/$defs/tag_ruleset"},
         {"properties": {
           "role": {"const": "immutability"},
-          "name": {"const": "OpenAdapt policy: immutable release tags"},
+          "name": {"enum": ["OpenAdapt policy: immutable release tags", "OpenAdapt policy: immutable openadapt-agent release tags", "OpenAdapt policy: immutable openadapt-flow release tags"]},
           "bypass_actors": {"const": []},
           "rules": {
             "type": "array",
@@ -351,7 +351,7 @@
           "additionalProperties": false,
           "required": ["ref", "exists"],
           "properties": {
-            "ref": {"type": "string", "pattern": "^refs/tags/v[^/]+$"},
+            "ref": {"type": "string", "pattern": "^refs/tags/(openadapt-agent-|openadapt-flow-)?v[^/]+$"},
             "exists": {"type": "boolean"}
           }
         },

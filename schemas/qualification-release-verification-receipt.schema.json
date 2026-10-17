@@ -42,6 +42,9 @@
     "registry_head_sha256",
     "trust_state_source_commit"
   ],
+  "allOf": [
+    {"oneOf": [{"properties": {"source_repository": {"const": "OpenAdaptAI/openadapt-flow"}, "source_repository_id": {"const": "1291376938"}, "tag": {"type": "string", "pattern": "^v(0|[1-9][0-9]{0,9})\\.(0|[1-9][0-9]{0,9})\\.(0|[1-9][0-9]{0,9})(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$"}}}, {"properties": {"source_repository": {"const": "OpenAdaptAI/OpenAdapt"}, "source_repository_id": {"const": "627024850"}, "tag": {"type": "string", "pattern": "^openadapt-flow-v(0|[1-9][0-9]{0,9})\\.(0|[1-9][0-9]{0,9})\\.(0|[1-9][0-9]{0,9})(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$"}}}]}
+  ],
   "properties": {
     "schema_version": {"const": "openadapt.qualification-release-verification-receipt/v1"},
     "verification_id_sha256": {"$ref": "#/$defs/digest"},
@@ -55,11 +58,11 @@
     "release_sha256": {"$ref": "#/$defs/digest"},
     "artifact_inventory_sha256": {"$ref": "#/$defs/digest"},
     "release_identity": {"$ref": "qualification-release.schema.json#/$defs/release_identity"},
-    "source_repository": {"const": "OpenAdaptAI/openadapt-flow"},
-    "source_repository_id": {"const": "1291376938"},
+    "source_repository": {"enum": ["OpenAdaptAI/openadapt-flow", "OpenAdaptAI/OpenAdapt"]},
+    "source_repository_id": {"enum": ["1291376938", "627024850"]},
     "source_commit": {"$ref": "#/$defs/commit"},
     "version": {"type": "string", "minLength": 5, "maxLength": 64},
-    "tag": {"type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"},
+    "tag": {"type": "string", "pattern": "^(openadapt-flow-)?v[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"},
     "draft_release_id": {"type": "string", "pattern": "^[1-9][0-9]*$"},
     "publication_staging_sha256": {"$ref": "#/$defs/digest"},
     "authority_state_sha256": {"$ref": "#/$defs/digest"},

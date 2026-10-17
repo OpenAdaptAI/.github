@@ -101,7 +101,7 @@
     "decimal_id": {"type": "string", "pattern": "^[1-9][0-9]*$"},
     "timestamp": {"type": "string", "format": "date-time", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"},
     "version": {"type": "string", "pattern": "^(0|[1-9][0-9]{0,9})\\.(0|[1-9][0-9]{0,9})\\.(0|[1-9][0-9]{0,9})(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$"},
-    "tag": {"type": "string", "pattern": "^v(0|[1-9][0-9]{0,9})\\.(0|[1-9][0-9]{0,9})\\.(0|[1-9][0-9]{0,9})(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$"},
+    "tag": {"type": "string", "pattern": "^(openadapt-agent-|openadapt-flow-)?v(0|[1-9][0-9]{0,9})\\.(0|[1-9][0-9]{0,9})\\.(0|[1-9][0-9]{0,9})(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$"},
     "package_identity": {
       "properties": {
         "release_kind": {"const": "package"},
@@ -134,7 +134,8 @@
     "agent": {
       "allOf": [
         {"$ref": "#/$defs/package_identity"},
-        {"properties": {"target": {"const": "agent"}, "claim_scope": {"const": "production_agent"}, "source_repository": {"const": "OpenAdaptAI/openadapt-agent"}, "source_repository_id": {"const": "1136136670"}}}
+        {"properties": {"target": {"const": "agent"}, "claim_scope": {"const": "production_agent"}}},
+        {"oneOf": [{"properties": {"source_repository": {"const": "OpenAdaptAI/openadapt-agent"}, "source_repository_id": {"const": "1136136670"}, "tag": {"type": "string", "pattern": "^v(0|[1-9][0-9]{0,9})\\.(0|[1-9][0-9]{0,9})\\.(0|[1-9][0-9]{0,9})(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$"}}}, {"properties": {"source_repository": {"const": "OpenAdaptAI/OpenAdapt"}, "source_repository_id": {"const": "627024850"}, "tag": {"type": "string", "pattern": "^openadapt-agent-v(0|[1-9][0-9]{0,9})\\.(0|[1-9][0-9]{0,9})\\.(0|[1-9][0-9]{0,9})(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$"}}}]}
       ]
     },
     "capture": {
@@ -164,7 +165,8 @@
     "flow": {
       "allOf": [
         {"$ref": "#/$defs/package_identity"},
-        {"properties": {"target": {"const": "flow"}, "claim_scope": {"const": "production_flow"}, "source_repository": {"const": "OpenAdaptAI/openadapt-flow"}, "source_repository_id": {"const": "1291376938"}}}
+        {"properties": {"target": {"const": "flow"}, "claim_scope": {"const": "production_flow"}}},
+        {"oneOf": [{"properties": {"source_repository": {"const": "OpenAdaptAI/openadapt-flow"}, "source_repository_id": {"const": "1291376938"}, "tag": {"type": "string", "pattern": "^v(0|[1-9][0-9]{0,9})\\.(0|[1-9][0-9]{0,9})\\.(0|[1-9][0-9]{0,9})(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$"}}}, {"properties": {"source_repository": {"const": "OpenAdaptAI/OpenAdapt"}, "source_repository_id": {"const": "627024850"}, "tag": {"type": "string", "pattern": "^openadapt-flow-v(0|[1-9][0-9]{0,9})\\.(0|[1-9][0-9]{0,9})\\.(0|[1-9][0-9]{0,9})(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$"}}}]}
       ]
     },
     "openadapt": {

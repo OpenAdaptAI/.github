@@ -17,6 +17,7 @@ from github_metadata import (
     load_public_metadata,
     render_apply_script,
 )
+import production_trust
 from validate_production_lifecycle import LifecycleError, validate_files
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -252,6 +253,23 @@ def parse_lifecycle_groups(
     return groups
 
 
+def product_repository_names(policy: dict) -> set[str]:
+    """Repository names of every product target, current and earlier.
+
+    A target that moved keeps its earlier releases bound to the repository
+    they came from, so that repository is still a product target repository.
+    """
+    names = {
+        target["source_repository"].split("/", 1)[1] for target in policy["targets"]
+    }
+    names |= {
+        previous["repository"].split("/", 1)[1]
+        for contract in production_trust.TARGET_CONTRACTS.values()
+        for previous in contract.get("previous_sources", ())
+    }
+    return names
+
+
 def metadata_errors(
     metadata: PublicMetadata,
     product_repositories: set[str],
@@ -379,9 +397,7 @@ def main() -> int:
         (ROOT / "production-lifecycle-policy.json").read_text(encoding="utf-8")
     )
     expected_profile_targets = tuple(target["id"] for target in policy["targets"])
-    product_repositories = {
-        target["source_repository"].split("/", 1)[1] for target in policy["targets"]
-    }
+    product_repositories = product_repository_names(policy)
     product_section_parts = profile_text.split(f"{PRODUCT_HEADING}\n", maxsplit=1)
     if len(product_section_parts) != 2:
         errors.append("profile/README.md is missing the Product surfaces section")

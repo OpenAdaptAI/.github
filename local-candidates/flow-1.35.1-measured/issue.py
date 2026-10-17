@@ -700,12 +700,19 @@ def prepared_target(inputs: dict) -> tuple[str, str]:
         fail("measured adapter does not support this target")
     contract = trust.TARGET_CONTRACTS[target]
     release = inputs["release"]
+    # The release's version fixes the repository it came from.
+    try:
+        source = trust.release_source(
+            target, None if release.get("kind") == "deployment" else release.get("version")
+        )
+    except trust.TrustError:
+        fail("measured release differs from the validated target inventory")
     if (
         inventory["claim_scope"] != contract["claim_scope"]
         or release["schema_version"] != "openadapt.production-release-candidate/v1"
         or release["kind"] != contract["release_kind"]
-        or release["source_repository"] != contract["repository"]
-        or release["source_repository_id"] != contract["repository_id"]
+        or release["source_repository"] != source["repository"]
+        or release["source_repository_id"] != source["repository_id"]
         or not isinstance(release["source_commit"], str)
         or trust.HEX40.fullmatch(release["source_commit"]) is None
         or release["artifacts"] != inventory["artifacts"]

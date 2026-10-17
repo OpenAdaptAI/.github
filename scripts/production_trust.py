@@ -32,6 +32,14 @@ RELEASE_TAG = re.compile(
     r"^v(0|[1-9][0-9]{0,9})\.(0|[1-9][0-9]{0,9})\."
     r"(0|[1-9][0-9]{0,9})(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$"
 )
+# A package released from the OpenAdapt monorepo tags as <pypi-project>-v<ver>
+# so it never shares the launcher's v* namespace in the same repository. The
+# prefix is an exact literal per target; only the version part varies.
+TAG_PREFIX = re.compile(r"^(|openadapt-[a-z]+-)$")
+DEFAULT_TAG_RULESET_NAMES = (
+    "OpenAdapt policy: release tag creation",
+    "OpenAdapt policy: immutable release tags",
+)
 
 TARGETS = ("agent", "capture", "cloud", "desktop", "docs", "flow", "openadapt")
 # Founder 2026-09-02: admit every product target. Native Desktop installers
@@ -40,8 +48,22 @@ ADMISSION_GATE_TARGETS = TARGETS
 TARGET_CONTRACTS = {
     "agent": {
         "claim_scope": "production_agent",
-        "repository": "OpenAdaptAI/openadapt-agent",
-        "repository_id": "1136136670",
+        # Released from packages/agent of the OpenAdapt monorepo since
+        # 2.2.1, under package-scoped tags.
+        "repository": "OpenAdaptAI/OpenAdapt",
+        "repository_id": "627024850",
+        "package_path": "packages/agent",
+        "tag_prefix": "openadapt-agent-",
+        # Every earlier release came from the standalone repository under
+        # plain v<version> tags; those releases stay bound to it.
+        "previous_sources": (
+            {
+                "repository": "OpenAdaptAI/openadapt-agent",
+                "repository_id": "1136136670",
+                "tag_prefix": "",
+                "before_version": "2.2.1",
+            },
+        ),
         "release_kind": "package",
         "artifacts": {
             "python-sdist": ("application/gzip", ("github-release", "pypi")),
@@ -94,8 +116,22 @@ TARGET_CONTRACTS = {
     },
     "flow": {
         "claim_scope": "production_flow",
-        "repository": "OpenAdaptAI/openadapt-flow",
-        "repository_id": "1291376938",
+        # Released from packages/flow of the OpenAdapt monorepo since
+        # 2.2.0, under package-scoped tags.
+        "repository": "OpenAdaptAI/OpenAdapt",
+        "repository_id": "627024850",
+        "package_path": "packages/flow",
+        "tag_prefix": "openadapt-flow-",
+        # Every earlier release came from the standalone repository under
+        # plain v<version> tags; those releases stay bound to it.
+        "previous_sources": (
+            {
+                "repository": "OpenAdaptAI/openadapt-flow",
+                "repository_id": "1291376938",
+                "tag_prefix": "",
+                "before_version": "2.2.0",
+            },
+        ),
         "release_kind": "package",
         "artifacts": {
             "python-sdist": ("application/gzip", ("github-release", "pypi")),
@@ -113,6 +149,92 @@ TARGET_CONTRACTS = {
         },
     },
 }
+
+
+def _version_key(version: Any) -> tuple[int, int, int, int]:
+    match = RELEASE_TAG.fullmatch(f"v{version}") if isinstance(version, str) else None
+    if match is None:
+        raise TrustError("release version is invalid")
+    # A prerelease sorts before its release.
+    return (int(match[1]), int(match[2]), int(match[3]), 0 if match[4] else 1)
+
+
+def release_source(target: str, version: str | None) -> dict[str, str]:
+    """The one repository and tag prefix a target's release of ``version``
+    must come from. A deployment (``version`` None) uses the current source.
+    """
+
+    contract = TARGET_CONTRACTS.get(target)
+    if contract is None:
+        raise TrustError("release target is invalid")
+    if version is not None:
+        key = _version_key(version)
+        for previous in contract.get("previous_sources", ()):
+            if key < _version_key(previous["before_version"]):
+                return {
+                    "repository": previous["repository"],
+                    "repository_id": previous["repository_id"],
+                    "tag_prefix": require_tag_prefix(previous["tag_prefix"]),
+                }
+    return {
+        "repository": contract["repository"],
+        "repository_id": contract["repository_id"],
+        "tag_prefix": require_tag_prefix(contract.get("tag_prefix", "")),
+    }
+
+
+def release_tag(target: str, version: str) -> str:
+    """The only tag a target's release of ``version`` may carry."""
+
+    return f"{release_source(target, version)['tag_prefix']}v{version}"
+
+
+def release_source_for_tag(target: str, tag: Any) -> dict[str, str] | None:
+    """The source of the release this exact tag names, or None if no source
+    of the target would carry it."""
+
+    if not isinstance(tag, str):
+        return None
+    contract = TARGET_CONTRACTS.get(target)
+    if contract is None:
+        return None
+    prefixes = {contract.get("tag_prefix", "")} | {
+        previous["tag_prefix"] for previous in contract.get("previous_sources", ())
+    }
+    for prefix in sorted(prefixes):
+        rest = tag[len(prefix) :] if tag.startswith(prefix) else None
+        if rest is None or RELEASE_TAG.fullmatch(rest) is None:
+            continue
+        source = release_source(target, rest[1:])
+        if source["tag_prefix"] == prefix:
+            return source
+    return None
+
+
+def require_tag_prefix(prefix: Any) -> str:
+    if not isinstance(prefix, str) or TAG_PREFIX.fullmatch(prefix) is None:
+        raise TrustError("release tag prefix is invalid")
+    return prefix
+
+
+def tag_ref_pattern(prefix: str) -> str:
+    """The single ruleset include pattern for tags with this exact prefix."""
+
+    return f"refs/tags/{require_tag_prefix(prefix)}v*"
+
+
+def tag_ruleset_names(prefix: str) -> tuple[str, str]:
+    """Creation and immutability ruleset names for one tag prefix."""
+
+    if not require_tag_prefix(prefix):
+        return DEFAULT_TAG_RULESET_NAMES
+    project = prefix[:-1]
+    return (
+        f"OpenAdapt policy: {project} release tag creation",
+        f"OpenAdapt policy: immutable {project} release tags",
+    )
+
+
 CAMPAIGN_CLASSES = (
     "healthy",
     "safe_halt",
@@ -575,8 +697,10 @@ def artifact_inventory_digest(value: Mapping[str, Any]) -> str:
 
 
 def validate_tag_rulesets(
-    value: Any, *, repository: str, repository_id: str
+    value: Any, *, repository: str, repository_id: str, tag_prefix: str
 ) -> list[dict[str, Any]]:
+    names = tag_ruleset_names(tag_prefix)
+    pattern = tag_ref_pattern(tag_prefix)
     if not isinstance(value, list) or len(value) != 2:
         raise TrustError("tag rulesets must contain creation and immutability rulesets")
     roles = ["creation_authority", "immutability"]
@@ -609,11 +733,7 @@ def validate_tag_rulesets(
         require_decimal_id(ruleset["ruleset_id"], "tag ruleset id")
         if ruleset["target"] != "tag" or ruleset["enforcement"] != "active":
             raise TrustError("tag ruleset is not active for tags")
-        expected_name = (
-            "OpenAdapt policy: release tag creation"
-            if index == 0
-            else "OpenAdapt policy: immutable release tags"
-        )
+        expected_name = names[index]
         if ruleset["name"] != expected_name:
             raise TrustError("tag ruleset name differs from policy")
         actors = ruleset["bypass_actors"]
@@ -644,8 +764,8 @@ def validate_tag_rulesets(
                 or any(not isinstance(item, str) or not item for item in items)
             ):
                 raise TrustError("tag ref patterns must be sorted unique strings")
-        if ref_name != {"include": ["refs/tags/v*"], "exclude": []}:
-            raise TrustError("tag ruleset must match exactly refs/tags/v*")
+        if ref_name != {"include": [pattern], "exclude": []}:
+            raise TrustError(f"tag ruleset must match exactly {pattern}")
         rules = ruleset["rules"]
         expected_rules = (
             [{"type": "creation"}]
@@ -822,7 +942,7 @@ def _validate_staged_assets(
     return assets
 
 
-def validate_staging(value: Any) -> dict[str, Any]:
+def validate_staging(value: Any, *, tag_prefix: str = "") -> dict[str, Any]:
     if not isinstance(value, dict) or "publication_mode" not in value:
         raise TrustError("publication staging mode is not supported")
     mode = value["publication_mode"]
@@ -906,6 +1026,8 @@ def validate_staging(value: Any) -> dict[str, Any]:
         raise TrustError("publication staging target commit must be exact")
     if not isinstance(staging["tag"], str) or not staging["tag"]:
         raise TrustError("publication staging tag is invalid")
+    if not staging["tag"].startswith(require_tag_prefix(tag_prefix)):
+        raise TrustError("publication staging tag differs from the target prefix")
     assets = _validate_staged_assets(
         staging["assets"], require_release_app_uploader=require_bot_author
     )
@@ -915,6 +1037,7 @@ def validate_staging(value: Any) -> dict[str, Any]:
         staging["tag_rulesets"],
         repository=staging["repository"],
         repository_id=staging["repository_id"],
+        tag_prefix=tag_prefix,
     )
     if staging["tag_rulesets_sha256"] != digest_bytes(
         TAG_RULESETS_DOMAIN, staging["tag_rulesets"]
@@ -1040,10 +1163,20 @@ def validate_release(value: Any, *, now: datetime | None = None) -> dict[str, An
         "hybrid",
     }:
         raise TrustError("release candidate schema or kind is invalid")
+    if release["kind"] != target_contract["release_kind"]:
+        raise TrustError("release candidate differs from the target policy")
+    if release["kind"] != "deployment" and (
+        not isinstance(release["version"], str)
+        or BUNDLE_VERSION.fullmatch(release["version"]) is None
+    ):
+        raise TrustError("release package version or tag is invalid")
+    source = release_source(
+        release_admission["target"],
+        None if release["kind"] == "deployment" else release["version"],
+    )
     if (
-        release["kind"] != target_contract["release_kind"]
-        or release["source_repository"] != target_contract["repository"]
-        or release["source_repository_id"] != target_contract["repository_id"]
+        release["source_repository"] != source["repository"]
+        or release["source_repository_id"] != source["repository_id"]
     ):
         raise TrustError("release candidate differs from the target policy")
     require_decimal_id(release["source_repository_id"], "release source repository id")
@@ -1056,8 +1189,7 @@ def validate_release(value: Any, *, now: datetime | None = None) -> dict[str, An
         not isinstance(release["version"], str)
         or BUNDLE_VERSION.fullmatch(release["version"]) is None
         or not isinstance(release["tag"], str)
-        or RELEASE_TAG.fullmatch(release["tag"]) is None
-        or release["tag"] != f"v{release['version']}"
+        or release["tag"] != release_tag(release_admission["target"], release["version"])
     ):
         raise TrustError("release package version or tag is invalid")
     if release["kind"] == "package":
@@ -1124,7 +1256,10 @@ def validate_release(value: Any, *, now: datetime | None = None) -> dict[str, An
         },
     ):
         raise TrustError("release candidate digest is invalid")
-    staging = validate_staging(release_admission["publication_staging"])
+    staging = validate_staging(
+        release_admission["publication_staging"],
+        tag_prefix=source["tag_prefix"],
+    )
     if release_admission["publication_staging_sha256"] != staging_digest(staging):
         raise TrustError("publication staging digest is invalid")
     expected_staging_tag = release["tag"] or (
@@ -1398,7 +1533,8 @@ def validate_support_release(
         },
     ):
         raise TrustError("Support release candidate digest is invalid")
-    staging = validate_staging(admission["publication_staging"])
+    # openadapt-tray releases under plain v<version> tags.
+    staging = validate_staging(admission["publication_staging"], tag_prefix="")
     if (
         admission["publication_staging_sha256"] != staging_digest(staging)
         or staging["repository"] != release["source_repository"]
@@ -1509,9 +1645,14 @@ def validate_publication_recovery_authorization(
     contract = TARGET_CONTRACTS.get(target)
     if contract is None or contract["release_kind"] != "package":
         raise TrustError("publication recovery applies only to package targets")
+    # The tag names the release, and the release's version fixes the one
+    # repository it may come from.
+    source = release_source_for_tag(target, authorization["tag"])
+    if source is None:
+        raise TrustError("publication recovery immutable tag binding differs")
     if (
-        authorization["repository"] != contract["repository"]
-        or authorization["repository_id"] != contract["repository_id"]
+        authorization["repository"] != source["repository"]
+        or authorization["repository_id"] != source["repository_id"]
     ):
         raise TrustError("publication recovery target repository differs")
     for field in (
@@ -1536,9 +1677,7 @@ def validate_publication_recovery_authorization(
     ):
         raise TrustError("publication recovery release reference differs")
     if (
-        not isinstance(authorization["tag"], str)
-        or RELEASE_TAG.fullmatch(authorization["tag"]) is None
-        or authorization["tag_ref"] != f"refs/tags/{authorization['tag']}"
+        authorization["tag_ref"] != f"refs/tags/{authorization['tag']}"
         or not isinstance(authorization["tag_object_id"], str)
         or HEX40.fullmatch(authorization["tag_object_id"]) is None
         or not isinstance(authorization["target_commit"], str)
@@ -2669,11 +2808,21 @@ def validate_acceptance_manifest(
         "manifest release candidate",
     )
     contract = TARGET_CONTRACTS[manifest["target"]]
+    if release["kind"] != "deployment" and (
+        not isinstance(release["version"], str)
+        or BUNDLE_VERSION.fullmatch(release["version"]) is None
+        or release["tag"] != release_tag(manifest["target"], release["version"])
+    ):
+        raise TrustError("manifest release candidate differs from the target policy")
+    source = release_source(
+        manifest["target"],
+        None if release["kind"] == "deployment" else release["version"],
+    )
     if (
         release["schema_version"] != "openadapt.production-release-candidate/v1"
         or release["kind"] != contract["release_kind"]
-        or release["source_repository"] != contract["repository"]
-        or release["source_repository_id"] != contract["repository_id"]
+        or release["source_repository"] != source["repository"]
+        or release["source_repository_id"] != source["repository_id"]
         or not isinstance(release["source_commit"], str)
         or HEX40.fullmatch(release["source_commit"]) is None
     ):
@@ -2696,7 +2845,10 @@ def validate_acceptance_manifest(
         or manifest["artifact_inventory_sha256"] != artifact_inventory_digest(inventory)
     ):
         raise TrustError("manifest artifact inventory differs from the release")
-    staging = validate_staging(manifest["publication_staging"])
+    staging = validate_staging(
+        manifest["publication_staging"],
+        tag_prefix=source["tag_prefix"],
+    )
     if (
         manifest["publication_staging_sha256"] != staging_digest(staging)
         or staging["repository"] != release["source_repository"]
