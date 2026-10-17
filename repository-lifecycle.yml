@@ -84,8 +84,8 @@ public_metadata:
         - robotic-process-automation
     openadapt-desktop:
       description: >-
-        The OpenAdapt app. Record a task once, watch it run, see what it
-        entered, and decide what happens when a run stops.
+        The OpenAdapt app. Record a task, watch it run, see what it entered,
+        and decide what happens when a run stops.
       homepage: https://openadapt.ai/platform/desktop
       topics:
         - automation-from-demonstration
