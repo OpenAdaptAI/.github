@@ -1,8 +1,15 @@
 schema_version: 2
 reviewed_on: 2026-10-09
+# The launcher and the engine both live in the OpenAdapt monorepo; the engine
+# is packages/flow. The standalone openadapt-flow, openadapt-agent, and
+# openadapt-types repositories are frozen. Release admission is not configured
+# here: production-lifecycle-policy.json and
+# production-release-authority-policy.json bind each target's source
+# repository, and their `flow` and `agent` targets still name the frozen
+# repositories that hold the currently admitted releases.
 canonical_product:
   launcher: OpenAdapt
-  engine: openadapt-flow
+  engine: OpenAdapt/packages/flow
 # public_metadata is the source of truth for the GitHub settings a visitor
 # sees: the organization description and website, the profile headline, the
 # pinned repositories, and each listed repository's description, website, and
@@ -22,10 +29,8 @@ public_metadata:
     uses, and then it checks that the entry saved.
   pinned_repositories:
     - OpenAdapt
-    - openadapt-flow
     - openadapt-desktop
     - openadapt-capture
-    - openadapt-agent
     - ehr-integration-directory
   repositories:
     OpenAdapt:
@@ -57,10 +62,9 @@ public_metadata:
         - python
     openadapt-flow:
       description: >-
-        OpenAdapt's open-source engine. It turns one recorded task into a
-        program that runs on your computer and never reports an unchecked entry
-        as done.
-      homepage: https://openadapt.ai/platform/flow
+        Frozen copy of OpenAdapt's open-source engine. It is now developed and
+        released from the OpenAdapt repository, under packages/flow.
+      homepage: https://github.com/OpenAdaptAI/OpenAdapt/tree/main/packages/flow
       topics:
         - browser-automation
         - computer-use
@@ -110,9 +114,9 @@ public_metadata:
         - openadapt
     openadapt-agent:
       description: >-
-        Lets your AI agent run approved OpenAdapt automations on your computer.
-        Each run reports how it ended, and a run that stops goes to a person.
-      homepage: https://openadapt.ai/platform/agent
+        Frozen copy of the OpenAdapt agent bridge. It is now developed and
+        released from the OpenAdapt repository, under packages/agent.
+      homepage: https://github.com/OpenAdaptAI/OpenAdapt/tree/main/packages/agent
       topics:
         - agent-skills
         - gui-automation
@@ -224,9 +228,9 @@ public_metadata:
         - scrubbing
     openadapt-types:
       description: >-
-        Experimental: shared data formats for screens and actions inside
-        OpenAdapt. Not needed to automate a task.
-      homepage: ""
+        Experimental: frozen copy of OpenAdapt's shared data formats. They now
+        live in the OpenAdapt repository, under packages/types.
+      homepage: https://github.com/OpenAdaptAI/OpenAdapt/tree/main/packages/types
       topics:
         - openadapt
     openadapt-console:
