@@ -123,11 +123,11 @@ A caller must report a halt as a halt, never as success.
 | Target | Role |
 |---|---|
 | `openadapt` | [`OpenAdapt`](https://github.com/OpenAdaptAI/OpenAdapt) installs the `openadapt` command and the engine. |
-| `flow` | [`openadapt-flow`](https://github.com/OpenAdaptAI/openadapt-flow) is the compiler and governed runtime. Engine changes go here. |
+| `flow` | [`openadapt-flow`](https://github.com/OpenAdaptAI/OpenAdapt/tree/main/packages/flow) is the compiler and governed runtime. It lives in the `OpenAdapt` repository under `packages/flow`. |
 | `cloud` | [`app.openadapt.ai`](https://app.openadapt.ai/) runs hosted browser workflows and manages runs on computers you control. Its source is private. |
 | `desktop` | [`openadapt-desktop`](https://github.com/OpenAdaptAI/openadapt-desktop) records, tests, runs, and reviews workflows on your own computer, and handles approved fixes. |
 | `capture` | [`openadapt-capture`](https://github.com/OpenAdaptAI/openadapt-capture) records screen, input, timing, and window evidence for Desktop and Flow. |
-| `agent` | [`openadapt-agent`](https://github.com/OpenAdaptAI/openadapt-agent) gives agents governed Flow workflows as local MCP tools and Agent Skills. |
+| `agent` | [`openadapt-agent`](https://github.com/OpenAdaptAI/OpenAdapt/tree/main/packages/agent) gives agents governed Flow workflows as local MCP tools and Agent Skills. |
 | `docs` | [`docs.openadapt.ai`](https://docs.openadapt.ai) is the documentation site. The Support repository [`openadapt-ops`](https://github.com/OpenAdaptAI/openadapt-ops) publishes it. |
 
 These targets form one product across browser, Windows, macOS, Linux, RDP, and
@@ -159,7 +159,7 @@ table that read didn't cover. The zero covers only the audited test database.
 Every check also stopped 9 of 18 runs that had saved correctly, because the
 client never got the server's reply. This test covers a fixed list of faults.
 It doesn't measure a real-world error rate.
-[Method and caveats](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/benchmark/effect_e2e/EFFECT_E2E.md).
+[Method and caveats](https://github.com/OpenAdaptAI/OpenAdapt/blob/main/packages/flow/benchmark/effect_e2e/EFFECT_E2E.md).
 
 ### OpenEMR field test
 
@@ -171,15 +171,15 @@ finish stopped at step 17, before saving, instead of reporting success. We
 measured this on 2026-07-08 with a development build of Flow 0.1.0. It's a
 small sample on a demo that resets daily, so CI can't reproduce it. OpenAdapt
 isn't affiliated with the OpenEMR project.
-[Method and caveats](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/benchmark/openemr/BENCHMARK.md).
+[Method and caveats](https://github.com/OpenAdaptAI/OpenAdapt/blob/main/packages/flow/benchmark/openemr/BENCHMARK.md).
 
 Neither study is a production reliability or clinical safety claim. The model
 charge leaves out authoring, review, maintenance, and infrastructure. Read the
-[limits](https://github.com/OpenAdaptAI/openadapt-flow/blob/main/docs/LIMITS.md)
+[limits](https://github.com/OpenAdaptAI/OpenAdapt/blob/main/packages/flow/docs/LIMITS.md)
 before you extrapolate. Runnable references are in
-[`openadapt-flow/docs/showcase`](https://github.com/OpenAdaptAI/openadapt-flow/tree/main/docs/showcase),
+[`packages/flow/docs/showcase`](https://github.com/OpenAdaptAI/OpenAdapt/tree/main/packages/flow/docs/showcase),
 and each method is under
-[`benchmark`](https://github.com/OpenAdaptAI/openadapt-flow/tree/main/benchmark).
+[`benchmark`](https://github.com/OpenAdaptAI/OpenAdapt/tree/main/packages/flow/benchmark).
 
 ## Research and labs
 
@@ -199,9 +199,8 @@ Superseded, Deprecated, Archived, or Internal.
 
 ## Contribute
 
-Engine changes belong in
-[`openadapt-flow`](https://github.com/OpenAdaptAI/openadapt-flow). Packaging
-and launcher changes belong in
-[`OpenAdapt`](https://github.com/OpenAdaptAI/OpenAdapt). Use each repository's
+Engine, packaging and launcher changes belong in
+[`OpenAdapt`](https://github.com/OpenAdaptAI/OpenAdapt). The engine is
+[`packages/flow`](https://github.com/OpenAdaptAI/OpenAdapt/tree/main/packages/flow). Use each repository's
 issues for scoped work. Unless a repository says otherwise, OpenAdapt code is
 MIT licensed.
