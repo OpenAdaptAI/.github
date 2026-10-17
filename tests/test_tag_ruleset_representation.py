@@ -36,6 +36,7 @@ class TagRulesetRepresentationTests(unittest.TestCase):
             value,
             repository="OpenAdaptAI/openadapt-capture",
             repository_id="1115283835",
+            tag_prefix="",
         )
 
     def assert_refused(self, value):

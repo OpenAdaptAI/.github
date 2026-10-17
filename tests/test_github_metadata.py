@@ -38,7 +38,7 @@ def product_repositories() -> set[str]:
     policy = json.loads(
         (ROOT / "production-lifecycle-policy.json").read_text(encoding="utf-8")
     )
-    return {target["source_repository"].split("/", 1)[1] for target in policy["targets"]}
+    return check_profile.product_repository_names(policy)
 
 
 def lifecycles() -> dict[str, str]:
