@@ -34,14 +34,14 @@ CANONICAL_TRUTH = (
 )
 REQUIRED_PROFILE_LINKS = {
     "https://github.com/OpenAdaptAI/OpenAdapt",
-    "https://github.com/OpenAdaptAI/openadapt-flow",
+    "https://github.com/OpenAdaptAI/OpenAdapt/tree/main/packages/flow",
     "https://github.com/OpenAdaptAI/openadapt-desktop",
     "https://github.com/OpenAdaptAI/openadapt-capture",
-    "https://github.com/OpenAdaptAI/openadapt-agent",
+    "https://github.com/OpenAdaptAI/OpenAdapt/tree/main/packages/agent",
     "https://github.com/OpenAdaptAI/openadapt-ops",
     "https://github.com/OpenAdaptAI/openadapt-evals",
     "https://github.com/OpenAdaptAI/ehr-integration-directory",
-    "https://github.com/OpenAdaptAI/openadapt-flow/tree/main/docs/showcase",
+    "https://github.com/OpenAdaptAI/OpenAdapt/tree/main/packages/flow/docs/showcase",
     "https://openadapt.ai/",
     "https://openadapt.ai/book",
     "https://openadapt.ai/services",
