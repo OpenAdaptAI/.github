@@ -29,16 +29,14 @@
 # GitHub has no API for organization pins. On https://github.com/OpenAdaptAI,
 # choose "Customize pins" and pin these repositories in this order:
 #   1. OpenAdapt
-#   2. openadapt-flow
-#   3. openadapt-desktop
-#   4. openadapt-capture
-#   5. openadapt-agent
-#   6. ehr-integration-directory
+#   2. openadapt-desktop
+#   3. openadapt-capture
+#   4. ehr-integration-directory
 
 set -uo pipefail
 
 ORG=OpenAdaptAI
-PINS=OpenAdapt,openadapt-flow,openadapt-desktop,openadapt-capture,openadapt-agent,ehr-integration-directory
+PINS=OpenAdapt,openadapt-desktop,openadapt-capture,ehr-integration-directory
 REGISTERED='OpenAdapt openadapt-flow openadapt-desktop openadapt-capture openadapt-agent ehr-integration-directory openadapt-cloud .github openadapt-web openadapt-ops openadapt-blog openadapt-wright openadapt-herald openadapt-crier openadapt-consilium openadapt-telemetry openadapt-viewer openadapt-privacy openadapt-types openadapt-console openadapt-tray openadapt-ml openadapt-evals openadapt-retrieval openadapt-grounding OmniMCP SoM PydanticPrompt OpenSanitizer'
 
 MODE=dry-run
@@ -191,7 +189,7 @@ JSON
 JSON
   change 'openadapt-flow: description and website' \
     gh api --method PATCH "repos/$ORG/openadapt-flow" --input - <<'JSON'
-{"description": "OpenAdapt's open-source engine. It turns one recorded task into a program that runs on your computer and never reports an unchecked entry as done.", "homepage": "https://openadapt.ai/platform/flow"}
+{"description": "Frozen copy of OpenAdapt's open-source engine. It is now developed and released from the OpenAdapt repository, under packages/flow.", "homepage": "https://github.com/OpenAdaptAI/OpenAdapt/tree/main/packages/flow"}
 JSON
   change 'openadapt-flow: topics' \
     gh api --method PUT "repos/$ORG/openadapt-flow/topics" --input - <<'JSON'
@@ -215,7 +213,7 @@ JSON
 JSON
   change 'openadapt-agent: description and website' \
     gh api --method PATCH "repos/$ORG/openadapt-agent" --input - <<'JSON'
-{"description": "Lets your AI agent run approved OpenAdapt automations on your computer. Each run reports how it ended, and a run that stops goes to a person.", "homepage": "https://openadapt.ai/platform/agent"}
+{"description": "Frozen copy of the OpenAdapt agent bridge. It is now developed and released from the OpenAdapt repository, under packages/agent.", "homepage": "https://github.com/OpenAdaptAI/OpenAdapt/tree/main/packages/agent"}
 JSON
   change 'openadapt-agent: topics' \
     gh api --method PUT "repos/$ORG/openadapt-agent/topics" --input - <<'JSON'
@@ -327,7 +325,7 @@ JSON
 JSON
   change 'openadapt-types: description and website' \
     gh api --method PATCH "repos/$ORG/openadapt-types" --input - <<'JSON'
-{"description": "Experimental: shared data formats for screens and actions inside OpenAdapt. Not needed to automate a task.", "homepage": ""}
+{"description": "Experimental: frozen copy of OpenAdapt's shared data formats. They now live in the OpenAdapt repository, under packages/types.", "homepage": "https://github.com/OpenAdaptAI/OpenAdapt/tree/main/packages/types"}
 JSON
   change 'openadapt-types: topics' \
     gh api --method PUT "repos/$ORG/openadapt-types/topics" --input - <<'JSON'
@@ -432,10 +430,10 @@ verify_github() {
     audit-trail,automation-from-demonstration,browser-automation,citrix,computer-use,desktop-automation,ehr,emr,gui-automation,healthcare-automation,human-in-the-loop,local-first,mcp,process-automation,python,rdp,robotic-process-automation,rpa,ui-automation,workflow-automation \
     gh api "repos/$ORG/OpenAdapt/topics" --jq '.names | sort | join(",")'
   expect 'openadapt-flow: description' \
-    'OpenAdapt'"'"'s open-source engine. It turns one recorded task into a program that runs on your computer and never reports an unchecked entry as done.' \
+    'Frozen copy of OpenAdapt'"'"'s open-source engine. It is now developed and released from the OpenAdapt repository, under packages/flow.' \
     gh api "repos/$ORG/openadapt-flow" --jq '.description // ""'
   expect 'openadapt-flow: website' \
-    https://openadapt.ai/platform/flow \
+    https://github.com/OpenAdaptAI/OpenAdapt/tree/main/packages/flow \
     gh api "repos/$ORG/openadapt-flow" --jq '.homepage // ""'
   expect 'openadapt-flow: topics' \
     audit-trail,automation-from-demonstration,browser-automation,citrix,computer-use,demonstration-compiler,desktop-automation,deterministic-replay,effect-verification,emr,gui-automation,healthcare-automation,human-in-the-loop,local-first,python,rdp,robotic-process-automation,rpa,ui-automation,workflow-automation \
@@ -459,10 +457,10 @@ verify_github() {
     gui-automation,input-recording,openadapt,python,screen-capture \
     gh api "repos/$ORG/openadapt-capture/topics" --jq '.names | sort | join(",")'
   expect 'openadapt-agent: description' \
-    'Lets your AI agent run approved OpenAdapt automations on your computer. Each run reports how it ended, and a run that stops goes to a person.' \
+    'Frozen copy of the OpenAdapt agent bridge. It is now developed and released from the OpenAdapt repository, under packages/agent.' \
     gh api "repos/$ORG/openadapt-agent" --jq '.description // ""'
   expect 'openadapt-agent: website' \
-    https://openadapt.ai/platform/agent \
+    https://github.com/OpenAdaptAI/OpenAdapt/tree/main/packages/agent \
     gh api "repos/$ORG/openadapt-agent" --jq '.homepage // ""'
   expect 'openadapt-agent: topics' \
     agent-skills,computer-use,gui-automation,human-in-the-loop,local-first,mcp,openadapt,workflow-automation \
@@ -585,10 +583,10 @@ verify_github() {
     openadapt,pii-detection,privacy,python,scrubbing \
     gh api "repos/$ORG/openadapt-privacy/topics" --jq '.names | sort | join(",")'
   expect 'openadapt-types: description' \
-    'Experimental: shared data formats for screens and actions inside OpenAdapt. Not needed to automate a task.' \
+    'Experimental: frozen copy of OpenAdapt'"'"'s shared data formats. They now live in the OpenAdapt repository, under packages/types.' \
     gh api "repos/$ORG/openadapt-types" --jq '.description // ""'
   expect 'openadapt-types: website' \
-    '' \
+    https://github.com/OpenAdaptAI/OpenAdapt/tree/main/packages/types \
     gh api "repos/$ORG/openadapt-types" --jq '.homepage // ""'
   expect 'openadapt-types: topics' \
     openadapt \

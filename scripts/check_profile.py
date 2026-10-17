@@ -115,10 +115,8 @@ DASHES = ("–", "—")
 
 EXPECTED_PINNED_REPOSITORIES = (
     "OpenAdapt",
-    "openadapt-flow",
     "openadapt-desktop",
     "openadapt-capture",
-    "openadapt-agent",
     "ehr-integration-directory",
 )
 LINK_RE = re.compile(r"!?\[[^\]]+\]\(([^\s)]+)(?:\s+[^)]*)?\)")

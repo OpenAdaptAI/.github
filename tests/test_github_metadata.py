@@ -223,7 +223,7 @@ class CheckRuleTests(unittest.TestCase):
     def test_pinned_and_organization_copy_use_business_words(self) -> None:
         pinned = with_repository(
             published(),
-            "openadapt-agent",
+            "openadapt-capture",
             description="Exposes governed workflows over MCP.",
         )
         errors = self.errors(pinned)
