@@ -199,7 +199,7 @@ JSON
 JSON
   change 'openadapt-desktop: description and website' \
     gh api --method PATCH "repos/$ORG/openadapt-desktop" --input - <<'JSON'
-{"description": "The OpenAdapt app. Record a task once, watch it run, see what it entered, and decide what happens when a run stops.", "homepage": "https://openadapt.ai/platform/desktop"}
+{"description": "The OpenAdapt app. Record a task, watch it run, see what it entered, and decide what happens when a run stops.", "homepage": "https://openadapt.ai/platform/desktop"}
 JSON
   change 'openadapt-desktop: topics' \
     gh api --method PUT "repos/$ORG/openadapt-desktop/topics" --input - <<'JSON'
@@ -441,7 +441,7 @@ verify_github() {
     audit-trail,automation-from-demonstration,browser-automation,citrix,computer-use,demonstration-compiler,desktop-automation,deterministic-replay,effect-verification,emr,gui-automation,healthcare-automation,human-in-the-loop,local-first,python,rdp,robotic-process-automation,rpa,ui-automation,workflow-automation \
     gh api "repos/$ORG/openadapt-flow/topics" --jq '.names | sort | join(",")'
   expect 'openadapt-desktop: description' \
-    'The OpenAdapt app. Record a task once, watch it run, see what it entered, and decide what happens when a run stops.' \
+    'The OpenAdapt app. Record a task, watch it run, see what it entered, and decide what happens when a run stops.' \
     gh api "repos/$ORG/openadapt-desktop" --jq '.description // ""'
   expect 'openadapt-desktop: website' \
     https://openadapt.ai/platform/desktop \
