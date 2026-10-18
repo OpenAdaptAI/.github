@@ -62,7 +62,7 @@
     {
       "id": "effect-screen-silent-wrong-count",
       "surface": "profile/README.md",
-      "context": "| Trust the app's success banner | 54 of 72 (75.0%) |",
+      "context": "| Look only at the screen after saving | 54 of 72 (75.0%) |",
       "text": "54 of 72",
       "renderer": "count_of",
       "decimals": null,
@@ -77,7 +77,7 @@
     {
       "id": "effect-screen-undetected-rate",
       "surface": "profile/README.md",
-      "context": "| Trust the app's success banner | 54 of 72 (75.0%) |",
+      "context": "| Look only at the screen after saving | 54 of 72 (75.0%) |",
       "text": "75.0%",
       "renderer": "percent",
       "decimals": 1,

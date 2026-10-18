@@ -21,7 +21,7 @@ Take a faxed referral that staff enter into the EMR.
 | | Today | With OpenAdapt |
 |---|---|---|
 | Entering it | A staff member keys each referral by hand. Two hospital time studies put one faxed referral at about 10 to 12 minutes of staff time. | OpenAdapt enters the approved fields in the same EMR screens your staff use. |
-| Knowing it saved | Someone sees "Saved" and moves on. | OpenAdapt reads the saved record back and compares it with what it entered. |
+| Knowing it saved | Someone sees "Saved" and moves on. | OpenAdapt checks its own work: it reads the saved record back and compares it with what it entered. |
 | When something's off | It turns up later, at booking or billing. | The run stops before it guesses, and a person decides what happens next. |
 | Your staff's part | Type every referral. | Review the runs that OpenAdapt stops on. |
 
@@ -85,8 +85,8 @@ openadapt quickstart --break-it
 ```
 
 This runs a synthetic clinic task twice on your computer. The first run is
-done and checked. In the second run, the test server rejects the save after
-the app shows that it saved. The record check finds no saved record, so the
+done and checked. In the second run, the test server is set up to reject the
+save, so it never reaches the record. The record check finds nothing, so the
 run ends with "Check the record" instead of reporting success. On Python 3.13
 or newer, install with `uv tool install --python 3.12 openadapt` instead.
 
@@ -150,7 +150,7 @@ those runs each kind of check still passed.
 
 | Check | Wrong records it passed |
 |---|---|
-| Trust the app's success banner | 54 of 72 (75.0%) |
+| Look only at the screen after saving | 54 of 72 (75.0%) |
 | One separate read of the record | 9 of 72 (12.5%) |
 | A read of every table in the test database | 0 of 72 |
 
