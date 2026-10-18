@@ -14,6 +14,18 @@ guessing.
 
 The live demo plays recorded runs that use synthetic data.
 
+## What OpenAdapt can do
+
+- Learns from a person's demonstration or a computer-use agent's verified run, and compiles it into a program that makes no model calls.
+- Uses the fastest layer each app allows: API calls where possible, then page structure, and pixels only for remote desktops.
+- Builds branching programs from several runs, and works across web, Windows, macOS, RDP and Citrix in one workflow.
+- Confirms the right record before every write and reads the saved record back from the system of record.
+- Stops instead of guessing, never retries an uncertain save, and binds each approval to exactly what will be saved.
+- Repairs itself when the app changes, with a person approving, and works as a safety layer under any AI agent.
+- Runs on your own computers, with patient data redacted and signed receipts.
+
+Status and evidence for each: [what OpenAdapt can do](https://github.com/OpenAdaptAI/OpenAdapt/blob/main/CAPABILITIES.md).
+
 ## What changes for your team
 
 Take a faxed referral that staff enter into the EMR.
