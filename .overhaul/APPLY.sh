@@ -177,15 +177,15 @@ preflight() {
 apply_changes() {
   change "organization: description and website" \
     gh api --method PATCH "orgs/$ORG" --input - <<'JSON'
-{"description": "Enters approved information into the systems your team already uses, checks that it saved, and stops to ask a person when something doesn't match.", "blog": "https://openadapt.ai/"}
+{"description": "Verified execution and compilation for AI agents and GUI workflows. Before-click checks, read-back verification, and signed Ed25519 receipts.", "blog": "https://openadapt.ai/"}
 JSON
   change 'OpenAdapt: description and website' \
     gh api --method PATCH "repos/$ORG/OpenAdapt" --input - <<'JSON'
-{"description": "OpenAdapt takes the last manual step off your team. It enters approved information into EMRs, portals, and desktop or Citrix apps, then checks that it saved.", "homepage": "https://openadapt.ai"}
+{"description": "Compile, verify, and self-heal any GUI workflow or AI agent. 0% silent errors, Ed25519 receipts, 1,000x cheaper & 5x faster once compiled.", "homepage": "https://openadapt.ai"}
 JSON
   change 'OpenAdapt: topics' \
     gh api --method PUT "repos/$ORG/OpenAdapt/topics" --input - <<'JSON'
-{"names": ["rpa", "robotic-process-automation", "process-automation", "workflow-automation", "desktop-automation", "browser-automation", "gui-automation", "ui-automation", "citrix", "rdp", "healthcare-automation", "emr", "ehr", "computer-use", "human-in-the-loop", "audit-trail", "local-first", "automation-from-demonstration", "mcp", "python"]}
+{"names": ["ai-agents", "computer-use", "gui-agents", "claude-code", "codex", "mcp", "playwright", "verification", "ed25519", "workflow-automation", "self-healing-automation", "local-first", "browser-automation", "desktop-automation", "rpa", "healthcare-automation", "human-in-the-loop", "agent-harness", "deterministic-replay", "workflow-compiler"]}
 JSON
   change 'openadapt-flow: description and website' \
     gh api --method PATCH "repos/$ORG/openadapt-flow" --input - <<'JSON'
@@ -415,19 +415,19 @@ JSON
 
 verify_github() {
   expect 'organization: description' \
-    'Enters approved information into the systems your team already uses, checks that it saved, and stops to ask a person when something doesn'"'"'t match.' \
+    'Verified execution and compilation for AI agents and GUI workflows. Before-click checks, read-back verification, and signed Ed25519 receipts.' \
     gh api "orgs/$ORG" --jq '.description // ""'
   expect 'organization: website' \
     https://openadapt.ai/ \
     gh api "orgs/$ORG" --jq '.blog // ""'
   expect 'OpenAdapt: description' \
-    'OpenAdapt takes the last manual step off your team. It enters approved information into EMRs, portals, and desktop or Citrix apps, then checks that it saved.' \
+    'Compile, verify, and self-heal any GUI workflow or AI agent. 0% silent errors, Ed25519 receipts, 1,000x cheaper & 5x faster once compiled.' \
     gh api "repos/$ORG/OpenAdapt" --jq '.description // ""'
   expect 'OpenAdapt: website' \
     https://openadapt.ai \
     gh api "repos/$ORG/OpenAdapt" --jq '.homepage // ""'
   expect 'OpenAdapt: topics' \
-    audit-trail,automation-from-demonstration,browser-automation,citrix,computer-use,desktop-automation,ehr,emr,gui-automation,healthcare-automation,human-in-the-loop,local-first,mcp,process-automation,python,rdp,robotic-process-automation,rpa,ui-automation,workflow-automation \
+    agent-harness,ai-agents,browser-automation,claude-code,codex,computer-use,desktop-automation,deterministic-replay,ed25519,gui-agents,healthcare-automation,human-in-the-loop,local-first,mcp,playwright,rpa,self-healing-automation,verification,workflow-automation,workflow-compiler \
     gh api "repos/$ORG/OpenAdapt/topics" --jq '.names | sort | join(",")'
   expect 'openadapt-flow: description' \
     'Frozen copy of OpenAdapt'"'"'s open-source engine. It is now developed and released from the OpenAdapt repository, under packages/flow.' \

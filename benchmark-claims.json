@@ -220,5 +220,153 @@
       "drift": null
     }
   ],
-  "non_benchmark_figures": []
+  "non_benchmark_figures": [
+    {
+      "id": "intro-zero-model-fee",
+      "surface": "profile/README.md",
+      "context": "Repeat runs execute at `$0` in model fees with before-click checks, independent read-back verification, bounded UI-drift repair, and offline-verifiable Ed25519 receipts.",
+      "text": "$0",
+      "reason": "Pricing/architecture statement for compiled local replay (0 model calls); published at openadapt.ai/proof."
+    },
+    {
+      "id": "ui-drift-receipts",
+      "surface": "profile/README.md",
+      "context": "| **4-App Real-Upgrade UI Drift** | Gitea, Vikunja, Memos, Mealie (`N = 60`, 100-run amortized, 60/60 Ed25519 receipts) | **0% silent errors (`0/60`)** vs `18.3%` ASI programmatic synthesis (`p = 0.000977`), `15%` unwrapped `gpt-5.4` (`3/20`), and `3.3%` Stagehand unverified self-heal (`2/60`). **1,188x cheaper** (`$0.000015/run` vs `$0.017824/run`) and **5.1x faster** (`1.88 s` warm p50 vs `9.53 s`) once compiled. |",
+      "text": "60/60",
+      "reason": "Clean-room 4-app real-upgrade UI-drift study published at openadapt.ai/proof#ui-drift."
+    },
+    {
+      "id": "ui-drift-silent-pct",
+      "surface": "profile/README.md",
+      "context": "| **4-App Real-Upgrade UI Drift** | Gitea, Vikunja, Memos, Mealie (`N = 60`, 100-run amortized, 60/60 Ed25519 receipts) | **0% silent errors (`0/60`)** vs `18.3%` ASI programmatic synthesis (`p = 0.000977`), `15%` unwrapped `gpt-5.4` (`3/20`), and `3.3%` Stagehand unverified self-heal (`2/60`). **1,188x cheaper** (`$0.000015/run` vs `$0.017824/run`) and **5.1x faster** (`1.88 s` warm p50 vs `9.53 s`) once compiled. |",
+      "text": "0%",
+      "reason": "Clean-room 4-app real-upgrade UI-drift study published at openadapt.ai/proof#ui-drift."
+    },
+    {
+      "id": "ui-drift-silent-frac",
+      "surface": "profile/README.md",
+      "context": "**0% silent errors (`0/60`)**",
+      "text": "0/60",
+      "reason": "Clean-room 4-app real-upgrade UI-drift study published at openadapt.ai/proof#ui-drift."
+    },
+    {
+      "id": "ui-drift-asi-pct",
+      "surface": "profile/README.md",
+      "context": "| **4-App Real-Upgrade UI Drift** | Gitea, Vikunja, Memos, Mealie (`N = 60`, 100-run amortized, 60/60 Ed25519 receipts) | **0% silent errors (`0/60`)** vs `18.3%` ASI programmatic synthesis (`p = 0.000977`), `15%` unwrapped `gpt-5.4` (`3/20`), and `3.3%` Stagehand unverified self-heal (`2/60`). **1,188x cheaper** (`$0.000015/run` vs `$0.017824/run`) and **5.1x faster** (`1.88 s` warm p50 vs `9.53 s`) once compiled. |",
+      "text": "18.3%",
+      "reason": "Clean-room ASI programmatic synthesis baseline published at openadapt.ai/proof."
+    },
+    {
+      "id": "ui-drift-gpt-pct",
+      "surface": "profile/README.md",
+      "context": "| **4-App Real-Upgrade UI Drift** | Gitea, Vikunja, Memos, Mealie (`N = 60`, 100-run amortized, 60/60 Ed25519 receipts) | **0% silent errors (`0/60`)** vs `18.3%` ASI programmatic synthesis (`p = 0.000977`), `15%` unwrapped `gpt-5.4` (`3/20`), and `3.3%` Stagehand unverified self-heal (`2/60`). **1,188x cheaper** (`$0.000015/run` vs `$0.017824/run`) and **5.1x faster** (`1.88 s` warm p50 vs `9.53 s`) once compiled. |",
+      "text": "15%",
+      "reason": "Clean-room unwrapped gpt-5.4 baseline published at openadapt.ai/proof#ui-drift."
+    },
+    {
+      "id": "ui-drift-gpt-frac",
+      "surface": "profile/README.md",
+      "context": "| **4-App Real-Upgrade UI Drift** | Gitea, Vikunja, Memos, Mealie (`N = 60`, 100-run amortized, 60/60 Ed25519 receipts) | **0% silent errors (`0/60`)** vs `18.3%` ASI programmatic synthesis (`p = 0.000977`), `15%` unwrapped `gpt-5.4` (`3/20`), and `3.3%` Stagehand unverified self-heal (`2/60`). **1,188x cheaper** (`$0.000015/run` vs `$0.017824/run`) and **5.1x faster** (`1.88 s` warm p50 vs `9.53 s`) once compiled. |",
+      "text": "3/20",
+      "reason": "Clean-room unwrapped gpt-5.4 baseline published at openadapt.ai/proof#ui-drift."
+    },
+    {
+      "id": "ui-drift-stagehand-pct",
+      "surface": "profile/README.md",
+      "context": "| **4-App Real-Upgrade UI Drift** | Gitea, Vikunja, Memos, Mealie (`N = 60`, 100-run amortized, 60/60 Ed25519 receipts) | **0% silent errors (`0/60`)** vs `18.3%` ASI programmatic synthesis (`p = 0.000977`), `15%` unwrapped `gpt-5.4` (`3/20`), and `3.3%` Stagehand unverified self-heal (`2/60`). **1,188x cheaper** (`$0.000015/run` vs `$0.017824/run`) and **5.1x faster** (`1.88 s` warm p50 vs `9.53 s`) once compiled. |",
+      "text": "3.3%",
+      "reason": "Clean-room Stagehand unverified self-heal baseline published at openadapt.ai/proof#ui-drift."
+    },
+    {
+      "id": "ui-drift-stagehand-frac",
+      "surface": "profile/README.md",
+      "context": "| **4-App Real-Upgrade UI Drift** | Gitea, Vikunja, Memos, Mealie (`N = 60`, 100-run amortized, 60/60 Ed25519 receipts) | **0% silent errors (`0/60`)** vs `18.3%` ASI programmatic synthesis (`p = 0.000977`), `15%` unwrapped `gpt-5.4` (`3/20`), and `3.3%` Stagehand unverified self-heal (`2/60`). **1,188x cheaper** (`$0.000015/run` vs `$0.017824/run`) and **5.1x faster** (`1.88 s` warm p50 vs `9.53 s`) once compiled. |",
+      "text": "2/60",
+      "reason": "Clean-room Stagehand unverified self-heal baseline published at openadapt.ai/proof#ui-drift."
+    },
+    {
+      "id": "ui-drift-oa-cost",
+      "surface": "profile/README.md",
+      "context": "| **4-App Real-Upgrade UI Drift** | Gitea, Vikunja, Memos, Mealie (`N = 60`, 100-run amortized, 60/60 Ed25519 receipts) | **0% silent errors (`0/60`)** vs `18.3%` ASI programmatic synthesis (`p = 0.000977`), `15%` unwrapped `gpt-5.4` (`3/20`), and `3.3%` Stagehand unverified self-heal (`2/60`). **1,188x cheaper** (`$0.000015/run` vs `$0.017824/run`) and **5.1x faster** (`1.88 s` warm p50 vs `9.53 s`) once compiled. |",
+      "text": "$0.000015",
+      "reason": "Clean-room 100-run amortized cost published at openadapt.ai/proof#ui-drift."
+    },
+    {
+      "id": "ui-drift-gpt-cost",
+      "surface": "profile/README.md",
+      "context": "| **4-App Real-Upgrade UI Drift** | Gitea, Vikunja, Memos, Mealie (`N = 60`, 100-run amortized, 60/60 Ed25519 receipts) | **0% silent errors (`0/60`)** vs `18.3%` ASI programmatic synthesis (`p = 0.000977`), `15%` unwrapped `gpt-5.4` (`3/20`), and `3.3%` Stagehand unverified self-heal (`2/60`). **1,188x cheaper** (`$0.000015/run` vs `$0.017824/run`) and **5.1x faster** (`1.88 s` warm p50 vs `9.53 s`) once compiled. |",
+      "text": "$0.017824",
+      "reason": "Clean-room unwrapped gpt-5.4 cost published at openadapt.ai/proof#ui-drift."
+    },
+    {
+      "id": "ui-drift-oa-p50",
+      "surface": "profile/README.md",
+      "context": "| **4-App Real-Upgrade UI Drift** | Gitea, Vikunja, Memos, Mealie (`N = 60`, 100-run amortized, 60/60 Ed25519 receipts) | **0% silent errors (`0/60`)** vs `18.3%` ASI programmatic synthesis (`p = 0.000977`), `15%` unwrapped `gpt-5.4` (`3/20`), and `3.3%` Stagehand unverified self-heal (`2/60`). **1,188x cheaper** (`$0.000015/run` vs `$0.017824/run`) and **5.1x faster** (`1.88 s` warm p50 vs `9.53 s`) once compiled. |",
+      "text": "1.88 s",
+      "reason": "Clean-room warm p50 latency published at openadapt.ai/proof#ui-drift."
+    },
+    {
+      "id": "ui-drift-gpt-p50",
+      "surface": "profile/README.md",
+      "context": "| **4-App Real-Upgrade UI Drift** | Gitea, Vikunja, Memos, Mealie (`N = 60`, 100-run amortized, 60/60 Ed25519 receipts) | **0% silent errors (`0/60`)** vs `18.3%` ASI programmatic synthesis (`p = 0.000977`), `15%` unwrapped `gpt-5.4` (`3/20`), and `3.3%` Stagehand unverified self-heal (`2/60`). **1,188x cheaper** (`$0.000015/run` vs `$0.017824/run`) and **5.1x faster** (`1.88 s` warm p50 vs `9.53 s`) once compiled. |",
+      "text": "9.53 s",
+      "reason": "Clean-room unwrapped gpt-5.4 warm p50 latency published at openadapt.ai/proof#ui-drift."
+    },
+    {
+      "id": "hab-multitab-avc-before",
+      "surface": "profile/README.md",
+      "context": "**+25.0 pp Verified Completion recovery** (`20.8% -> 45.8%`)",
+      "text": "20.8%",
+      "reason": "Clean-room Multi-Tab HealthAdminBench baseline published at openadapt.ai/proof."
+    },
+    {
+      "id": "hab-multitab-avc-after",
+      "surface": "profile/README.md",
+      "context": "**+25.0 pp Verified Completion recovery** (`20.8% -> 45.8%`)",
+      "text": "45.8%",
+      "reason": "Clean-room Multi-Tab HealthAdminBench verified completion published at openadapt.ai/proof."
+    },
+    {
+      "id": "hab-multitab-fe-before",
+      "surface": "profile/README.md",
+      "context": "**5x fewer false escalations** (`20.8% -> 4.2%`)",
+      "text": "20.8%",
+      "reason": "Clean-room Multi-Tab HealthAdminBench baseline false escalation rate published at openadapt.ai/proof."
+    },
+    {
+      "id": "hab-multitab-fe-after",
+      "surface": "profile/README.md",
+      "context": "| **Multi-Tab HealthAdminBench** | Paired frontier runs (`gpt-5.4` & `claude-sonnet-5-5`, 0 leaked hints) | **+25.0 pp Verified Completion recovery** (`20.8% -> 45.8%`), **5x fewer false escalations** (`20.8% -> 4.2%`), and **0 regressions**. Single-tab paired (`N = 24`): **-25.0 pp silent errors** (`70.8% -> 45.8%`, `p = 0.031`). |",
+      "text": "4.2%",
+      "reason": "Clean-room Multi-Tab HealthAdminBench false escalation rate published at openadapt.ai/proof."
+    },
+    {
+      "id": "hab-singletab-ser-before",
+      "surface": "profile/README.md",
+      "context": "| **Multi-Tab HealthAdminBench** | Paired frontier runs (`gpt-5.4` & `claude-sonnet-5-5`, 0 leaked hints) | **+25.0 pp Verified Completion recovery** (`20.8% -> 45.8%`), **5x fewer false escalations** (`20.8% -> 4.2%`), and **0 regressions**. Single-tab paired (`N = 24`): **-25.0 pp silent errors** (`70.8% -> 45.8%`, `p = 0.031`). |",
+      "text": "70.8%",
+      "reason": "Clean-room paired HealthAdminBench N=24 baseline silent error rate published at openadapt.ai/proof#healthadmin."
+    },
+    {
+      "id": "hab-singletab-ser-after",
+      "surface": "profile/README.md",
+      "context": "**-25.0 pp silent errors** (`70.8% -> 45.8%`, `p = 0.031`)",
+      "text": "45.8%",
+      "reason": "Clean-room paired HealthAdminBench N=24 silent error rate published at openadapt.ai/proof#healthadmin."
+    },
+    {
+      "id": "veto-ood-fpr-before",
+      "surface": "profile/README.md",
+      "context": "| **Veto-4B-r6 Local Safety Sidecar** | 4 unseen desktop apps on-premise ([Hugging Face](https://huggingface.co/OpenAdapt/openadapt-veto-4b-r6)) | **OOD AUROC `0.627 -> 0.791`** (`p = 0.0051`), **OOD FPR `37.9% -> 6.9%`** at `357 ms` in `3.15 GB` VRAM with zero screenshot egress. |",
+      "text": "37.9%",
+      "reason": "Veto-4B-r6 OOD FPR baseline published on Hugging Face (OpenAdapt/openadapt-veto-4b-r6)."
+    },
+    {
+      "id": "veto-ood-fpr-after",
+      "surface": "profile/README.md",
+      "context": "| **Veto-4B-r6 Local Safety Sidecar** | 4 unseen desktop apps on-premise ([Hugging Face](https://huggingface.co/OpenAdapt/openadapt-veto-4b-r6)) | **OOD AUROC `0.627 -> 0.791`** (`p = 0.0051`), **OOD FPR `37.9% -> 6.9%`** at `357 ms` in `3.15 GB` VRAM with zero screenshot egress. |",
+      "text": "6.9%",
+      "reason": "Veto-4B-r6 OOD FPR published on Hugging Face (OpenAdapt/openadapt-veto-4b-r6)."
+    }
+  ]
 }
