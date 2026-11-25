@@ -22,13 +22,13 @@ canonical_product:
 # field, and the topic list replaces every current topic.
 public_metadata:
   organization_description: >-
-    Enters approved information into the systems your team already uses,
-    checks that it saved, and stops to ask a person when something doesn't
-    match.
+    Verified execution and compilation for AI agents and GUI workflows.
+    Before-click checks, read-back verification, and signed Ed25519 receipts.
   organization_homepage: https://openadapt.ai/
   profile_headline: >-
-    OpenAdapt enters approved information into the systems your team already
-    uses, and then it checks that the entry saved.
+    Every app on earth, one verified API. Compile, verify, and self-heal any GUI
+    workflow or AI agent with before-click checks, read-back verification, and
+    signed Ed25519 receipts.
   pinned_repositories:
     - OpenAdapt
     - openadapt-desktop
@@ -37,31 +37,30 @@ public_metadata:
   repositories:
     OpenAdapt:
       description: >-
-        OpenAdapt takes the last manual step off your team. It enters approved
-        information into EMRs, portals, and desktop or Citrix apps, then checks
-        that it saved.
+        Compile, verify, and self-heal any GUI workflow or AI agent. 0% silent
+        errors, Ed25519 receipts, 1,000x cheaper & 5x faster once compiled.
       homepage: https://openadapt.ai
       topics:
-        - rpa
-        - robotic-process-automation
-        - process-automation
-        - workflow-automation
-        - desktop-automation
-        - browser-automation
-        - gui-automation
-        - ui-automation
-        - citrix
-        - rdp
-        - healthcare-automation
-        - emr
-        - ehr
+        - ai-agents
         - computer-use
-        - human-in-the-loop
-        - audit-trail
-        - local-first
-        - automation-from-demonstration
+        - gui-agents
+        - claude-code
+        - codex
         - mcp
-        - python
+        - playwright
+        - verification
+        - ed25519
+        - workflow-automation
+        - self-healing-automation
+        - local-first
+        - browser-automation
+        - desktop-automation
+        - rpa
+        - healthcare-automation
+        - human-in-the-loop
+        - agent-harness
+        - deterministic-replay
+        - workflow-compiler
     openadapt-flow:
       description: >-
         Frozen copy of OpenAdapt's open-source engine. It is now developed and
